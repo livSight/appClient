@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { Download, ShoppingBag, Wallet, ChevronRight } from "lucide-react-native";
+import { router } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
-import DeliveryHistoryCard from "../../components/DeliveryHistoryCard";
+import OrderCard from "../../components/OrderCard";
 import { card, row } from "../../theme/styles";
 import { colors, radii, typography } from "../../theme/tokens";
 import { listVendorDeliveries, type VendorDelivery } from "@/lib/api/vendor";
@@ -431,7 +432,7 @@ export default function RapportsScreen() {
       <View style={{ marginTop: 18 }}>
         <View style={{ ...row.spaceBetween, marginBottom: 12 }}>
           <Text style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }}>Historique</Text>
-          <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Pressable onPress={() => router.push("/(tabs)/livraison")} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Text style={{ ...typography.link, fontSize: 12 }}>Voir tout</Text>
             <ChevronRight size={16} color={colors.primary} />
           </Pressable>
@@ -439,12 +440,13 @@ export default function RapportsScreen() {
 
         <View style={{ gap: 12 }}>
           {computed.history.map((it) => (
-            <DeliveryHistoryCard
+            <OrderCard
               key={it.id}
               title={it.title}
-              meta={it.meta}
-              amount={it.amount}
-              tag={it.tag}
+              subtitle={it.meta}
+              rightTop={it.amount}
+              rightBottom={it.tag}
+              onPress={() => router.push(`/livraison-detail/${it.id}`)}
             />
           ))}
         </View>

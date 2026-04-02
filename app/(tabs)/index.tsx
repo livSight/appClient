@@ -1,4 +1,5 @@
-import { View, Text, useWindowDimensions } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { View, Text, useWindowDimensions, ActivityIndicator, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Shirt, UtensilsCrossed, Gem, Package2 } from "lucide-react-native";
 import { router } from "expo-router";
@@ -8,11 +9,71 @@ import SectionHeader from "../../components/SectionHeader";
 import CategoryCard from "../../components/CategoryCard";
 import OrderCard from "../../components/OrderCard";
 import PillButton from "../../components/PillButton";
+import { listVendorDeliveries, type VendorDelivery } from "@/lib/api/vendor";
+
+function safeNumber(n: unknown): number {
+  const v = typeof n === "number" ? n : Number(n);
+  return Number.isFinite(v) ? v : 0;
+}
+
+function deriveTitle(d: VendorDelivery): string {
+  return d.customer_name?.trim()
+    ? d.customer_name.trim()
+    : d.items?.trim()
+      ? d.items.trim()
+      : d.phone;
+}
+
+function formatShortDate(iso?: string): string {
+  if (!iso) return "";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleString("fr-FR", { day: "2-digit", month: "short" });
+}
 
 export default function AccueilScreen() {
   const { width } = useWindowDimensions();
   const contentWidth = width - spacing.screenPaddingX * 2;
   const cardWidth = (contentWidth - spacing.gridColGap) / 2;
+
+  const [loadingRecent, setLoadingRecent] = useState(true);
+  const [errorRecent, setErrorRecent] = useState<string | null>(null);
+  const [recent, setRecent] = useState<VendorDelivery | null>(null);
+
+  async function loadRecent() {
+    setLoadingRecent(true);
+    setErrorRecent(null);
+    try {
+      const res = await listVendorDeliveries({
+        page: 1,
+        limit: 1,
+        sortBy: "created_at",
+        sortOrder: "DESC",
+      });
+      setRecent(res[0] ?? null);
+    } catch (e) {
+      setErrorRecent(e instanceof Error ? e.message : "Erreur de chargement");
+    } finally {
+      setLoadingRecent(false);
+    }
+  }
+
+  useEffect(() => {
+    loadRecent();
+  }, []);
+
+  const recentUi = useMemo(() => {
+    if (!recent) return null;
+    const quartier = recent.quartier?.trim() ? recent.quartier.trim() : "—";
+    const when = formatShortDate(recent.created_at);
+    const amount = `${safeNumber(recent.amount_due)} XAF`;
+    const subtitleParts = [quartier, when, amount].filter(Boolean);
+    return {
+      title: deriveTitle(recent),
+      subtitle: subtitleParts.join(" • "),
+      id: String(recent.id),
+    };
+  }, [recent]);
 
   return (
     <ScreenLayout>
@@ -114,11 +175,47 @@ export default function AccueilScreen() {
 
       {/* Recent Deliveries */}
       <View>
-        <SectionHeader title="Dernière commande" linkLabel="Voir tout" />
-        <OrderCard
-          title="Chechia Homme"
-          subtitle="Mobile Omnisports • Il y a 2 jours"
+        <SectionHeader
+          title="Dernière commande"
+          linkLabel="Voir tout"
+          onLinkPress={() => router.push("/(tabs)/livraison")}
         />
+
+        {loadingRecent ? (
+          <View style={{ paddingVertical: 10, alignItems: "center" }}>
+            <ActivityIndicator />
+          </View>
+        ) : errorRecent ? (
+          <View style={{ paddingVertical: 4 }}>
+            <Text style={{ color: "#D32F2F", fontWeight: "600", marginBottom: 10 }}>
+              {errorRecent}
+            </Text>
+            <Pressable
+              onPress={loadRecent}
+              style={{
+                height: 44,
+                borderRadius: radii.pill,
+                backgroundColor: colors.primary,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: 18,
+                alignSelf: "flex-start",
+              }}
+            >
+              <Text style={typography.buttonTextInverse}>Réessayer</Text>
+            </Pressable>
+          </View>
+        ) : recentUi ? (
+          <OrderCard
+            title={recentUi.title}
+            subtitle={recentUi.subtitle}
+            onPress={() => router.push(`/livraison-detail/${recentUi.id}`)}
+          />
+        ) : (
+          <Text style={[typography.bodyRegular, { color: colors.muted }]}>
+            Aucune livraison récente
+          </Text>
+        )}
       </View>
     </ScreenLayout>
   );
