@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { View, Text, Pressable, TextInput } from "react-native";
 import { router } from "expo-router";
 import { Search, ChevronRight, ArrowLeft, MapPin, CheckCircle2 } from "lucide-react-native";
@@ -7,26 +8,34 @@ import ScreenLayout from "../components/ScreenLayout";
 type Zone = {
   id: string;
   name: string;
-  selected?: boolean;
 };
 
 const ZONES: Zone[] = [
   { id: "elig-edzoa", name: "Elig-Edzoa" },
   { id: "elig-effa", name: "Elig-Effa" },
   { id: "elig-essono", name: "Elig-Essono" },
-  { id: "emombo", name: "Emombo", selected: true },
+  { id: "emombo", name: "Emombo" },
   { id: "essomba", name: "Essomba" },
 ];
 
-function ZoneRow({ zone }: { zone: Zone }) {
+function ZoneRow({
+  zone,
+  selected,
+  onPress,
+}: {
+  zone: Zone;
+  selected: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
+      onPress={onPress}
       style={{
-        height: zone.selected ? 87.5 : 80,
+        height: selected ? 87.5 : 80,
         borderRadius: radii.card,
         backgroundColor: colors.white,
-        borderWidth: zone.selected ? 2 : 0,
-        borderColor: zone.selected ? colors.primary : "transparent",
+        borderWidth: selected ? 2 : 0,
+        borderColor: selected ? colors.primary : "transparent",
         paddingHorizontal: 20,
         alignItems: "center",
         flexDirection: "row",
@@ -43,7 +52,7 @@ function ZoneRow({ zone }: { zone: Zone }) {
           marginRight: 12,
         }}
       >
-        {zone.selected ? (
+        {selected ? (
           <CheckCircle2 size={20} color={colors.primary} />
         ) : (
           <MapPin size={20} color={colors.primary} />
@@ -54,7 +63,7 @@ function ZoneRow({ zone }: { zone: Zone }) {
         <Text style={{ ...typography.sectionTitle, fontSize: 16, lineHeight: 24 }}>
           {zone.name}
         </Text>
-        {zone.selected ? (
+        {selected ? (
           <Text style={{ ...typography.cardSubtitle, color: colors.primary, marginTop: 2 }}>
             ZONE SÉLECTIONNÉE
           </Text>
@@ -67,6 +76,25 @@ function ZoneRow({ zone }: { zone: Zone }) {
 }
 
 export default function LivraisonZoneScreen() {
+  const [query, setQuery] = useState("");
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+
+  const filteredZones = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return ZONES;
+    return ZONES.filter((z) => z.name.toLowerCase().includes(q));
+  }, [query]);
+
+  const selectedZone = useMemo(
+    () => (selectedZoneId ? ZONES.find((z) => z.id === selectedZoneId) ?? null : null),
+    [selectedZoneId]
+  );
+
+  function onConfirm() {
+    if (!selectedZone) return;
+    router.push({ pathname: "/ma-demande", params: { quartier: selectedZone.name } });
+  }
+
   return (
     <ScreenLayout>
       {/* Header */}
@@ -101,6 +129,8 @@ export default function LivraisonZoneScreen() {
       >
         <Search size={18} color={colors.tabInactive.rapports} />
         <TextInput
+          value={query}
+          onChangeText={setQuery}
           placeholder="Rechercher un quartier..."
           placeholderTextColor={colors.tabInactive.rapports}
           style={{ flex: 1, marginLeft: 10, fontSize: 14, color: colors.text }}
@@ -109,18 +139,25 @@ export default function LivraisonZoneScreen() {
 
       {/* Zone list */}
       <View style={{ marginTop: 24, gap: 16 }}>
-        {ZONES.map((z) => (
-          <ZoneRow key={z.id} zone={z} />
+        {filteredZones.map((z) => (
+          <ZoneRow
+            key={z.id}
+            zone={z}
+            selected={z.id === selectedZoneId}
+            onPress={() => setSelectedZoneId(z.id)}
+          />
         ))}
       </View>
 
       {/* Bottom CTA */}
       <View style={{ marginTop: 28 }}>
         <Pressable
+          onPress={onConfirm}
+          disabled={!selectedZone}
           style={{
             height: 56,
             borderRadius: radii.pill,
-            backgroundColor: colors.primary,
+            backgroundColor: selectedZone ? colors.primary : "#90BFD8",
             alignItems: "center",
             justifyContent: "center",
           }}

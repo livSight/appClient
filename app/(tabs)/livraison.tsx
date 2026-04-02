@@ -156,6 +156,7 @@ function OrderCard({ order }: { order: Order }) {
         </View>
 
         <Pressable
+          onPress={() => router.push(`/livraison-detail/${order.id}`)}
           style={{
             height: 36,
             paddingHorizontal: 22,

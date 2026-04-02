@@ -74,6 +74,10 @@ export async function listVendorDeliveries(params: ListVendorDeliveriesParams = 
   return apiFetch<VendorDelivery[]>(`/vendor/deliveries${qs ? `?${qs}` : ""}`);
 }
 
+export async function getDeliveryById(id: string | number) {
+  return apiFetch<VendorDelivery>(`/deliveries/${encodeURIComponent(String(id))}`);
+}
+
 export type CreateVendorDeliveryBody = {
   phone: string;
   items: string;
