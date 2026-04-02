@@ -221,17 +221,19 @@ export default function LivraisonScreen() {
   }, [active]);
 
   return (
-    <ScreenLayout>
-      {/* Top bar */}
-      <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 8 }}>
-        <Pressable style={{ width: 44, height: 44, justifyContent: "center" }}>
-          <ArrowLeft size={22} color="#2ECC71" />
-        </Pressable>
-        <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Livraison</Text>
+    <ScreenLayout
+      header={
+        <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 8 }}>
+          <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
+            <ArrowLeft size={22} color={colors.text} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Livraison</Text>
+          </View>
+          <View style={{ width: 44 }} />
         </View>
-        <View style={{ width: 44 }} />
-      </View>
+      }
+    >
 
       <Text style={{ ...typography.subtitle, marginBottom: 14 }}>
         Consultez toutes vos Livraisons

@@ -190,15 +190,19 @@ export default function LivraisonDetailScreen() {
   );
 
   return (
-    <ScreenLayout>
-      {/* Header */}
-      <View style={{ ...row.spaceBetween, height: 44, marginBottom: 16 }}>
-        <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
-          <ArrowLeft size={22} color={colors.text} />
-        </Pressable>
-        <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Detail de Livraison</Text>
-        <View style={{ width: 44 }} />
-      </View>
+    <ScreenLayout
+      header={
+        <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 12 }}>
+          <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
+            <ArrowLeft size={22} color={colors.text} />
+          </Pressable>
+          <View style={{ flex: 1, alignItems: "center" }}>
+            <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Detail de Livraison</Text>
+          </View>
+          <View style={{ width: 44 }} />
+        </View>
+      }
+    >
 
       {loading ? (
         <View style={{ paddingVertical: 40, alignItems: "center" }}>

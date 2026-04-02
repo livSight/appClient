@@ -1,32 +1,60 @@
 import { ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { layout } from "../theme/styles";
-import { spacing } from "../theme/tokens";
+import { colors, spacing } from "../theme/tokens";
 
 type Props = {
   children: React.ReactNode;
   /** Use false for screens that shouldn't scroll (e.g. a map screen) */
   scrollable?: boolean;
+  /** Rendered above the ScrollView so it stays fixed while content scrolls */
+  header?: React.ReactNode;
 };
 
 /**
  * Wraps every screen with the correct background, safe-area padding,
  * and horizontal gutters. Import this instead of writing ScrollView boilerplate.
  */
-export default function ScreenLayout({ children, scrollable = true }: Props) {
+export default function ScreenLayout({ children, scrollable = true, header }: Props) {
   const insets = useSafeAreaInsets();
+
+  const topPadding = Math.max(spacing.screenPaddingX, insets.top + spacing.screenPaddingX);
+  const bottomPadding = Math.max(24, insets.bottom + 24);
+
+  if (header) {
+    return (
+      <View style={layout.screen}>
+        <View
+          style={{
+            paddingTop: topPadding,
+            paddingHorizontal: spacing.screenPaddingX,
+            backgroundColor: colors.bg,
+          }}
+        >
+          {header}
+        </View>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.screenPaddingX,
+            paddingBottom: bottomPadding,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+      </View>
+    );
+  }
 
   const contentStyle = [
     layout.scrollContent,
-    {
-      paddingTop: Math.max(spacing.screenPaddingX, insets.top + spacing.screenPaddingX),
-      paddingBottom: Math.max(24, insets.bottom + 24),
-    },
+    { paddingTop: topPadding, paddingBottom: bottomPadding },
   ];
 
   if (!scrollable) {
     return (
-      <View style={[layout.screen, contentStyle[0], { paddingTop: contentStyle[1].paddingTop }]}>
+      <View style={[layout.screen, contentStyle[0], { paddingTop: topPadding }]}>
         {children}
       </View>
     );
