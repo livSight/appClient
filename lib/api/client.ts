@@ -1,5 +1,6 @@
 import { apiBaseUrl } from "@/lib/config/env";
 import { getVendorToken } from "@/lib/auth/token";
+import { notifyAuthFailure } from "@/lib/auth/session";
 
 export type ApiErrorPayload = {
   success: false;
@@ -82,6 +83,13 @@ export async function apiFetch<T>(
       payload && payload.success === false && typeof payload.message === "string"
         ? payload.message
         : `HTTP ${res.status}`;
+
+    if (res.status === 401) {
+      const m = payload?.message?.toLowerCase?.() ?? "";
+      await notifyAuthFailure(m.includes("expired") ? "token_expired" : "unauthorized");
+    } else if (res.status === 403) {
+      await notifyAuthFailure("forbidden");
+    }
 
     const snippet = text.length ? text.slice(0, 200) : "";
     throw new ApiError(message, res.status, {
