@@ -355,21 +355,21 @@ export default function RapportsScreen() {
   return (
     <ScreenLayout
       header={
-        <View style={{ ...row.spaceBetween, height: 44, marginBottom: 6 }}>
-          <View style={{ width: 44 }} />
-          <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Rapports</Text>
-          <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Download size={18} color={colors.text} />
-            <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Exporter</Text>
-          </Pressable>
+        <View>
+          <View style={{ height: 44, alignItems: "flex-end", justifyContent: "center" }}>
+            <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Download size={18} color={colors.text} />
+              <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Exporter</Text>
+            </Pressable>
+          </View>
+          <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Rapports d&apos;activité</Text>
+          <Text style={[typography.subtitle, { marginTop: 4 }]}>
+            Suivez vos performances
+          </Text>
+          <RangeToggle value={range} onChange={setRange} />
         </View>
       }
     >
-
-      <Text style={{ ...typography.screenTitle, fontSize: 22, lineHeight: 28 }}>
-        Rapports d&apos;activité
-      </Text>
-      <RangeToggle value={range} onChange={setRange} />
 
       {loading ? (
         <View style={{ paddingVertical: 28, alignItems: "center" }}>

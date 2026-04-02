@@ -76,14 +76,16 @@ export default function AccueilScreen() {
   }, [recent]);
 
   return (
-    <ScreenLayout>
-      {/* Greeting */}
-      <View style={{ marginBottom: spacing.sectionGap }}>
-        <Text style={typography.screenTitle}>Bonjour Alex</Text>
-        <Text style={[typography.subtitle, { marginTop: 8 }]}>
-          Que souhaitez-vous vous faire livrer{"\n"}aujourd&apos;hui ?
-        </Text>
-      </View>
+    <ScreenLayout
+      header={
+        <View style={{ paddingBottom: 20 }}>
+          <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Bonjour Alex</Text>
+          <Text style={[typography.subtitle, { marginTop: 4 }]}>
+            Que souhaitez-vous vous faire livrer{"\n"}aujourd&apos;hui ?
+          </Text>
+        </View>
+      }
+    >
 
       {/* Category Grid */}
       <View style={{ marginBottom: spacing.sectionGap }}>

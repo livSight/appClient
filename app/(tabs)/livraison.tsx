@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, View, Text, Pressable } from "react-native";
-import { ArrowLeft, Package2 } from "lucide-react-native";
+import { Package2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
 import { card, row } from "../../theme/styles";
@@ -223,21 +223,14 @@ export default function LivraisonScreen() {
   return (
     <ScreenLayout
       header={
-        <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 8 }}>
-          <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
-            <ArrowLeft size={22} color={colors.text} />
-          </Pressable>
-          <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Livraison</Text>
-          </View>
-          <View style={{ width: 44 }} />
+        <View style={{ paddingBottom: 10 }}>
+          <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Mes Livraisons</Text>
+          <Text style={[typography.subtitle, { marginTop: 4 }]}>
+            Consultez toutes vos livraisons
+          </Text>
         </View>
       }
     >
-
-      <Text style={{ ...typography.subtitle, marginBottom: 14 }}>
-        Consultez toutes vos Livraisons
-      </Text>
 
       <View style={{ flexDirection: "row", gap: 12, marginBottom: spacing.sectionGap / 2 }}>
         <Pressable onPress={() => setActive("Tout")}>

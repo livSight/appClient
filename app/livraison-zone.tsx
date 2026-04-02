@@ -98,24 +98,20 @@ export default function LivraisonZoneScreen() {
   return (
     <ScreenLayout
       header={
-        <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 12 }}>
-          <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
-            <ArrowLeft size={22} color={colors.text} />
-          </Pressable>
-          <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Livraison</Text>
+        <View>
+          <View style={{ flexDirection: "row", alignItems: "center", height: 44 }}>
+            <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
+              <ArrowLeft size={22} color={colors.text} />
+            </Pressable>
+            <View style={{ width: 44 }} />
           </View>
-          <View style={{ width: 44 }} />
+          <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Choisissez votre zone</Text>
+          <Text style={[typography.subtitle, { marginTop: 4 }]}>
+            Sélectionnez votre quartier pour découvrir les{"\n"}ateliers disponibles près de chez vous.
+          </Text>
         </View>
       }
     >
-
-      <Text style={{ ...typography.screenTitle, fontSize: 32, lineHeight: 36 }}>
-        Choisissez votre zone
-      </Text>
-      <Text style={{ ...typography.subtitle, marginTop: 10 }}>
-        Sélectionnez votre quartier pour découvrir les{"\n"}ateliers disponibles près de chez vous.
-      </Text>
 
       {/* Search input */}
       <View
