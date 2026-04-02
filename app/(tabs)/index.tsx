@@ -79,10 +79,31 @@ export default function AccueilScreen() {
     <ScreenLayout
       header={
         <View style={{ paddingBottom: 20 }}>
-          <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Bonjour Alex</Text>
-          <Text style={[typography.subtitle, { marginTop: 4 }]}>
-            Que souhaitez-vous vous faire livrer{"\n"}aujourd&apos;hui ?
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>
+                Bonjour Alex
+              </Text>
+              <Text style={[typography.subtitle, { marginTop: 4 }]}>
+                Que souhaitez-vous vous faire livrer{"\n"}aujourd&apos;hui ?
+              </Text>
+            </View>
+
+            <Pressable
+              hitSlop={10}
+              onPress={() => router.push("/profile")}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 9999,
+                backgroundColor: colors.iconBg,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>A</Text>
+            </Pressable>
+          </View>
         </View>
       }
     >
