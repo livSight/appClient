@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, View, Text, Pressable } from "react-native";
 import { ArrowLeft, Package2 } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
 import { card, row } from "../../theme/styles";
 import { colors, radii, spacing, typography } from "../../theme/tokens";
@@ -55,7 +55,7 @@ function toOrder(delivery: VendorDelivery): Order {
 
 function Chip({ label, active }: { label: Status; active?: boolean }) {
   return (
-    <Pressable
+    <View
       style={{
         height: 56,
         paddingHorizontal: 18,
@@ -74,7 +74,7 @@ function Chip({ label, active }: { label: Status; active?: boolean }) {
       >
         {label}
       </Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -174,7 +174,13 @@ function OrderCard({ order }: { order: Order }) {
 }
 
 export default function LivraisonScreen() {
-  const [active, setActive] = useState<Status>("Tout");
+  const { filter } = useLocalSearchParams<{ filter?: string }>();
+  const [active, setActive] = useState<Status>(() => {
+    if (filter === "En cours") return "En cours";
+    if (filter === "Livré") return "Livré";
+    if (filter === "Annulé") return "Annulé";
+    return "Tout";
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deliveries, setDeliveries] = useState<VendorDelivery[]>([]);

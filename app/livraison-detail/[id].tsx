@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, View, Text, Pressable } from "react-native";
+import { ActivityIndicator, View, Text, Pressable, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import {
@@ -104,12 +104,52 @@ function iconForStep(state: StepState) {
   return { Icon: CircleDot, color: "#CBD5E1" };
 }
 
+type StatusFilter = "EN COURS" | "LIVRÉ" | "AU BUREAU" | "PROBLÈME" | "ANNULÉ";
+
+const chipToListFilter: Record<StatusFilter, string> = {
+  "EN COURS": "En cours",
+  "LIVRÉ": "Livré",
+  "AU BUREAU": "En cours",
+  "PROBLÈME": "En cours",
+  "ANNULÉ": "Annulé",
+};
+
+function FilterChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: StatusFilter;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const bg = active ? colors.primary : "#E9E9EA";
+  const fg = active ? colors.white : colors.text;
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      style={{
+        height: 48,
+        paddingHorizontal: 16,
+        borderRadius: radii.pill,
+        backgroundColor: bg,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ fontSize: 12, fontWeight: "700", color: fg, letterSpacing: 0.6 }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 export default function LivraisonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [delivery, setDelivery] = useState<VendorDelivery | null>(null);
-
   const statusChip = useMemo(() => mapBackendStatusToChip(delivery?.status), [delivery?.status]);
   const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
 
@@ -204,6 +244,28 @@ export default function LivraisonDetailScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Status filters — tap to navigate to list filtered by that status */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ gap: 12, paddingBottom: 6, marginBottom: 12 }}
+          >
+            {(["EN COURS", "LIVRÉ", "AU BUREAU", "PROBLÈME", "ANNULÉ"] as StatusFilter[]).map((label) => (
+              <FilterChip
+                key={label}
+                label={label}
+                active={statusChip.label === label}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(tabs)/livraison",
+                    params: { filter: chipToListFilter[label] },
+                  })
+                }
+              />
+            ))}
+          </ScrollView>
 
           {/* Status card */}
           <View style={[card.outlined, { padding: 24 }]}>
