@@ -1,19 +1,22 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { router } from "expo-router";
 import { X, Check } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
-import { colors, radii, typography } from "../theme/tokens";
+import { colors, fonts, radii, typography } from "../theme/tokens";
+import AppText from "../components/AppText";
 
 export default function ConfirmeeScreen() {
   return (
     <ScreenLayout>
       {/* Top bar (close + centered title) */}
-      <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 32 }}>
-        <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, marginBottom: 32 }}>
+        <Pressable onPress={() => router.back()} style={{ width: 44, minHeight: 44, justifyContent: "center" }}>
           <X size={22} color={colors.text} />
         </Pressable>
-        <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Livraison</Text>
+        <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
+          <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
+            Livraison
+          </AppText>
         </View>
         <View style={{ width: 44 }} />
       </View>
@@ -44,39 +47,47 @@ export default function ConfirmeeScreen() {
           </View>
         </View>
 
-        <Text style={{ ...typography.screenTitle, fontSize: 28, lineHeight: 34 }}>
+        <AppText style={{ ...typography.screenTitle, fontSize: 28, lineHeight: 34 }} numberOfLines={2}>
           Demande envoyée !
-        </Text>
-        <Text style={{ ...typography.subtitle, marginTop: 8 }}>Livraison Enregistrée</Text>
+        </AppText>
+        <AppText style={{ ...typography.subtitle, marginTop: 8 }} numberOfLines={2}>
+          Livraison Enregistrée
+        </AppText>
       </View>
 
       <View style={{ marginTop: 40, gap: 16 }}>
         <Pressable
           style={{
-            height: 64,
+            minHeight: 64,
             borderRadius: radii.pill,
             backgroundColor: colors.primary,
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "row",
+            paddingVertical: 14,
           }}
         >
-          <Text style={typography.buttonTextInverse}>Suivre la commande</Text>
+          <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
+            Suivre la commande
+          </AppText>
         </Pressable>
 
         <Pressable
           onPress={() => router.replace("/livraison")}
           style={{
-            height: 64,
+            minHeight: 64,
             borderRadius: radii.pill,
             backgroundColor: colors.white,
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 1,
             borderColor: "#E5E7EB",
+            paddingVertical: 14,
           }}
         >
-          <Text style={{ ...typography.bodyRegular, fontWeight: "700" }}>Faire une autre demande</Text>
+          <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
+            Faire une autre demande
+          </AppText>
         </Pressable>
       </View>
     </ScreenLayout>

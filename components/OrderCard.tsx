@@ -1,6 +1,7 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { card, icon } from "../theme/styles";
-import { colors, typography } from "../theme/tokens";
+import { colors, fonts, typography } from "../theme/tokens";
+import AppText from "./AppText";
 
 type Props = {
   title: string;
@@ -23,22 +24,40 @@ export default function OrderCard({ title, subtitle, rightTop, rightBottom, onPr
     >
       <View style={[icon.placeholder, { marginRight: 16 }]} />
 
-      <View style={{ flex: 1 }}>
-        <Text style={typography.cardTitle}>{title}</Text>
-        <Text style={[typography.bodyRegular, { color: colors.muted, marginTop: 4 }]}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AppText style={typography.cardTitle} numberOfLines={2} ellipsizeMode="tail">
+          {title}
+        </AppText>
+        <AppText
+          style={[typography.bodyRegular, { color: colors.muted, marginTop: 4 }]}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+        >
           {subtitle}
-        </Text>
+        </AppText>
       </View>
 
       {hasRight ? (
-        <View style={{ alignItems: "flex-end", marginLeft: 12 }}>
+        <View style={{ alignItems: "flex-end", marginLeft: 12, flexShrink: 0 }}>
           {rightTop ? (
-            <Text style={{ fontSize: 12, fontWeight: "800", color: colors.primary }}>{rightTop}</Text>
+            <AppText
+              variant="dense"
+              style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {rightTop}
+            </AppText>
           ) : null}
           {rightBottom ? (
-            <Text style={{ ...typography.subtitle, fontSize: 10, lineHeight: 14, marginTop: 6 }}>
+            <AppText
+              variant="dense"
+              style={{ ...typography.subtitle, fontSize: 10, lineHeight: 14, marginTop: 6 }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {rightBottom}
-            </Text>
+            </AppText>
           ) : null}
         </View>
       ) : (

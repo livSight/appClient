@@ -1,50 +1,35 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { Alert, View, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Minus, Plus, Trash2 } from "lucide-react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { card, row } from "../../theme/styles";
-import { colors, radii, spacing, typography } from "../../theme/tokens";
-import {
-  createVendorStockItem,
-  deleteVendorStockItem,
-  listVendorStockItems,
-  patchVendorStockItem,
-  type StockItem as ApiStockItem,
-} from "@/lib/api/stock";
+import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
+import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import AppText from "../../components/AppText";
 
 type StockItem = {
   id: string;
-  serverId?: number;
   name: string;
   subtitle: string;
   qty: number;
   low?: boolean;
 };
 
-function toUi(it: ApiStockItem): StockItem {
-  return {
-    id: String(it.id),
-    serverId: it.id,
-    name: it.name,
-    subtitle: it.subtitle ?? "",
-    qty: it.quantity ?? 0,
-    low: it.quantity <= 2,
-  };
-}
-
-function isTempId(id: string) {
-  return id.startsWith("tmp:");
-}
-
 function toSnapshot(items: StockItem[]) {
   return JSON.stringify(
     [...items]
-      .map((it) => ({ serverId: it.serverId ?? null, name: it.name, subtitle: it.subtitle, qty: it.qty }))
-      .sort((a, b) => String(a.serverId ?? a.name).localeCompare(String(b.serverId ?? b.name))),
+      .map((it) => ({ name: it.name, subtitle: it.subtitle, qty: it.qty }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
   );
 }
+
+const MOCK_ITEMS: StockItem[] = [
+  { id: "s1", name: "Farine de blé", subtitle: "Sac 25kg", qty: 4 },
+  { id: "s2", name: "Riz", subtitle: "5kg", qty: 2, low: true },
+  { id: "s3", name: "Huile", subtitle: "1L", qty: 10 },
+];
 
 function QtyPill({
   value,
@@ -60,11 +45,12 @@ function QtyPill({
   return (
     <View
       style={{
-        height: 48,
-        width: 140,
+        minHeight: 56,
+        minWidth: 140,
         borderRadius: radii.pill,
         backgroundColor: "#F3F4F5",
         paddingHorizontal: 4,
+        paddingVertical: 4,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
@@ -84,9 +70,16 @@ function QtyPill({
         <Minus size={18} color={colors.primary} />
       </Pressable>
 
-      <Text style={{ fontSize: 18, fontWeight: "800", color: low ? "#BA1A1A" : colors.text }}>
-        {value}
-      </Text>
+      <View style={{ flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" }}>
+        <AppText
+          variant="dense"
+          style={{ fontSize: 16, lineHeight: 20, fontFamily: fonts.bodyBold, color: low ? "#BA1A1A" : colors.text }}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {value}
+        </AppText>
+      </View>
 
       <Pressable
         onPress={onInc}
@@ -117,13 +110,19 @@ function ProductCard({
   onRemove: () => void;
 }) {
   return (
-    <View style={[card.base, { paddingHorizontal: 32, paddingVertical: 24, height: 160 }]}>
+    <View style={[card.base, { paddingHorizontal: 32, paddingVertical: 24, minHeight: 160 }]}>
       <View style={{ ...row.spaceBetween, alignItems: "center" }}>
-        <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>{item.name}</Text>
-          <Text style={{ ...typography.subtitle, fontSize: 14, lineHeight: 20, marginTop: 4 }}>
+        <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+          <AppText style={{ fontSize: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+            {item.name}
+          </AppText>
+          <AppText
+            style={{ ...typography.subtitle, fontSize: 14, lineHeight: 20, marginTop: 4 }}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
             {item.subtitle}
-          </Text>
+          </AppText>
           <View style={{ marginTop: 16 }}>
             <QtyPill value={item.qty} low={item.low} onDec={onDec} onInc={onInc} />
           </View>
@@ -142,6 +141,11 @@ function ProductCard({
 }
 
 export default function StockScreen() {
+  const { addedName, addedQty, addedSubtitle } = useLocalSearchParams<{
+    addedName?: string;
+    addedQty?: string;
+    addedSubtitle?: string;
+  }>();
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,11 +153,9 @@ export default function StockScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const initialSnapshotRef = useRef<string>(toSnapshot(items));
-  const initialQtyByServerIdRef = useRef<Map<number, number>>(new Map());
-  const deletedServerIdsRef = useRef<Set<number>>(new Set());
 
   const dirty = useMemo(
-    () => toSnapshot(items) !== initialSnapshotRef.current || deletedServerIdsRef.current.size > 0,
+    () => toSnapshot(items) !== initialSnapshotRef.current,
     [items],
   );
 
@@ -161,12 +163,9 @@ export default function StockScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await listVendorStockItems();
-      const ui = data.map(toUi);
-      setItems(ui);
-      deletedServerIdsRef.current = new Set();
-      initialQtyByServerIdRef.current = new Map(ui.flatMap((it) => (it.serverId ? [[it.serverId, it.qty]] : [])));
-      initialSnapshotRef.current = toSnapshot(ui);
+      // UI-only: load from mock items.
+      setItems(MOCK_ITEMS.map((it) => ({ ...it, low: it.qty <= 2 })));
+      initialSnapshotRef.current = toSnapshot(MOCK_ITEMS);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
@@ -182,32 +181,32 @@ export default function StockScreen() {
     useCallback(() => {
       load();
       return () => {};
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []),
   );
 
   function dec(id: string) {
+    void hapticLight();
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, qty: Math.max(0, it.qty - 1) } : it)),
     );
   }
 
   function inc(id: string) {
+    void hapticLight();
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, qty: it.qty + 1 } : it)));
   }
 
   function remove(id: string) {
-    setItems((prev) => {
-      const found = prev.find((x) => x.id === id);
-      if (found?.serverId) deletedServerIdsRef.current.add(found.serverId);
-      return prev.filter((it) => it.id !== id);
-    });
-  }
-
-  function add() {
-    setItems((prev) => [
-      ...prev,
-      { id: `tmp:${Date.now()}`, name: "Nouveau produit", subtitle: "À compléter", qty: 0, low: true },
+    Alert.alert("Supprimer ce produit ?", "Cette action est irréversible.", [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Supprimer",
+        style: "destructive",
+        onPress: async () => {
+          await hapticSuccess();
+          setItems((prev) => prev.filter((it) => it.id !== id));
+        },
+      },
     ]);
   }
 
@@ -217,39 +216,22 @@ export default function StockScreen() {
     setError(null);
 
     try {
-      // 1) Delete removed server items
-      const deleted = [...deletedServerIdsRef.current];
-
-      // 2) Create new items (local temp ids)
-      const temps = items.filter((it) => isTempId(it.id));
-
-      // 3) Patch quantities that changed since last load/save
-      const changed = items
-        .filter((it) => it.serverId && !isTempId(it.id))
-        .filter((it) => {
-          const prevQty = initialQtyByServerIdRef.current.get(it.serverId!);
-          return typeof prevQty === "number" && prevQty !== it.qty;
-        });
-
-      await Promise.all([
-        ...deleted.map((id) => deleteVendorStockItem(id)),
-        ...temps.map((it) =>
-          createVendorStockItem({
-            name: it.name,
-            subtitle: it.subtitle?.trim() ? it.subtitle.trim() : undefined,
-            quantity: it.qty,
-          }),
-        ),
-        ...changed.map((it) => patchVendorStockItem(it.serverId!, { quantity: it.qty })),
-      ]);
-
-      await load();
+      // UI-only: treat current state as saved locally.
+      initialSnapshotRef.current = toSnapshot(items);
+      await hapticSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur lors de l&apos;enregistrement");
     } finally {
       setSaving(false);
     }
   }
+
+  // Accept new item from /ajouter-au-stock (UI-only navigation contract).
+  useEffect(() => {
+    if (!addedName) return;
+    const qty = Math.max(0, Number(addedQty ?? "0") || 0);
+    setItems((prev) => [{ id: `tmp:${Date.now()}`, name: addedName, subtitle: addedSubtitle ?? "", qty }, ...prev]);
+  }, [addedName, addedQty, addedSubtitle]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -261,14 +243,18 @@ export default function StockScreen() {
           backgroundColor: colors.bg,
         }}
       >
-        <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Mon Stock</Text>
-        <Text style={[typography.subtitle, { marginTop: 4 }]}>Gérez vos produits</Text>
+        <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+          Mon Stock
+        </AppText>
+        <AppText style={[typography.subtitle, { marginTop: 4 }]}>
+          Gérez vos produits
+        </AppText>
       </View>
 
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: spacing.screenPaddingX,
-          paddingBottom: dirty ? 160 : 32,
+          paddingBottom: dirty ? insets.bottom + 220 : 32,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -276,14 +262,17 @@ export default function StockScreen() {
           <Pressable
             onPress={() => router.push("/ajouter-au-stock")}
             style={{
-              height: 56,
+              minHeight: 56,
+              paddingVertical: 14,
               borderRadius: radii.pill,
               backgroundColor: colors.primary,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Text style={typography.buttonTextInverse}>Ajouter un produit à votre stock</Text>
+            <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
+              Ajouter un produit à votre stock
+            </AppText>
           </Pressable>
         </View>
 
@@ -293,11 +282,14 @@ export default function StockScreen() {
           </View>
         ) : error ? (
           <View style={{ paddingVertical: 16 }}>
-            <Text style={{ color: "#D32F2F", fontWeight: "600", marginBottom: 12 }}>{error}</Text>
+            <AppText style={{ color: "#D32F2F", fontFamily: fonts.bodySemi, marginBottom: 12 }}>
+              {error}
+            </AppText>
             <Pressable
               onPress={load}
               style={{
-                height: 44,
+                minHeight: 44,
+                paddingVertical: 10,
                 borderRadius: radii.pill,
                 backgroundColor: colors.primary,
                 alignItems: "center",
@@ -306,7 +298,9 @@ export default function StockScreen() {
                 alignSelf: "flex-start",
               }}
             >
-              <Text style={typography.buttonTextInverse}>Réessayer</Text>
+              <AppText style={typography.buttonTextInverse} numberOfLines={1}>
+                Réessayer
+              </AppText>
             </Pressable>
           </View>
         ) : (
@@ -332,7 +326,7 @@ export default function StockScreen() {
             right: 0,
             bottom: 0,
             paddingHorizontal: 18,
-            paddingBottom: 18,
+            paddingBottom: insets.bottom + 18,
             paddingTop: 10,
             backgroundColor: "rgba(248,249,250,0.92)",
           }}
@@ -341,16 +335,17 @@ export default function StockScreen() {
             onPress={save}
             disabled={saving}
             style={{
-              height: 68,
+              minHeight: 68,
+              paddingVertical: 16,
               borderRadius: 24,
               backgroundColor: saving ? "rgba(48,144,192,0.65)" : colors.primary,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "800", color: colors.white }}>
+            <AppText style={{ fontSize: 18, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
               {saving ? "Enregistrement..." : "Enregistrer"}
-            </Text>
+            </AppText>
           </Pressable>
         </View>
       ) : null}

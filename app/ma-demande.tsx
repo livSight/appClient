@@ -1,24 +1,26 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, View, Text, Pressable, TextInput } from "react-native";
+import { ActivityIndicator, View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, ChevronDown, ArrowRight } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
-import { colors, radii, typography } from "../theme/tokens";
-import { createVendorDelivery } from "@/lib/api/vendor";
+import { colors, fonts, radii, typography } from "../theme/tokens";
+import { hapticError, hapticSuccess } from "@/lib/haptics";
+import AppText from "../components/AppText";
+import AppTextInput from "../components/AppTextInput";
 
 function Label({ children }: { children: string }) {
   return (
-    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text, marginBottom: 8 }}>
+    <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.text, marginBottom: 8 }} numberOfLines={2}>
       {children}
-    </Text>
+    </AppText>
   );
 }
 
 function Helper({ children }: { children: string }) {
   return (
-    <Text style={{ fontSize: 12, fontWeight: "600", color: "#6B7280", marginTop: 6 }}>
+    <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodySemi, color: "#6B7280", marginTop: 6 }}>
       {children}
-    </Text>
+    </AppText>
   );
 }
 
@@ -26,10 +28,11 @@ function FieldContainer({ children }: { children: React.ReactNode }) {
   return (
     <View
       style={{
-        height: 56,
+        minHeight: 56,
         borderRadius: radii.card,
         backgroundColor: "#F1F3F5",
         paddingHorizontal: 16,
+        paddingVertical: 10,
         justifyContent: "center",
       }}
     >
@@ -68,15 +71,11 @@ export default function MaDemandeScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      await createVendorDelivery({
-        items: items.trim(),
-        phone: phone.trim(),
-        amount_due: amountDue,
-        quartier: quartier.trim(),
-        ...(notes.trim().length ? { notes: notes.trim() } : {}),
-      });
+      // UI-only mode: no API call. Keep validation + loading state for UX.
+      await hapticSuccess();
       router.push("/confirmee");
     } catch (e) {
+      void hapticError();
       setError(e instanceof Error ? e.message : "Échec de l'envoi");
     } finally {
       setSubmitting(false);
@@ -86,33 +85,35 @@ export default function MaDemandeScreen() {
   return (
     <ScreenLayout>
       {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8, marginBottom: 8 }}>
         <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
           <ArrowLeft size={22} color={colors.text} />
         </Pressable>
-        <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Livraison</Text>
+        <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
+          <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
+            Livraison
+          </AppText>
         </View>
         <View style={{ width: 44 }} />
       </View>
 
-      <Text style={{ ...typography.link, letterSpacing: 1.2, marginBottom: 6 }}>
+      <AppText variant="dense" style={{ ...typography.link, letterSpacing: 1.2, marginBottom: 6 }} numberOfLines={2}>
         DÉTAILS DE L&apos;ENVOI
-      </Text>
-      <Text style={{ ...typography.screenTitle, fontSize: 32, lineHeight: 36 }}>
+      </AppText>
+      <AppText style={{ ...typography.screenTitle, fontSize: 32, lineHeight: 36 }} numberOfLines={2}>
         Nouvelle demande
-      </Text>
-      <Text style={{ ...typography.subtitle, marginTop: 10, marginBottom: 24 }}>
+      </AppText>
+      <AppText style={{ ...typography.subtitle, marginTop: 10, marginBottom: 24 }}>
         Remplissez les informations ci-dessous pour{"\n"}initier votre livraison.
-      </Text>
+      </AppText>
 
       {/* Quartier */}
       <View style={{ marginBottom: 20 }}>
         <Label>Quartier</Label>
         <FieldContainer>
-          <Text style={{ color: colors.text, fontSize: 14 }}>
+          <AppText style={{ ...typography.bodyRegular }}>
             {quartier || "—"}
-          </Text>
+          </AppText>
         </FieldContainer>
         {!quartier ? <Helper>Zone requise. Retournez sélectionner une zone.</Helper> : null}
       </View>
@@ -121,12 +122,12 @@ export default function MaDemandeScreen() {
       <View style={{ marginBottom: 20 }}>
         <Label>Nom</Label>
         <FieldContainer>
-          <TextInput
+          <AppTextInput
             value={items}
             onChangeText={setItems}
             placeholder="Ex: Panier de légumes bio"
             placeholderTextColor="#A0A5AE"
-            style={{ color: colors.text, fontSize: 14 }}
+            style={typography.bodyRegular}
           />
         </FieldContainer>
       </View>
@@ -135,13 +136,13 @@ export default function MaDemandeScreen() {
       <View style={{ marginBottom: 20 }}>
         <Label>Numero</Label>
         <FieldContainer>
-          <TextInput
+          <AppTextInput
             value={phone}
             onChangeText={setPhone}
             placeholder="6XXXXXX"
             placeholderTextColor="#A0A5AE"
             keyboardType="phone-pad"
-            style={{ color: colors.text, fontSize: 14 }}
+            style={typography.bodyRegular}
           />
         </FieldContainer>
       </View>
@@ -151,9 +152,11 @@ export default function MaDemandeScreen() {
         <Label>Selectionner un produit</Label>
         <FieldContainer>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text style={{ flex: 1, color: colors.text, fontSize: 14 }}>
-              Choisir dans le stock
-            </Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <AppText style={typography.bodyRegular} numberOfLines={2} ellipsizeMode="tail">
+                Choisir dans le stock
+              </AppText>
+            </View>
             <ChevronDown size={18} color="#9AA3AF" />
           </View>
         </FieldContainer>
@@ -165,9 +168,11 @@ export default function MaDemandeScreen() {
         <Label>Selectionner une agence de livraison</Label>
         <FieldContainer>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text style={{ flex: 1, color: colors.text, fontSize: 14 }}>
-              Choisir une agence
-            </Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <AppText style={typography.bodyRegular} numberOfLines={2} ellipsizeMode="tail">
+                Choisir une agence
+              </AppText>
+            </View>
             <ChevronDown size={18} color="#9AA3AF" />
           </View>
         </FieldContainer>
@@ -186,13 +191,13 @@ export default function MaDemandeScreen() {
             paddingTop: 14,
           }}
         >
-          <TextInput
+          <AppTextInput
             value={notes}
             onChangeText={setNotes}
             placeholder={"Précisez les instructions particulières ou \nle contenu..."}
             placeholderTextColor="#A0A5AE"
             multiline
-            style={{ color: colors.text, fontSize: 14 }}
+            style={typography.bodyRegular}
           />
         </View>
       </View>
@@ -202,23 +207,26 @@ export default function MaDemandeScreen() {
         <Label>Montant</Label>
         <View
           style={{
-            height: 56,
+            minHeight: 56,
             borderRadius: radii.card,
             backgroundColor: "#F1F3F5",
             paddingHorizontal: 16,
             flexDirection: "row",
             alignItems: "center",
+            paddingVertical: 10,
           }}
         >
-          <TextInput
+          <AppTextInput
             value={amountDueText}
             onChangeText={setAmountDueText}
             placeholder="0.00"
             placeholderTextColor="#A0A5AE"
             keyboardType="decimal-pad"
-            style={{ flex: 1, color: colors.text, fontSize: 14 }}
+            style={[typography.bodyRegular, { flex: 1 }]}
           />
-          <Text style={{ ...typography.link, marginLeft: 10 }}>XAF</Text>
+          <AppText variant="dense" style={{ ...typography.link, marginLeft: 10 }} numberOfLines={1}>
+            XAF
+          </AppText>
         </View>
       </View>
 
@@ -228,7 +236,8 @@ export default function MaDemandeScreen() {
         <Pressable
           disabled
           style={{
-            height: 160,
+            minHeight: 160,
+            paddingVertical: 14,
             borderRadius: radii.card,
             backgroundColor: "#F1F3F5",
             borderWidth: 1,
@@ -239,13 +248,17 @@ export default function MaDemandeScreen() {
             opacity: 0.7,
           }}
         >
-          <Text style={{ ...typography.subtitle, fontSize: 14 }}>Ajouter une photo</Text>
+          <AppText style={{ ...typography.subtitle, fontSize: 14 }} numberOfLines={2} ellipsizeMode="tail">
+            Ajouter une photo
+          </AppText>
         </Pressable>
         <Helper>Indisponible</Helper>
       </View>
 
       {error ? (
-        <Text style={{ color: "#D32F2F", fontWeight: "600", marginBottom: 12 }}>{error}</Text>
+        <AppText style={{ color: "#D32F2F", fontFamily: fonts.bodySemi, marginBottom: 12 }}>
+          {error}
+        </AppText>
       ) : null}
 
       {/* CTA */}
@@ -253,21 +266,22 @@ export default function MaDemandeScreen() {
         onPress={onSubmit}
         disabled={!canSubmit}
         style={{
-          height: 60,
+          minHeight: 60,
           borderRadius: radii.pill,
           backgroundColor: canSubmit ? colors.primary : "#90BFD8",
           alignItems: "center",
           justifyContent: "center",
           flexDirection: "row",
+          paddingVertical: 14,
         }}
       >
         {submitting ? (
           <ActivityIndicator color={colors.white} />
         ) : (
           <>
-            <Text style={{ ...typography.buttonTextInverse, marginRight: 10 }}>
+            <AppText style={{ ...typography.buttonTextInverse, marginRight: 10 }} numberOfLines={2} ellipsizeMode="tail">
               Envoyer ma demande
-            </Text>
+            </AppText>
             <ArrowRight size={18} color={colors.white} />
           </>
         )}

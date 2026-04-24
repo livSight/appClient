@@ -1,92 +1,40 @@
-import { useEffect, useMemo, useState } from "react";
-import { View, Text, useWindowDimensions, ActivityIndicator, Pressable } from "react-native";
+import { useMemo } from "react";
+import { View, useWindowDimensions, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Shirt, UtensilsCrossed, Gem, Package2 } from "lucide-react-native";
 import { router } from "expo-router";
-import { colors, radii, spacing, typography } from "../../theme/tokens";
+import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import ScreenLayout from "../../components/ScreenLayout";
 import SectionHeader from "../../components/SectionHeader";
 import CategoryCard from "../../components/CategoryCard";
 import OrderCard from "../../components/OrderCard";
 import PillButton from "../../components/PillButton";
-import { listVendorDeliveries, type VendorDelivery } from "@/lib/api/vendor";
-
-function safeNumber(n: unknown): number {
-  const v = typeof n === "number" ? n : Number(n);
-  return Number.isFinite(v) ? v : 0;
-}
-
-function deriveTitle(d: VendorDelivery): string {
-  return d.customer_name?.trim()
-    ? d.customer_name.trim()
-    : d.items?.trim()
-      ? d.items.trim()
-      : d.phone;
-}
-
-function formatShortDate(iso?: string): string {
-  if (!iso) return "";
-  const dt = new Date(iso);
-  if (Number.isNaN(dt.getTime())) return "";
-  return dt.toLocaleString("fr-FR", { day: "2-digit", month: "short" });
-}
+import AppText from "../../components/AppText";
+ 
+const MOCK_RECENT = {
+  id: "101",
+  title: "Panier de légumes bio",
+  subtitle: "Emombo • Aujourd'hui • 4 000 XAF",
+};
 
 export default function AccueilScreen() {
   const { width } = useWindowDimensions();
   const contentWidth = width - spacing.screenPaddingX * 2;
   const cardWidth = (contentWidth - spacing.gridColGap) / 2;
-
-  const [loadingRecent, setLoadingRecent] = useState(true);
-  const [errorRecent, setErrorRecent] = useState<string | null>(null);
-  const [recent, setRecent] = useState<VendorDelivery | null>(null);
-
-  async function loadRecent() {
-    setLoadingRecent(true);
-    setErrorRecent(null);
-    try {
-      const res = await listVendorDeliveries({
-        page: 1,
-        limit: 1,
-        sortBy: "created_at",
-        sortOrder: "DESC",
-      });
-      setRecent(res[0] ?? null);
-    } catch (e) {
-      setErrorRecent(e instanceof Error ? e.message : "Erreur de chargement");
-    } finally {
-      setLoadingRecent(false);
-    }
-  }
-
-  useEffect(() => {
-    loadRecent();
-  }, []);
-
-  const recentUi = useMemo(() => {
-    if (!recent) return null;
-    const quartier = recent.quartier?.trim() ? recent.quartier.trim() : "—";
-    const when = formatShortDate(recent.created_at);
-    const amount = `${safeNumber(recent.amount_due)} XAF`;
-    const subtitleParts = [quartier, when, amount].filter(Boolean);
-    return {
-      title: deriveTitle(recent),
-      subtitle: subtitleParts.join(" • "),
-      id: String(recent.id),
-    };
-  }, [recent]);
+  const recentUi = useMemo(() => MOCK_RECENT, []);
 
   return (
     <ScreenLayout
       header={
         <View style={{ paddingBottom: 20 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>
+            <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+              <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
                 Bonjour Alex
-              </Text>
-              <Text style={[typography.subtitle, { marginTop: 4 }]}>
+              </AppText>
+              <AppText style={[typography.subtitle, { marginTop: 4 }]}>
                 Que souhaitez-vous vous faire livrer{"\n"}aujourd&apos;hui ?
-              </Text>
+              </AppText>
             </View>
 
             <Pressable
@@ -101,7 +49,9 @@ export default function AccueilScreen() {
                 justifyContent: "center",
               }}
             >
-              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.primary }}>A</Text>
+              <AppText variant="dense" style={{ fontSize: 18, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                A
+              </AppText>
             </Pressable>
           </View>
         </View>
@@ -184,10 +134,12 @@ export default function AccueilScreen() {
           }}
         />
 
-        <Text style={typography.label}>Offre de bienvenue</Text>
-        <Text style={[typography.bannerTitle, { marginTop: 8 }]}>
+        <AppText variant="dense" style={typography.label} numberOfLines={1}>
+          Offre de bienvenue
+        </AppText>
+        <AppText style={[typography.bannerTitle, { marginTop: 8 }]}>
           Livraison gratuite sur{"\n"}votre première{"\n"}commande
-        </Text>
+        </AppText>
         <PillButton
           label="En profiter"
           variant="white"
@@ -204,41 +156,11 @@ export default function AccueilScreen() {
           onLinkPress={() => router.push("/(tabs)/livraison")}
         />
 
-        {loadingRecent ? (
-          <View style={{ paddingVertical: 10, alignItems: "center" }}>
-            <ActivityIndicator />
-          </View>
-        ) : errorRecent ? (
-          <View style={{ paddingVertical: 4 }}>
-            <Text style={{ color: "#D32F2F", fontWeight: "600", marginBottom: 10 }}>
-              {errorRecent}
-            </Text>
-            <Pressable
-              onPress={loadRecent}
-              style={{
-                height: 44,
-                borderRadius: radii.pill,
-                backgroundColor: colors.primary,
-                alignItems: "center",
-                justifyContent: "center",
-                paddingHorizontal: 18,
-                alignSelf: "flex-start",
-              }}
-            >
-              <Text style={typography.buttonTextInverse}>Réessayer</Text>
-            </Pressable>
-          </View>
-        ) : recentUi ? (
-          <OrderCard
-            title={recentUi.title}
-            subtitle={recentUi.subtitle}
-            onPress={() => router.push(`/livraison-detail/${recentUi.id}`)}
-          />
-        ) : (
-          <Text style={[typography.bodyRegular, { color: colors.muted }]}>
-            Aucune livraison récente
-          </Text>
-        )}
+        <OrderCard
+          title={recentUi.title}
+          subtitle={recentUi.subtitle}
+          onPress={() => router.push(`/livraison-detail/${recentUi.id}`)}
+        />
       </View>
     </ScreenLayout>
   );

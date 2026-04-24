@@ -1,10 +1,11 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { router } from "expo-router";
 import { ChevronRight, Pencil, LogOut, HelpCircle, MapPin, User } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
-import { card, row } from "../theme/styles";
-import { colors, radii, spacing, typography } from "../theme/tokens";
-import { clearVendorToken } from "@/lib/auth/token";
+import { card } from "../theme/styles";
+import { colors, fonts, typography } from "../theme/tokens";
+import { hapticLight } from "@/lib/haptics";
+import AppText from "../components/AppText";
 
 function SettingRow({
   icon,
@@ -26,11 +27,15 @@ function SettingRow({
   const Icon = icon;
   return (
     <Pressable
-      onPress={onPress}
+      onPress={async () => {
+        await hapticLight();
+        onPress?.();
+      }}
       disabled={!onPress}
       style={{
-        height: 80,
+        minHeight: 80,
         paddingHorizontal: 20,
+        paddingVertical: 16,
         flexDirection: "row",
         alignItems: "center",
       }}
@@ -48,16 +53,18 @@ function SettingRow({
         <Icon size={18} color={iconColor} />
       </View>
 
-      <View style={{ flex: 1, marginLeft: 16 }}>
-        <Text
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 16 }}>
+        <AppText
           style={{
             fontSize: 15,
-            fontWeight: "700",
+            fontFamily: fonts.bodyBold,
             color: titleColor ?? colors.text,
           }}
+          numberOfLines={2}
+          ellipsizeMode="tail"
         >
           {title}
-        </Text>
+        </AppText>
       </View>
 
       {showChevron ? <ChevronRight size={18} color={"rgba(25,28,29,0.25)"} /> : null}
@@ -70,15 +77,15 @@ function Divider() {
 }
 
 export default function ProfileScreen() {
-  async function onLogout() {
-    await clearVendorToken();
-    router.replace("/login");
+  function onLogout() {
+    // UI-only: no session to clear.
+    router.replace("/(tabs)");
   }
 
   return (
     <ScreenLayout
       header={
-        <View style={{ height: 44, flexDirection: "row", alignItems: "center" }}>
+        <View style={{ minHeight: 44, paddingVertical: 8, flexDirection: "row", alignItems: "center" }}>
           <Pressable
             onPress={() => router.back()}
             hitSlop={10}
@@ -90,10 +97,10 @@ export default function ProfileScreen() {
               style={{ transform: [{ rotate: "180deg" }] }}
             />
           </Pressable>
-          <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={{ ...typography.bodyRegular, fontWeight: "700", color: "#0F172A" }}>
+          <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
+            <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: "#0F172A" }} numberOfLines={1}>
               Profil
-            </Text>
+            </AppText>
           </View>
           <View style={{ width: 44 }} />
         </View>
@@ -135,12 +142,12 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        <Text style={{ marginTop: 12, fontSize: 24, fontWeight: "900", color: colors.text }}>
+        <AppText style={{ marginTop: 12, fontSize: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
           Julien Santalucia
-        </Text>
-        <Text style={{ marginTop: 6, fontSize: 16, fontWeight: "600", color: colors.muted, opacity: 0.7 }}>
+        </AppText>
+        <AppText variant="dense" style={{ marginTop: 6, fontSize: 16, fontFamily: fonts.bodySemi, color: colors.muted, opacity: 0.7 }} numberOfLines={1} ellipsizeMode="tail">
           +237657799274
-        </Text>
+        </AppText>
       </View>
 
       {/* Settings groups */}
@@ -185,19 +192,22 @@ export default function ProfileScreen() {
       </View>
 
       <View style={{ marginTop: 22, paddingVertical: 10 }}>
-        <Text
+        <AppText
+          variant="dense"
           style={{
             textAlign: "center",
             fontSize: 11,
-            fontWeight: "800",
+            fontFamily: fonts.bodyBold,
             letterSpacing: 2.2,
             textTransform: "uppercase",
             color: colors.muted,
             opacity: 0.4,
           }}
+          numberOfLines={2}
+          ellipsizeMode="tail"
         >
           Version 2.4.0 • L&apos;Atelier 2024
-        </Text>
+        </AppText>
       </View>
     </ScreenLayout>
   );

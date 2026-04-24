@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { useMemo, useState } from "react";
+import { View, Pressable } from "react-native";
 import { Download, ShoppingBag, Wallet, ChevronRight } from "lucide-react-native";
 import { router } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
 import OrderCard from "../../components/OrderCard";
 import { card, row } from "../../theme/styles";
-import { colors, radii, typography } from "../../theme/tokens";
-import { listVendorDeliveries, type VendorDelivery } from "@/lib/api/vendor";
+import { colors, fonts, radii, typography } from "../../theme/tokens";
+import AppText from "../../components/AppText";
 
 type Range = "Journalier" | "Hebdo" | "Mensuel";
 
@@ -17,55 +17,23 @@ type BucketCounts = {
   totalRelevant: number;
 };
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatYmd(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
-function startEndForRange(range: Range): { start: Date; end: Date; days: number } {
-  const end = new Date();
-  // inclusive windows (server slices by YYYY-MM-DD)
-  const days = range === "Journalier" ? 1 : range === "Hebdo" ? 7 : 30;
-  const start = addDays(end, -(days - 1));
-  return { start, end, days };
-}
-
-function previousWindow(start: Date, days: number): { start: Date; end: Date } {
-  const prevEnd = addDays(start, -1);
-  const prevStart = addDays(prevEnd, -(days - 1));
-  return { start: prevStart, end: prevEnd };
-}
-
 function safeNumber(n: unknown): number {
   const v = typeof n === "number" ? n : Number(n);
   return Number.isFinite(v) ? v : 0;
 }
 
-function deriveTitle(d: VendorDelivery): string {
-  return d.customer_name?.trim()
-    ? d.customer_name.trim()
-    : d.items?.trim()
-      ? d.items.trim()
-      : d.phone;
+function deriveTitle(d: MockDelivery): string {
+  return d.items?.trim() ? d.items.trim() : "Livraison";
 }
 
-function deriveTag(d: VendorDelivery): string {
+function deriveTag(d: MockDelivery): string {
   const s = String(d.status ?? "").toLowerCase();
   if (s === "pickup") return "PICKUP";
   if (s === "expedition") return "EXPEDITION";
   return "LIVRAISON";
 }
 
-function formatHistoryMeta(d: VendorDelivery): string {
+function formatHistoryMeta(d: MockDelivery): string {
   const iso = d.created_at;
   if (!iso) return "";
   const dt = new Date(iso);
@@ -79,7 +47,7 @@ function formatHistoryMeta(d: VendorDelivery): string {
   });
 }
 
-function bucketCounts(deliveries: VendorDelivery[]): BucketCounts {
+function bucketCounts(deliveries: MockDelivery[]): BucketCounts {
   let delivered = 0;
   let injoignable = 0;
   let annule = 0;
@@ -126,7 +94,7 @@ function RangeToggle({
   return (
     <View
       style={{
-        height: 48,
+        minHeight: 48,
         borderRadius: radii.pill,
         backgroundColor: "#F1F3F5",
         padding: 6,
@@ -147,11 +115,16 @@ function RangeToggle({
               backgroundColor: active ? colors.white : "transparent",
               alignItems: "center",
               justifyContent: "center",
+              paddingVertical: 8,
             }}
           >
-            <Text style={{ fontSize: 12, fontWeight: active ? "700" : "600", color: colors.text }}>
+            <AppText
+              variant="dense"
+              style={{ fontSize: 12, fontFamily: active ? fonts.bodyBold : fonts.bodySemi, color: colors.text }}
+              numberOfLines={1}
+            >
               {o}
-            </Text>
+            </AppText>
           </Pressable>
         );
       })}
@@ -173,7 +146,7 @@ function MetricCard({
   Icon: React.ComponentType<{ size?: number; color?: string }>;
 }) {
   return (
-    <View style={[card.base, { padding: 20, height: 120, justifyContent: "center" }]}>
+    <View style={[card.base, { padding: 20, minHeight: 120, justifyContent: "center" }]}>
       <View style={{ ...row.spaceBetween }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           <View
@@ -188,21 +161,39 @@ function MetricCard({
           >
             <Icon size={18} color={colors.primary} />
           </View>
-          <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }}>{title}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <AppText
+              variant="dense"
+              style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              {title}
+            </AppText>
+          </View>
         </View>
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 12 }}>
-        <Text style={{ fontSize: 24, fontWeight: "900", color: colors.text }}>{value}</Text>
+        <AppText style={{ fontSize: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
+          {value}
+        </AppText>
         {suffix ? (
-          <Text style={{ ...typography.subtitle, marginLeft: 10, marginBottom: 4 }}>{suffix}</Text>
+          <AppText
+            variant="dense"
+            style={{ ...typography.subtitle, marginLeft: 10, marginBottom: 4 }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {suffix}
+          </AppText>
         ) : null}
       </View>
 
       {delta ? (
-        <Text style={{ marginTop: 6, fontSize: 12, fontWeight: "700", color: colors.primary }}>
+        <AppText variant="dense" style={{ marginTop: 6, fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
           {delta}
-        </Text>
+        </AppText>
       ) : null}
 
       {/* Decorative circle */}
@@ -226,9 +217,20 @@ function LegendRow({ label, pct, color }: { label: string; pct: string; color: s
     <View style={{ ...row.spaceBetween, marginTop: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <View style={{ width: 8, height: 8, borderRadius: 9999, backgroundColor: color }} />
-        <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }}>{label}</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText
+            variant="dense"
+            style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {label}
+          </AppText>
+        </View>
       </View>
-      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>{pct}</Text>
+      <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+        {pct}
+      </AppText>
     </View>
   );
 }
@@ -260,59 +262,40 @@ function Donut({ pct }: { pct: number }) {
           transform: [{ rotate: "-90deg" }],
         }}
       />
-      <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>{pct}%</Text>
-      <Text style={{ fontSize: 12, fontWeight: "700", color: colors.muted, marginTop: 2 }}>
+      <AppText style={{ fontSize: 28, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+        {pct}%
+      </AppText>
+      <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.muted, marginTop: 2 }} numberOfLines={1}>
         de reussite
-      </Text>
+      </AppText>
     </View>
   );
 }
 
+type MockDelivery = {
+  id: string;
+  items: string;
+  amount_due: number;
+  status: string;
+  created_at: string;
+};
+
+const MOCK_CURRENT: MockDelivery[] = [
+  { id: "101", items: "Panier de légumes bio", amount_due: 4000, status: "pending", created_at: new Date().toISOString() },
+  { id: "102", items: "Chaussures x2", amount_due: 15000, status: "delivered", created_at: new Date(Date.now() - 86400000).toISOString() },
+  { id: "103", items: "Colis divers", amount_due: 2500, status: "cancelled", created_at: new Date(Date.now() - 3 * 86400000).toISOString() },
+];
+
+const MOCK_PREVIOUS: MockDelivery[] = [
+  { id: "201", items: "Colis divers", amount_due: 3200, status: "delivered", created_at: new Date(Date.now() - 10 * 86400000).toISOString() },
+  { id: "202", items: "Panier de fruits", amount_due: 5000, status: "delivered", created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+];
+
 export default function RapportsScreen() {
   const [range, setRange] = useState<Range>("Journalier");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [current, setCurrent] = useState<VendorDelivery[]>([]);
-  const [previous, setPrevious] = useState<VendorDelivery[]>([]);
-
-  const { start, end, days } = useMemo(() => startEndForRange(range), [range]);
-  const prevWindow = useMemo(() => previousWindow(start, days), [start, days]);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const [cur, prev] = await Promise.all([
-        listVendorDeliveries({
-          page: 1,
-          limit: 500,
-          sortBy: "created_at",
-          sortOrder: "DESC",
-          startDate: formatYmd(start),
-          endDate: formatYmd(end),
-        }),
-        listVendorDeliveries({
-          page: 1,
-          limit: 500,
-          sortBy: "created_at",
-          sortOrder: "DESC",
-          startDate: formatYmd(prevWindow.start),
-          endDate: formatYmd(prevWindow.end),
-        }),
-      ]);
-      setCurrent(cur);
-      setPrevious(prev);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de chargement");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  // UI-only: keep range toggle for UI, but use mock data.
+  const current = useMemo(() => MOCK_CURRENT, []);
+  const previous = useMemo(() => MOCK_PREVIOUS, []);
 
   const computed = useMemo(() => {
     const count = current.length;
@@ -356,44 +339,24 @@ export default function RapportsScreen() {
     <ScreenLayout
       header={
         <View>
-          <View style={{ height: 44, alignItems: "flex-end", justifyContent: "center" }}>
+          <View style={{ minHeight: 44, paddingVertical: 8, alignItems: "flex-end", justifyContent: "center" }}>
             <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Download size={18} color={colors.text} />
-              <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Exporter</Text>
+              <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
+                Exporter
+              </AppText>
             </Pressable>
           </View>
-          <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Rapports d&apos;activité</Text>
-          <Text style={[typography.subtitle, { marginTop: 4 }]}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+            Rapports d&apos;activité
+          </AppText>
+          <AppText style={[typography.subtitle, { marginTop: 4 }]}>
             Suivez vos performances
-          </Text>
+          </AppText>
           <RangeToggle value={range} onChange={setRange} />
         </View>
       }
     >
-
-      {loading ? (
-        <View style={{ paddingVertical: 28, alignItems: "center" }}>
-          <ActivityIndicator />
-        </View>
-      ) : error ? (
-        <View style={{ paddingVertical: 16 }}>
-          <Text style={{ color: "#D32F2F", fontWeight: "600", marginBottom: 12 }}>{error}</Text>
-          <Pressable
-            onPress={load}
-            style={{
-              height: 44,
-              borderRadius: radii.pill,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 18,
-              alignSelf: "flex-start",
-            }}
-          >
-            <Text style={typography.buttonTextInverse}>Réessayer</Text>
-          </Pressable>
-        </View>
-      ) : null}
 
       {/* Metric cards */}
       <View style={{ marginTop: 18, gap: 16 }}>
@@ -414,9 +377,9 @@ export default function RapportsScreen() {
       {/* Success donut + legend */}
       <View style={{ marginTop: 18 }}>
         <View style={[card.base, { padding: 24 }]}>
-          <Text style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }}>
+          <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }} numberOfLines={2} ellipsizeMode="tail">
             Taux de réussite
-          </Text>
+          </AppText>
           <View style={{ alignItems: "center", marginTop: 12 }}>
             <Donut pct={computed.successPct} />
           </View>
@@ -431,9 +394,13 @@ export default function RapportsScreen() {
       {/* Historique */}
       <View style={{ marginTop: 18 }}>
         <View style={{ ...row.spaceBetween, marginBottom: 12 }}>
-          <Text style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }}>Historique</Text>
+          <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }} numberOfLines={1}>
+            Historique
+          </AppText>
           <Pressable onPress={() => router.push("/(tabs)/livraison")} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={{ ...typography.link, fontSize: 12 }}>Voir tout</Text>
+            <AppText variant="dense" style={{ ...typography.link, fontSize: 12 }} numberOfLines={1}>
+              Voir tout
+            </AppText>
             <ChevronRight size={16} color={colors.primary} />
           </Pressable>
         </View>

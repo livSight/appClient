@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { BarChart3, ClipboardList, Home, Package } from "lucide-react-native";
-import { colors } from "../../theme/tokens";
+import AppText from "../../components/AppText";
+import { colors, fonts } from "../../theme/tokens";
 
 export default function TabsLayout() {
   return (
@@ -9,11 +10,15 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabInactive.commandes,
-        tabBarLabelStyle: {
-          fontSize: 12,
-          letterSpacing: 1.2,
-          fontWeight: "700",
-        },
+        tabBarLabel: ({ color, children }) => (
+          <AppText
+            variant="dense"
+            style={{ color, fontSize: 12, letterSpacing: 1.2, fontFamily: fonts.bodyBold }}
+            numberOfLines={1}
+          >
+            {children}
+          </AppText>
+        ),
       }}
     >
       <Tabs.Screen

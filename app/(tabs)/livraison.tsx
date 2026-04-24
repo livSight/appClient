@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, View, Text, Pressable } from "react-native";
+import { useMemo, useState } from "react";
+import { View, Pressable } from "react-native";
 import { Package2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
 import { card, row } from "../../theme/styles";
-import { colors, radii, spacing, typography } from "../../theme/tokens";
-import { listVendorDeliveries, type VendorDelivery } from "@/lib/api/vendor";
+import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
+import AppText from "../../components/AppText";
 
 type Status = "Tout" | "En cours" | "Livré" | "Annulé";
 
@@ -17,63 +17,54 @@ type Order = {
   amountLabel: string;
 };
 
-function mapBackendStatusToUi(status: string): Status {
-  if (status === "pending") return "En cours";
-  if (status === "delivered") return "Livré";
-  if (status === "failed" || status === "cancelled") return "Annulé";
-  return "En cours";
-}
-
-function formatDateLabel(iso?: string): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("fr-FR", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function toOrder(delivery: VendorDelivery): Order {
-  const title = delivery.customer_name?.trim()
-    ? delivery.customer_name.trim()
-    : delivery.items?.trim()
-      ? delivery.items.trim()
-      : delivery.phone;
-
-  return {
-    id: String(delivery.id),
-    title,
-    dateLabel: formatDateLabel(delivery.created_at),
-    status: mapBackendStatusToUi(delivery.status),
-    amountLabel: `${delivery.amount_due} FCFA`,
-  };
-}
+const MOCK_ORDERS: Order[] = [
+  {
+    id: "101",
+    title: "Panier de légumes bio",
+    dateLabel: "Aujourd'hui, 12:45",
+    status: "En cours",
+    amountLabel: "4 000 FCFA",
+  },
+  {
+    id: "102",
+    title: "Chaussures x2",
+    dateLabel: "01 avr. 2026, 10:10",
+    status: "Livré",
+    amountLabel: "15 000 FCFA",
+  },
+  {
+    id: "103",
+    title: "Colis divers",
+    dateLabel: "28 mars 2026, 18:20",
+    status: "Annulé",
+    amountLabel: "2 500 FCFA",
+  },
+];
 
 function Chip({ label, active }: { label: Status; active?: boolean }) {
   return (
     <View
       style={{
-        height: 56,
+        minHeight: 56,
         paddingHorizontal: 18,
+        paddingVertical: 10,
         borderRadius: radii.pill,
         backgroundColor: active ? colors.primary : "#E9E9EA",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Text
+      <AppText
+        variant="dense"
         style={{
           ...(typography.bodyRegular as object),
-          fontWeight: "600",
+          fontFamily: fonts.bodySemi,
           color: active ? colors.white : colors.text,
         }}
+        numberOfLines={1}
       >
         {label}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -101,16 +92,21 @@ function StatusPill({ status }: { status: Status }) {
     <View
       style={{
         paddingHorizontal: 12,
-        height: 28,
+        minHeight: 28,
+        paddingVertical: 6,
         borderRadius: radii.pill,
         backgroundColor: bg,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Text style={{ fontSize: 11, fontWeight: "700", color: fg, letterSpacing: 0.6 }}>
+      <AppText
+        variant="dense"
+        style={{ fontSize: 11, fontFamily: fonts.bodyBold, color: fg, letterSpacing: 0.6 }}
+        numberOfLines={1}
+      >
         {status.toUpperCase()}
-      </Text>
+      </AppText>
     </View>
   );
 }
@@ -133,13 +129,18 @@ function OrderCard({ order }: { order: Order }) {
           <Package2 size={22} color={colors.primary} />
         </View>
 
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText style={{ fontSize: 16, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
             {order.title}
-          </Text>
-          <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}>
+          </AppText>
+          <AppText
+            variant="dense"
+            style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {order.dateLabel}
-          </Text>
+          </AppText>
         </View>
 
         <StatusPill status={order.status} />
@@ -147,26 +148,29 @@ function OrderCard({ order }: { order: Order }) {
 
       <View style={{ marginTop: 18, ...row.spaceBetween }}>
         <View>
-          <Text style={{ fontSize: 11, letterSpacing: 1.2, color: "#8A8F98", fontWeight: "700" }}>
+          <AppText variant="dense" style={{ fontSize: 11, letterSpacing: 1.2, color: "#8A8F98", fontFamily: fonts.bodyBold }} numberOfLines={1}>
             MONTANT
-          </Text>
-          <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text, marginTop: 4 }}>
+          </AppText>
+          <AppText style={{ fontSize: 22, fontFamily: fonts.bodyBold, color: colors.text, marginTop: 4 }} numberOfLines={1} ellipsizeMode="tail">
             {order.amountLabel}
-          </Text>
+          </AppText>
         </View>
 
         <Pressable
           onPress={() => router.push(`/livraison-detail/${order.id}`)}
           style={{
-            height: 36,
+            minHeight: 36,
             paddingHorizontal: 22,
+            paddingVertical: 8,
             borderRadius: radii.pill,
             backgroundColor: colors.primary,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Text style={{ color: colors.white, fontWeight: "700" }}>Details</Text>
+          <AppText variant="dense" style={{ color: colors.white, fontFamily: fonts.bodyBold }} numberOfLines={1}>
+            Details
+          </AppText>
         </Pressable>
       </View>
     </View>
@@ -181,53 +185,21 @@ export default function LivraisonScreen() {
     if (filter === "Annulé") return "Annulé";
     return "Tout";
   });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [deliveries, setDeliveries] = useState<VendorDelivery[]>([]);
-
-  const orders = useMemo(() => deliveries.map(toOrder), [deliveries]);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const statusParam =
-        active === "Tout"
-          ? undefined
-          : active === "En cours"
-            ? "pending"
-            : active === "Livré"
-              ? "delivered"
-              : "cancelled";
-
-      const data = await listVendorDeliveries({
-        page: 1,
-        limit: 50,
-        ...(statusParam ? { status: statusParam } : {}),
-        sortBy: "created_at",
-        sortOrder: "DESC",
-      });
-      setDeliveries(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de chargement");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const orders = useMemo(() => {
+    if (active === "Tout") return MOCK_ORDERS;
+    return MOCK_ORDERS.filter((o) => o.status === active);
   }, [active]);
 
   return (
     <ScreenLayout
       header={
         <View style={{ paddingBottom: 10 }}>
-          <Text style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]}>Mes Livraisons</Text>
-          <Text style={[typography.subtitle, { marginTop: 4 }]}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+            Mes Livraisons
+          </AppText>
+          <AppText style={[typography.subtitle, { marginTop: 4 }]}>
             Consultez toutes vos livraisons
-          </Text>
+          </AppText>
         </View>
       }
     >
@@ -251,46 +223,25 @@ export default function LivraisonScreen() {
         <Pressable
           onPress={() => router.push("/livraison-zone")}
           style={{
-            height: 56,
+            minHeight: 56,
+            paddingVertical: 14,
             borderRadius: radii.pill,
             backgroundColor: colors.primary,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <Text style={typography.buttonTextInverse}>Demander une nouvelle livraison</Text>
+          <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
+            Demander une nouvelle livraison
+          </AppText>
         </Pressable>
       </View>
 
-      {loading ? (
-        <View style={{ paddingVertical: 24, alignItems: "center" }}>
-          <ActivityIndicator />
-        </View>
-      ) : error ? (
-        <View style={{ paddingVertical: 16 }}>
-          <Text style={{ color: "#D32F2F", fontWeight: "600", marginBottom: 12 }}>{error}</Text>
-          <Pressable
-            onPress={load}
-            style={{
-              height: 44,
-              borderRadius: radii.pill,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 18,
-              alignSelf: "flex-start",
-            }}
-          >
-            <Text style={typography.buttonTextInverse}>Réessayer</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={{ gap: 24, paddingBottom: 8 }}>
-          {orders.map((o) => (
-            <OrderCard key={o.id} order={o} />
-          ))}
-        </View>
-      )}
+      <View style={{ gap: 24, paddingBottom: 8 }}>
+        {orders.map((o) => (
+          <OrderCard key={o.id} order={o} />
+        ))}
+      </View>
     </ScreenLayout>
   );
 }

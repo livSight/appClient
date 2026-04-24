@@ -1,25 +1,30 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { Minus, Plus, PackagePlus } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
-import { colors, radii, typography } from "../theme/tokens";
-import { createVendorStockItem } from "@/lib/api/stock";
+import { colors, fonts, radii, typography } from "../theme/tokens";
+import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import AppText from "../components/AppText";
+import AppTextInput from "../components/AppTextInput";
 
 function Label({ children }: { children: string }) {
   return (
-    <Text
+    <AppText
+      variant="dense"
       style={{
         fontSize: 11,
-        fontWeight: "800",
+        fontFamily: fonts.bodyBold,
         letterSpacing: 1.1,
         textTransform: "uppercase",
         color: "rgba(60,74,60,0.8)",
         marginBottom: 10,
       }}
+      numberOfLines={2}
+      ellipsizeMode="tail"
     >
       {children}
-    </Text>
+    </AppText>
   );
 }
 
@@ -35,17 +40,21 @@ function QtyCounter({
   return (
     <View
       style={{
-        height: 56,
+        minHeight: 56,
         borderRadius: radii.pill,
         backgroundColor: "#F3F4F5",
         paddingHorizontal: 8,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
+        paddingVertical: 10,
       }}
     >
       <Pressable
-        onPress={onDec}
+        onPress={async () => {
+          await hapticLight();
+          onDec();
+        }}
         hitSlop={10}
         style={{
           width: 40,
@@ -59,10 +68,15 @@ function QtyCounter({
         <Minus size={18} color={colors.primary} />
       </Pressable>
 
-      <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>{value}</Text>
+      <AppText style={{ fontSize: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+        {value}
+      </AppText>
 
       <Pressable
-        onPress={onInc}
+        onPress={async () => {
+          await hapticLight();
+          onInc();
+        }}
         hitSlop={10}
         style={{
           width: 40,
@@ -93,12 +107,16 @@ export default function AjouterAuStockScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      await createVendorStockItem({
-        name: name.trim(),
-        quantity: qty,
-        ...(description.trim().length ? { subtitle: description.trim() } : {}),
+      await hapticSuccess();
+      // UI-only: pass new item to previous screen via params.
+      router.replace({
+        pathname: "/(tabs)/stock",
+        params: {
+          addedName: name.trim(),
+          addedQty: String(qty),
+          addedSubtitle: description.trim(),
+        },
       });
-      router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur lors de l&apos;ajout");
     } finally {
@@ -108,30 +126,31 @@ export default function AjouterAuStockScreen() {
 
   return (
     <ScreenLayout>
-      <Text style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36 }}>
+      <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36 }} numberOfLines={3}>
         Ajouter un nouveau{"\n"}produit
-      </Text>
-      <Text style={{ ...typography.subtitle, marginTop: 10 }}>
+      </AppText>
+      <AppText style={{ ...typography.subtitle, marginTop: 10 }}>
         Complétez les détails pour gérer le stock de cet article
-      </Text>
+      </AppText>
 
       <View style={{ marginTop: 28 }}>
         <Label>Nom du produit</Label>
         <View
           style={{
-            height: 55,
+            minHeight: 55,
             borderRadius: 24,
             backgroundColor: "#F3F4F5",
             paddingHorizontal: 20,
             justifyContent: "center",
+            paddingVertical: 10,
           }}
         >
-          <TextInput
+          <AppTextInput
             value={name}
             onChangeText={setName}
             placeholder="Farine de Blé"
             placeholderTextColor="rgba(60,74,60,0.35)"
-            style={{ fontSize: 16, color: colors.text, fontWeight: "500" }}
+            style={[typography.bodyRegular, { color: colors.text }]}
           />
         </View>
       </View>
@@ -145,26 +164,27 @@ export default function AjouterAuStockScreen() {
         <Label>Description produit</Label>
         <View
           style={{
-            height: 104,
+            minHeight: 104,
+            paddingVertical: 10,
             borderRadius: 12,
             backgroundColor: "#F3F4F5",
             paddingHorizontal: 20,
             paddingTop: 14,
           }}
         >
-          <TextInput
+          <AppTextInput
             value={description}
             onChangeText={setDescription}
             placeholder="Courte description du produit"
             placeholderTextColor="rgba(60,74,60,0.40)"
             multiline
-            style={{ fontSize: 16, color: colors.text, lineHeight: 24 }}
+            style={[typography.bodyRegular, { color: colors.text }]}
           />
         </View>
       </View>
 
       {error ? (
-        <Text style={{ color: "#D32F2F", fontWeight: "600", marginTop: 16 }}>{error}</Text>
+        <AppText style={{ color: "#D32F2F", fontFamily: fonts.bodySemi, marginTop: 16 }}>{error}</AppText>
       ) : null}
 
       <View style={{ marginTop: 28 }}>
@@ -172,17 +192,20 @@ export default function AjouterAuStockScreen() {
           onPress={onSubmit}
           disabled={!canSubmit}
           style={{
-            height: 68,
+            minHeight: 68,
             borderRadius: 24,
             backgroundColor: canSubmit ? colors.primary : "rgba(48,144,192,0.45)",
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "row",
             gap: 10,
+            paddingVertical: 14,
           }}
         >
           {submitting ? <ActivityIndicator color={colors.white} /> : <PackagePlus size={20} color={colors.white} />}
-          <Text style={{ fontSize: 18, fontWeight: "800", color: colors.white }}>Ajouter au stock</Text>
+          <AppText style={{ fontSize: 18, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={2} ellipsizeMode="tail">
+            Ajouter au stock
+          </AppText>
         </Pressable>
       </View>
     </ScreenLayout>

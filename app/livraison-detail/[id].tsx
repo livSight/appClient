@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, View, Text, Pressable, ScrollView } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, View, Pressable, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   ArrowLeft,
   CircleCheck,
@@ -14,12 +13,61 @@ import {
 } from "lucide-react-native";
 import ScreenLayout from "../../components/ScreenLayout";
 import { card, row } from "../../theme/styles";
-import { colors, radii, typography } from "../../theme/tokens";
-import { getDeliveryById, type VendorDelivery } from "@/lib/api/vendor";
+import { colors, fonts, radii, typography } from "../../theme/tokens";
+import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import AppText from "../../components/AppText";
 
 const WARNING_AMBER = "#F59E0B";
 
 type Chip = { label: string; color: string; bg: string };
+
+type Delivery = {
+  id: string;
+  phone: string;
+  customer_name?: string | null;
+  items: string;
+  amount_due: number;
+  status?: string | null;
+  quartier?: string | null;
+  notes?: string | null;
+  created_at?: string;
+};
+
+const MOCK_DELIVERIES: Delivery[] = [
+  {
+    id: "101",
+    phone: "0612345678",
+    customer_name: "Marie",
+    items: "Panier de légumes bio",
+    amount_due: 4000,
+    status: "pending",
+    quartier: "Emombo",
+    notes: "Appeler avant livraison.",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: "102",
+    phone: "0698765432",
+    customer_name: "Jean",
+    items: "Chaussures x2",
+    amount_due: 15000,
+    status: "delivered",
+    quartier: "Elig-Edzoa",
+    notes: "Remettre au gardien.",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: "103",
+    phone: "0700000000",
+    customer_name: null,
+    items: "Colis divers",
+    amount_due: 2500,
+    status: "cancelled",
+    quartier: "Essomba",
+    notes: null,
+    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+];
 
 function normalizeStatus(status?: string | null): string {
   return (status ?? "").trim().toLowerCase();
@@ -130,122 +178,88 @@ function FilterChip({
       onPress={onPress}
       hitSlop={10}
       style={{
-        height: 48,
+        minHeight: 48,
         paddingHorizontal: 16,
+        paddingVertical: 10,
         borderRadius: radii.pill,
         backgroundColor: bg,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <Text style={{ fontSize: 12, fontWeight: "700", color: fg, letterSpacing: 0.6 }}>
+      <AppText
+        variant="dense"
+        style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: fg, letterSpacing: 0.6 }}
+        numberOfLines={1}
+      >
         {label}
-      </Text>
+      </AppText>
     </Pressable>
   );
 }
 
 export default function LivraisonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [delivery, setDelivery] = useState<VendorDelivery | null>(null);
-  const statusChip = useMemo(() => mapBackendStatusToChip(delivery?.status), [delivery?.status]);
-  const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
-
-  const inFlightRef = useRef(false);
-
-  const load = useCallback(async () => {
-    if (inFlightRef.current) return;
-    inFlightRef.current = true;
-    setError(null);
-    try {
-      if (!id) {
-        setDelivery(null);
-        setError("ID de livraison manquant");
-        return;
-      }
-      const found = await getDeliveryById(id);
-      setDelivery(found);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de chargement");
-    } finally {
-      setLoading(false);
-      inFlightRef.current = false;
-    }
-  }, [id]);
+  const [delivery, setDelivery] = useState<Delivery | null>(null);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (!id) {
+      setDelivery(null);
+      return;
+    }
+    const found = MOCK_DELIVERIES.find((d) => d.id === String(id)) ?? null;
+    setDelivery(found);
+  }, [id]);
 
-  // Focus-aware polling (every 10s) while the screen is visible.
-  useFocusEffect(
-    useCallback(() => {
-      const interval = setInterval(() => {
-        void load();
-      }, 10_000);
-      return () => clearInterval(interval);
-    }, [load])
-  );
+  const statusChip = useMemo(() => mapBackendStatusToChip(delivery?.status), [delivery?.status]);
+  const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
 
   return (
     <ScreenLayout
       header={
-        <View style={{ flexDirection: "row", alignItems: "center", height: 44, marginBottom: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8, marginBottom: 12 }}>
           <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
             <ArrowLeft size={22} color={colors.text} />
           </Pressable>
-          <View style={{ flex: 1, alignItems: "center" }}>
-            <Text style={{ ...typography.bodyRegular, fontWeight: "600" }}>Detail de Livraison</Text>
+          <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
+            <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
+              Detail de Livraison
+            </AppText>
           </View>
           <View style={{ width: 44 }} />
         </View>
       }
     >
 
-      {loading ? (
-        <View style={{ paddingVertical: 40, alignItems: "center" }}>
-          <ActivityIndicator />
-        </View>
-      ) : error ? (
+      {!delivery ? (
         <View style={{ paddingVertical: 16 }}>
-          <Text style={{ color: "#D32F2F", fontWeight: "600", marginBottom: 12 }}>{error}</Text>
-          <Pressable
-            onPress={load}
-            style={{
-              height: 44,
-              borderRadius: radii.pill,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-              paddingHorizontal: 18,
-              alignSelf: "flex-start",
-            }}
-          >
-            <Text style={typography.buttonTextInverse}>Réessayer</Text>
-          </Pressable>
+          <AppText style={{ color: "#D32F2F", fontFamily: fonts.bodySemi, marginBottom: 12 }}>
+            Livraison introuvable (mock)
+          </AppText>
         </View>
       ) : (
         <>
           {/* Order header */}
           <View style={[row.spaceBetween, { marginBottom: 18 }]}>
-            <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>
-              {delivery?.customer_name?.trim() || delivery?.items?.trim() || delivery?.phone || `#${id}`}
-            </Text>
+            <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+              <AppText style={{ fontSize: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+                {delivery?.customer_name?.trim() || delivery?.items?.trim() || delivery?.phone || `#${id}`}
+              </AppText>
+            </View>
             <View
               style={{
-                height: 48,
+                minHeight: 48,
                 borderRadius: radii.pill,
                 paddingHorizontal: 16,
+                paddingVertical: 10,
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: statusChip.bg,
               }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: statusChip.color, letterSpacing: 0.6 }}>
+              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: statusChip.color, letterSpacing: 0.6 }} numberOfLines={1}>
                 {statusChip.label}
-              </Text>
+              </AppText>
             </View>
           </View>
 
@@ -303,18 +317,18 @@ export default function LivraisonDetailScreen() {
 
               <View style={{ flex: 1, gap: 14 }}>
                 <View>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+                  <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
                     Commande confirmée
-                  </Text>
-                  <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}>
+                  </AppText>
+                  <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }} numberOfLines={2} ellipsizeMode="tail">
                     {delivery?.created_at ? new Date(delivery.created_at).toLocaleString("fr-FR") : "Aujourd'hui, 14:20"}
-                  </Text>
+                  </AppText>
                 </View>
                 <View>
-                  <Text
+                  <AppText
                     style={{
                       fontSize: 14,
-                      fontWeight: "700",
+                      fontFamily: fonts.bodyBold,
                       color:
                         timeline.step2 === "warning"
                           ? WARNING_AMBER
@@ -322,33 +336,36 @@ export default function LivraisonDetailScreen() {
                             ? "#D32F2F"
                             : colors.primary,
                     }}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
                   >
                     En cours de livraison
-                  </Text>
-                  <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}>
+                  </AppText>
+                  <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}>
                     Le livreur est en route.
-                  </Text>
+                  </AppText>
                   {timeline.step2 === "warning" && timeline.step2Helper ? (
-                    <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6, color: WARNING_AMBER }}>
+                    <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6, color: WARNING_AMBER }}>
                       {timeline.step2Helper}
-                    </Text>
+                    </AppText>
                   ) : null}
                   {timeline.step2 === "cancelled" && timeline.step2Helper ? (
-                    <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6, color: "#D32F2F" }}>
+                    <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6, color: "#D32F2F" }}>
                       {timeline.step2Helper}
-                    </Text>
+                    </AppText>
                   ) : null}
                 </View>
                 <View>
-                  <Text
+                  <AppText
                     style={{
                       fontSize: 14,
-                      fontWeight: "700",
+                      fontFamily: fonts.bodyBold,
                       color: timeline.step3 === "active" ? "#2E7D32" : "#94A3B8",
                     }}
+                    numberOfLines={1}
                   >
                     Colis livré
-                  </Text>
+                  </AppText>
                 </View>
               </View>
             </View>
@@ -359,34 +376,34 @@ export default function LivraisonDetailScreen() {
             <View style={[card.outlined, { padding: 24 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
                 <ClipboardList size={18} color={colors.primary} />
-                <Text style={{ marginLeft: 10, fontSize: 14, fontWeight: "800", color: colors.text }}>
+                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
                   Contenu
-                </Text>
+                </AppText>
               </View>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+              <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={3} ellipsizeMode="tail">
                 {delivery?.items?.trim() || "Colis divers"}
-              </Text>
-              <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6 }}>
+              </AppText>
+              <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6 }} numberOfLines={4} ellipsizeMode="tail">
                 {delivery?.notes?.trim() || "A manipuler avec précaution, le colis est très fragile"}
-              </Text>
+              </AppText>
             </View>
 
             <View style={[card.outlined, { padding: 24 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
                 <MapPin size={18} color={colors.primary} />
-                <Text style={{ marginLeft: 10, fontSize: 14, fontWeight: "800", color: colors.text }}>
+                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
                   Zone de livraison
-                </Text>
+                </AppText>
               </View>
-              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>
+              <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={3} ellipsizeMode="tail">
                 {delivery?.quartier?.trim() || "Tradex Emana, Yaoundé"}
-              </Text>
-              <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6 }}>
+              </AppText>
+              <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6 }} numberOfLines={2} ellipsizeMode="tail">
                 Rue Al Fourat, Imm 42
-              </Text>
-              <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 4 }}>
+              </AppText>
+              <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 4 }} numberOfLines={3} ellipsizeMode="tail">
                 Note: Sonner à l&apos;interphone B
-              </Text>
+              </AppText>
             </View>
           </View>
 
@@ -400,20 +417,21 @@ export default function LivraisonDetailScreen() {
               overflow: "hidden",
             }}
           >
-            <Text style={{ ...typography.label, color: colors.white, opacity: 0.9 }}>
+            <AppText variant="dense" style={{ ...typography.label, color: colors.white, opacity: 0.9 }} numberOfLines={2} ellipsizeMode="tail">
               Montant total à régler
-            </Text>
-            <Text style={{ fontSize: 32, fontWeight: "900", color: colors.white, marginTop: 10 }}>
+            </AppText>
+            <AppText style={{ fontSize: 32, fontFamily: fonts.bodyBold, color: colors.white, marginTop: 10 }} numberOfLines={1} ellipsizeMode="tail">
               {(delivery?.amount_due ?? 4000).toString()} XAF
-            </Text>
+            </AppText>
 
             <View style={{ marginTop: 14, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10 }}>
               <View
                 style={{
-                  height: 36,
+                  minHeight: 36,
                   borderRadius: radii.pill,
                   backgroundColor: "rgba(255,255,255,0.2)",
                   paddingHorizontal: 14,
+                  paddingVertical: 8,
                   alignItems: "center",
                   justifyContent: "center",
                   flexDirection: "row",
@@ -421,9 +439,9 @@ export default function LivraisonDetailScreen() {
                 }}
               >
                 <CreditCard size={16} color={colors.white} />
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.white }}>
+                <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
                   Paiement à la livraison
-                </Text>
+                </AppText>
               </View>
             </View>
           </View>
@@ -431,21 +449,42 @@ export default function LivraisonDetailScreen() {
           <Pressable
             style={{
               marginTop: 16,
-              height: 56,
+              minHeight: 56,
               borderRadius: radii.pill,
               backgroundColor: "#E5E7EB",
               alignItems: "center",
               justifyContent: "center",
               flexDirection: "row",
               gap: 10,
+              paddingVertical: 14,
             }}
           >
             <CircleHelp size={18} color={colors.text} />
-            <Text style={{ ...typography.bodyRegular, fontWeight: "700" }}>Besoin d&apos;aide ?</Text>
+            <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
+              Besoin d&apos;aide ?
+            </AppText>
           </Pressable>
 
-          <Pressable onPress={() => router.replace("/livraison")} style={{ marginTop: 18, alignItems: "center" }}>
-            <Text style={{ ...typography.link, color: "#2563EB" }}>Annuler la livraison</Text>
+          <Pressable
+            onPress={() => {
+              void hapticLight();
+              Alert.alert("Annuler la livraison ?", "Voulez-vous annuler cette livraison (UI-only) ?", [
+                { text: "Retour", style: "cancel" },
+                {
+                  text: "Annuler",
+                  style: "destructive",
+                  onPress: async () => {
+                    await hapticSuccess();
+                    router.replace("/livraison");
+                  },
+                },
+              ]);
+            }}
+            style={{ marginTop: 18, alignItems: "center" }}
+          >
+            <AppText style={{ ...typography.link, color: "#2563EB" }} numberOfLines={2} ellipsizeMode="tail">
+              Annuler la livraison
+            </AppText>
           </Pressable>
         </>
       )}

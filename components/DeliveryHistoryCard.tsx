@@ -1,6 +1,7 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { card } from "../theme/styles";
-import { colors, typography } from "../theme/tokens";
+import { colors, fonts, typography } from "../theme/tokens";
+import AppText from "./AppText";
 
 type Props = {
   title: string;
@@ -14,17 +15,25 @@ export default function DeliveryHistoryCard({ title, meta, amount, tag, onPress 
   return (
     <Pressable onPress={onPress} style={[card.outlined, { padding: 16 }]}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>{title}</Text>
-          <Text style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 4 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+            {title}
+          </AppText>
+          <AppText
+            style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 4 }}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
             {meta}
-          </Text>
+          </AppText>
         </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={{ fontSize: 12, fontWeight: "800", color: colors.primary }}>{amount}</Text>
-          <Text style={{ ...typography.subtitle, fontSize: 10, lineHeight: 14, marginTop: 6 }}>
+        <View style={{ alignItems: "flex-end", marginLeft: 12, flexShrink: 0 }}>
+          <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1} ellipsizeMode="tail">
+            {amount}
+          </AppText>
+          <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 10, lineHeight: 14, marginTop: 6 }} numberOfLines={1} ellipsizeMode="tail">
             {tag}
-          </Text>
+          </AppText>
         </View>
       </View>
     </Pressable>

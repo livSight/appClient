@@ -1,0 +1,59 @@
+---
+description: Centralized styling (fonts/tokens) and logging conventions for LivSight appClient
+alwaysApply: true
+---
+
+# Centralized styling + logging
+
+## Fonts & typography
+- **Typography must be centralized in** `theme/tokens.ts` (use `typography.*` styles).
+- **Font families**:
+  - **Titles**: Palanquin (see `fonts.title*`)
+  - **Body/UI**: Montserrat (see `fonts.body*`)
+- Fonts are loaded globally in `app/_layout.tsx`. Do not add ad-hoc font loading elsewhere.
+- Avoid hardcoding `fontFamily`/`fontWeight` in screens; prefer `typography` tokens.
+
+## Dynamic Type (accessibility font scaling) — STRICT RULES
+
+### 1. Always use `<AppText>` — never `<Text>` from react-native
+`AppText` (`components/AppText.tsx`) handles `allowFontScaling`, `maxFontSizeMultiplier`, and auto-scales `lineHeight` when the user increases their system font size. Using raw `<Text>` bypasses all of this. ESLint enforces this via `no-restricted-imports`.
+
+### 2. Never use `fontWeight` without `fontFamily`
+`fontWeight` alone silently falls back to the system font (SF Pro on iOS, Roboto on Android), ignoring the custom Montserrat/Palanquin fonts. Always specify `fontFamily` from `theme/tokens.ts`:
+
+| Desired weight | Use |
+|---|---|
+| Regular | `fontFamily: fonts.bodyRegular` |
+| Medium | `fontFamily: fonts.bodyMedium` |
+| SemiBold | `fontFamily: fonts.bodySemi` |
+| Bold / 700+ | `fontFamily: fonts.bodyBold` |
+| Title Bold | `fontFamily: fonts.titleBold` |
+| Title Semi | `fontFamily: fonts.titleSemi` |
+
+Weights 800/900 are not loaded — use `fonts.bodyBold`. Drop `fontWeight` entirely when setting `fontFamily`; the font file encodes the weight.
+
+When overriding a token spread (e.g. `{ ...typography.bodyRegular, … }`), use `fontFamily` not `fontWeight`:
+```tsx
+// ✗ wrong
+{ ...typography.bodyRegular, fontWeight: "600" }
+
+// ✓ correct
+{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }
+```
+
+### 3. Always pair `fontSize` and `lineHeight` together
+`AppText` auto-scales `lineHeight` using `useWindowDimensions().fontScale` capped at `maxFontSizeMultiplier`. If you set `lineHeight` without `fontSize` in the same style object, the ratio will be wrong at large font sizes. Always set both, or use a `typography.*` token which already includes both.
+
+## Layout & tokens
+- Prefer `theme/tokens.ts` (`colors`, `spacing`, `radii`, `typography`) + `theme/styles.ts` (`card`, `row`, `layout`) over duplicating raw hex values and magic numbers.
+- If a new reusable style pattern appears in 2+ screens, promote it into `theme/styles.ts` or a token.
+
+## NativeWind / Tailwind usage
+- NativeWind is available; if using `className`, prefer `font-montserrat` / `font-palanquin` over custom font definitions.
+- Keep Tailwind usage consistent with tokens; don’t invent one-off colors/spacings that diverge from `theme/tokens.ts`.
+
+## Logging
+- Use the centralized logger: `import { logger } from "@/lib/logger";`
+- Prefer tagged logs: `logger.info("screenName", "message", data)`.
+- Do not add new `console.log/warn/error` in app code (except inside `lib/logger.ts`).
+
