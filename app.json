@@ -1,17 +1,29 @@
 {
   "expo": {
     "name": "livsight",
-    "slug": "appClient",
+    "slug": "livsight",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
-    "scheme": "appclient",
+    "scheme": "livsight",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ericdt17.livsight",
+      "deploymentTarget": "16.0",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "NSUserNotificationsUsageDescription": "Recevoir des alertes lorsque le statut d'une livraison change.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
+      "package": "com.ericdt17.livsight",
+      "minSdkVersion": 23,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/logo.png",
@@ -39,11 +51,26 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo.png",
+          "color": "#3090C0",
+          "defaultChannel": "default"
+        }
+      ]
     ],
+    "extra": {
+      "eas": {
+        "projectId": "263eae33-410d-41d2-b267-cc08188400f1"
+      },
+      "router": {}
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "owner": "ericdt17"
   }
 }
