@@ -1,12 +1,9 @@
 import { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
-import { router } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
-import DeliveryHistoryCard from "../../components/DeliveryHistoryCard";
-import DonutCard from "../../components/DonutCard";
 import MetricCard from "../../components/MetricCard";
 import SolarIcon from "../../components/SolarIcon";
-import { card, row } from "../../theme/styles";
+import { row } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
 
@@ -16,6 +13,7 @@ type BucketCounts = {
   delivered: number;
   injoignable: number;
   annule: number;
+  enCours: number;
   totalRelevant: number;
 };
 
@@ -66,6 +64,7 @@ function bucketCounts(deliveries: MockDelivery[]): BucketCounts {
   let delivered = 0;
   let injoignable = 0;
   let annule = 0;
+  let enCours = 0;
 
   for (const d of deliveries) {
     const s = String(d.status ?? "").toLowerCase();
@@ -79,11 +78,13 @@ function bucketCounts(deliveries: MockDelivery[]): BucketCounts {
       injoignable += 1;
     } else if (s === "failed" || s === "cancelled") {
       annule += 1;
+    } else {
+      enCours += 1;
     }
   }
 
   const totalRelevant = delivered + injoignable + annule;
-  return { delivered, injoignable, annule, totalRelevant };
+  return { delivered, injoignable, annule, enCours, totalRelevant };
 }
 
 function pct(n: number, d: number): number {
@@ -189,20 +190,22 @@ function RangeToggle({
 type MockDelivery = {
   id: string;
   items: string;
-  amount_due: number;
+  amount_due: number; // Montant cmd
+  amount_received: number; // Montant reçu
+  fees_withdrawn: number; // Tarifs retirés
   status: string;
   created_at: string;
 };
 
 const MOCK_CURRENT: MockDelivery[] = [
-  { id: "101", items: "Panier de légumes bio", amount_due: 4000, status: "pending", created_at: new Date().toISOString() },
-  { id: "102", items: "Chaussures x2", amount_due: 15000, status: "delivered", created_at: new Date(Date.now() - 86400000).toISOString() },
-  { id: "103", items: "Colis divers", amount_due: 2500, status: "cancelled", created_at: new Date(Date.now() - 3 * 86400000).toISOString() },
+  { id: "101", items: "Panier de légumes bio", amount_due: 4000, amount_received: 0, fees_withdrawn: 0, status: "pending", created_at: new Date().toISOString() },
+  { id: "102", items: "Chaussures x2", amount_due: 15000, amount_received: 15000, fees_withdrawn: 250, status: "delivered", created_at: new Date(Date.now() - 86400000).toISOString() },
+  { id: "103", items: "Colis divers", amount_due: 2500, amount_received: 0, fees_withdrawn: 0, status: "cancelled", created_at: new Date(Date.now() - 3 * 86400000).toISOString() },
 ];
 
 const MOCK_PREVIOUS: MockDelivery[] = [
-  { id: "201", items: "Colis divers", amount_due: 3200, status: "delivered", created_at: new Date(Date.now() - 10 * 86400000).toISOString() },
-  { id: "202", items: "Panier de fruits", amount_due: 5000, status: "delivered", created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
+  { id: "201", items: "Colis divers", amount_due: 3200, amount_received: 3200, fees_withdrawn: 200, status: "delivered", created_at: new Date(Date.now() - 10 * 86400000).toISOString() },
+  { id: "202", items: "Panier de fruits", amount_due: 5000, amount_received: 5000, fees_withdrawn: 250, status: "delivered", created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
 ];
 
 export default function RapportsScreen() {
@@ -216,40 +219,56 @@ export default function RapportsScreen() {
     const count = current.length;
     const prevCount = previous.length;
 
-    const collectXafCurrent = current.reduce((sum, d) => sum + (safeNumber(d.amount_due) > 0 ? safeNumber(d.amount_due) : 0), 0);
-    const collectXafPrevious = previous.reduce((sum, d) => sum + (safeNumber(d.amount_due) > 0 ? safeNumber(d.amount_due) : 0), 0);
+    const totalCmdCurrent = current.reduce((sum, d) => sum + (safeNumber(d.amount_due) > 0 ? safeNumber(d.amount_due) : 0), 0);
+    const totalCmdPrevious = previous.reduce((sum, d) => sum + (safeNumber(d.amount_due) > 0 ? safeNumber(d.amount_due) : 0), 0);
+
+    const totalReceivedCurrent = current.reduce((sum, d) => sum + (safeNumber(d.amount_received) > 0 ? safeNumber(d.amount_received) : 0), 0);
+    const totalReceivedPrevious = previous.reduce((sum, d) => sum + (safeNumber(d.amount_received) > 0 ? safeNumber(d.amount_received) : 0), 0);
+
+    const feesWithdrawnCurrent = current.reduce((sum, d) => sum + (safeNumber(d.fees_withdrawn) > 0 ? safeNumber(d.fees_withdrawn) : 0), 0);
+    const feesWithdrawnPrevious = previous.reduce((sum, d) => sum + (safeNumber(d.fees_withdrawn) > 0 ? safeNumber(d.fees_withdrawn) : 0), 0);
+
+    const totalEncaissedCurrent = totalReceivedCurrent; // UI-only: encaissé == reçu
+    const totalEncaissedPrevious = totalReceivedPrevious;
+
+    const resteAPercevoirCurrent = Math.max(totalCmdCurrent - totalEncaissedCurrent, 0);
+    const resteAPercevoirPrevious = Math.max(totalCmdPrevious - totalEncaissedPrevious, 0);
 
     const buckets = bucketCounts(current);
-    const successPct = pct(buckets.delivered, Math.max(buckets.totalRelevant, 1));
-    const deliveredPct = pct(buckets.delivered, Math.max(buckets.totalRelevant, 1));
-    const injoignablePct = pct(buckets.injoignable, Math.max(buckets.totalRelevant, 1));
-    const annulePct = pct(buckets.annule, Math.max(buckets.totalRelevant, 1));
 
-    const history = [...current]
-      .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
-      .slice(0, 10)
-      .map((d) => ({
-        id: String(d.id),
-        title: deriveTitle(d),
-        meta: `${formatHistoryMeta(d)} • ${statusLabel(String(d.status ?? ""))}`,
-        amount: `${formatXaf(safeNumber(d.amount_due))} XAF`,
-        tag: deriveTag(d),
-      }));
+    // UI-only mock stock snapshot
+    const stockProductsCountCurrent = 7;
+    const stockQtyTotalCurrent = 29;
+    const stockProductsCountPrevious = 6;
+    const stockQtyTotalPrevious = 24;
 
     return {
       deliveriesCount: String(count),
       deliveriesDelta: formatDeltaPct(count, prevCount),
-      collectAmount: formatXaf(collectXafCurrent),
-      collectDelta: formatDeltaPct(collectXafCurrent, collectXafPrevious),
-      totalSuffix: "XAF",
-      successPct,
+
+      totalCmd: formatXaf(totalCmdCurrent),
+      totalCmdDelta: formatDeltaPct(totalCmdCurrent, totalCmdPrevious),
+
+      totalReceived: formatXaf(totalReceivedCurrent),
+      totalReceivedDelta: formatDeltaPct(totalReceivedCurrent, totalReceivedPrevious),
+
+      totalEncaissed: formatXaf(totalEncaissedCurrent),
+      totalEncaissedDelta: formatDeltaPct(totalEncaissedCurrent, totalEncaissedPrevious),
+
+      resteAPercevoir: formatXaf(resteAPercevoirCurrent),
+      resteAPercevoirDelta: formatDeltaPct(resteAPercevoirCurrent, resteAPercevoirPrevious),
+
+      feesWithdrawn: formatXaf(feesWithdrawnCurrent),
+      feesWithdrawnDelta: formatDeltaPct(feesWithdrawnCurrent, feesWithdrawnPrevious),
+
+      stockProductsCount: String(stockProductsCountCurrent),
+      stockProductsCountDelta: formatDeltaPct(stockProductsCountCurrent, stockProductsCountPrevious),
+
+      stockQtyTotal: String(stockQtyTotalCurrent),
+      stockQtyTotalDelta: formatDeltaPct(stockQtyTotalCurrent, stockQtyTotalPrevious),
+
+      totalSuffix: "FCFA",
       buckets,
-      legend: {
-        delivered: `${deliveredPct}% (${buckets.delivered})`,
-        injoignable: `${injoignablePct}% (${buckets.injoignable})`,
-        annule: `${annulePct}% (${buckets.annule})`,
-      },
-      history,
     };
   }, [current, previous]);
 
@@ -276,7 +295,7 @@ export default function RapportsScreen() {
       }
     >
 
-      {/* Metric cards */}
+      {/* Chiffres */}
       <View style={{ marginTop: 18, gap: 16 }}>
         <MetricCard
           title="Livraisons"
@@ -285,44 +304,66 @@ export default function RapportsScreen() {
           iconName="solar:box-bold-duotone"
         />
         <MetricCard
-          title="Montant à encaisser"
-          value={computed.collectAmount}
+          title="Total commandes"
+          value={computed.totalCmd}
           suffix={computed.totalSuffix}
-          delta={computed.collectDelta}
+          delta={computed.totalCmdDelta}
+          iconName="solar:notes-outline"
+        />
+        <MetricCard
+          title="Total encaissé"
+          value={computed.totalEncaissed}
+          suffix={computed.totalSuffix}
+          delta={computed.totalEncaissedDelta}
           iconName="solar:wallet-bold-duotone"
+        />
+        <MetricCard
+          title="Total reçu"
+          value={computed.totalReceived}
+          suffix={computed.totalSuffix}
+          delta={computed.totalReceivedDelta}
+          iconName="solar:card-outline"
+        />
+        <MetricCard
+          title="Reste à percevoir"
+          value={computed.resteAPercevoir}
+          suffix={computed.totalSuffix}
+          delta={computed.resteAPercevoirDelta}
+          iconName="solar:clock-circle-outline"
+        />
+        <MetricCard
+          title="Total tarifs (retirés)"
+          value={computed.feesWithdrawn}
+          suffix={computed.totalSuffix}
+          delta={computed.feesWithdrawnDelta}
+          iconName="solar:hashtag-outline"
+        />
+        <MetricCard
+          title="Produits en stock"
+          value={computed.stockProductsCount}
+          delta={computed.stockProductsCountDelta}
+          iconName="solar:box-bold-duotone"
+        />
+        <MetricCard
+          title="Quantité stock (total)"
+          value={computed.stockQtyTotal}
+          delta={computed.stockQtyTotalDelta}
+          iconName="solar:box-bold"
         />
       </View>
 
-      {/* Success donut + legend */}
-      <View style={{ marginTop: 18 }}>
-        <DonutCard successPct={computed.successPct} legend={computed.legend} />
-      </View>
-
-      {/* Historique */}
       <View style={{ marginTop: 18 }}>
         <View style={{ ...row.spaceBetween, marginBottom: 12 }}>
           <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }} numberOfLines={1}>
-            Historique
+            Statuts
           </AppText>
-          <Pressable onPress={() => router.push("/(tabs)/livraison")} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <AppText variant="dense" style={{ ...typography.link, fontSize: 12 }} numberOfLines={1}>
-              Voir tout
-            </AppText>
-            <SolarIcon name="solar:alt-arrow-right-outline" size={24} color={colors.primary} />
-          </Pressable>
         </View>
 
-        <View style={{ gap: 12 }}>
-          {computed.history.map((it) => (
-            <DeliveryHistoryCard
-              key={it.id}
-              title={it.title}
-              meta={it.meta}
-              amount={it.amount}
-              tag={it.tag}
-              onPress={() => router.push(`/livraison-detail/${it.id}`)}
-            />
-          ))}
+        <View style={{ gap: 16 }}>
+          <MetricCard title="En cours" value={String(computed.buckets.enCours)} iconName="solar:clock-circle-outline" />
+          <MetricCard title="Livré" value={String(computed.buckets.delivered)} iconName="solar:check-circle-bold" />
+          <MetricCard title="Injoignable" value={String(computed.buckets.injoignable)} iconName="solar:phone-outline" />
+          <MetricCard title="Annulé" value={String(computed.buckets.annule)} iconName="solar:close-circle-bold" />
         </View>
       </View>
     </ScreenLayout>
