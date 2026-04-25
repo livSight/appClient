@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, View, Pressable, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { DialogBold } from "@solar-icons/react-native";
 import * as Linking from "expo-linking";
 import { FontAwesome } from "@expo/vector-icons";
 import ScreenLayout from "../../components/ScreenLayout";
@@ -536,7 +535,7 @@ export default function LivraisonDetailScreen() {
                 paddingVertical: 14,
               }}
             >
-              <DialogBold size={24} color={colors.text} />
+              <SolarIcon name="solar:dialog-bold" size={24} color={colors.text} />
               <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
                 Signaler un problème
               </AppText>
@@ -566,9 +565,9 @@ export default function LivraisonDetailScreen() {
                       borderRadius: radii.pill,
                       paddingHorizontal: 14,
                       paddingVertical: 8,
-                      backgroundColor: "rgba(48,144,192,0.12)",
+                      backgroundColor: "rgba(14,165,233,0.12)",
                       borderWidth: 1,
-                      borderColor: "rgba(48,144,192,0.18)",
+                      borderColor: "rgba(14,165,233,0.18)",
                       alignItems: "center",
                       justifyContent: "center",
                       flexShrink: 0,
@@ -611,9 +610,9 @@ export default function LivraisonDetailScreen() {
                       style={{
                         minHeight: 36,
                         borderRadius: radii.pill,
-                        backgroundColor: "rgba(48,144,192,0.12)",
+                        backgroundColor: "rgba(14,165,233,0.12)",
                         borderWidth: 1,
-                        borderColor: "rgba(48,144,192,0.18)",
+                        borderColor: "rgba(14,165,233,0.18)",
                         paddingHorizontal: 14,
                         paddingVertical: 8,
                         alignItems: "center",

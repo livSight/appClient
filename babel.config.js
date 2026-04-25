@@ -55,6 +55,7 @@ module.exports = function (api) {
               "solar:widget-5-outline",
               "solar:add-square-outline",
               "solar:add-square-bold",
+              "solar:dialog-bold",
             ],
           },
         ],

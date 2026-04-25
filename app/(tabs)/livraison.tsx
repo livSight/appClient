@@ -11,27 +11,33 @@ type Status = "Tout" | "En cours" | "Livré" | "Annulé";
 const MOCK_ORDERS: LivraisonOrder[] = [
   {
     id: "101",
+    ref: "#AD-3012",
     title: "Panier de légumes bio",
     quartier: "Bastos",
     dateLabel: "Aujourd'hui, 12:45",
     status: "En cours",
     amountLabel: "4 000 FCFA",
+    paymentLabel: "ESPÈCES",
   },
   {
     id: "102",
+    ref: "#AD-3008",
     title: "Chaussures x2",
     quartier: "Emombo",
     dateLabel: "01 avr. 2026, 10:10",
     status: "Livré",
     amountLabel: "15 000 FCFA",
+    paymentLabel: "MOBILE MONEY",
   },
   {
     id: "103",
+    ref: "#AD-2991",
     title: "Colis divers",
     quartier: "Mvan",
     dateLabel: "28 mars 2026, 18:20",
     status: "Annulé",
     amountLabel: "2 500 FCFA",
+    paymentLabel: "ESPÈCES",
   },
 ];
 
