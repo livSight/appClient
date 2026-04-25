@@ -63,6 +63,21 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
     );
   }
 
+  if (footer) {
+    return (
+      <View style={layout.screen}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={contentStyle}
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+        {footer}
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={layout.screen}

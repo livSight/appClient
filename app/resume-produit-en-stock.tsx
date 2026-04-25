@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, MapPin, PackageOpen, Phone, Wallet, Zap } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
+import FormButton from "../components/FormButton";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
@@ -122,8 +123,28 @@ export default function ResumeProduitEnStockScreen() {
           </View>
         </View>
       }
+      footer={
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: "#EDEEEF",
+            backgroundColor: "rgba(255,255,255,0.95)",
+            paddingHorizontal: 24,
+            paddingTop: 14,
+            paddingBottom: 28,
+          }}
+        >
+          <FormButton
+            label="Confirmer la commande"
+            onPress={async () => {
+              await hapticSuccess();
+              router.push("/confirmee");
+            }}
+          />
+        </View>
+      }
     >
-      <View style={{ marginTop: 18, gap: 18, paddingBottom: 140 }}>
+      <View style={{ marginTop: 18, gap: 18 }}>
         {forExpedition && expeditionClient ? (
           <View>
             <SectionLabel>CLIENT EXPÉDITION</SectionLabel>
@@ -276,46 +297,6 @@ export default function ResumeProduitEnStockScreen() {
             </View>
           </Card>
         </View>
-      </View>
-
-      {/* Fixed action bar */}
-      <View
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          borderTopWidth: 1,
-          borderTopColor: "#EDEEEF",
-          backgroundColor: "rgba(255,255,255,0.92)",
-          paddingHorizontal: 24,
-          paddingTop: 16,
-          paddingBottom: 24,
-        }}
-      >
-        <Pressable
-          onPress={async () => {
-            await hapticSuccess();
-            router.push("/confirmee");
-          }}
-          style={{
-            minHeight: 56,
-            borderRadius: radii.pill,
-            backgroundColor: colors.primary,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: 14,
-            shadowColor: "#297FC6",
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.18,
-            shadowRadius: 16,
-            elevation: 6,
-          }}
-        >
-          <AppText style={{ fontSize: 16, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
-            Confirmer la commande
-          </AppText>
-        </Pressable>
       </View>
     </ScreenLayout>
   );

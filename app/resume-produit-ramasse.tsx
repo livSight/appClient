@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { View, Pressable, ScrollView } from "react-native";
+import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, MapPin, Phone, PackageOpen, Wallet, Zap } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
-import { colors, fonts, radii, typography } from "../theme/tokens";
+import FormButton from "../components/FormButton";
+import { colors, fonts, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
 
@@ -12,7 +13,7 @@ type Params = {
   quartier?: string; // legacy
   deliveryAddress?: string;
   pickupPhone?: string;
-  pickupAddress?: string; // ramassage address/quartier exact
+  pickupAddress?: string;
   pickupExpress?: "yes" | "no";
   pickupName?: string;
   pickupQty?: string;
@@ -114,28 +115,50 @@ export default function ResumeProduitRamasseScreen() {
   }, [amount, collectCash]);
 
   return (
-    <ScreenLayout>
-      {/* Top app bar */}
-      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 41, marginBottom: 18 }}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
-          <ArrowLeft size={22} color={colors.text} />
-        </Pressable>
-        <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
-          <AppText variant="dense" style={{ fontSize: 18, lineHeight: 28, fontFamily: fonts.bodySemi, color: "#0F172A" }} numberOfLines={1}>
-            {forExpedition ? "Expédition" : "Livraison"}
+    <ScreenLayout
+      header={
+        <View style={{ paddingBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", minHeight: 41 }}>
+            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
+              <ArrowLeft size={22} color={colors.text} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
+              <AppText variant="dense" style={{ fontSize: 18, lineHeight: 28, fontFamily: fonts.bodySemi, color: "#0F172A" }} numberOfLines={1}>
+                {forExpedition ? "Expédition" : "Livraison"}
+              </AppText>
+            </View>
+            <View style={{ width: 44 }} />
+          </View>
+          <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36, marginTop: 12 }} numberOfLines={2}>
+            {forExpedition ? "Résumé expédition (ramassage)" : "Résumé produit ramassé"}
+          </AppText>
+          <AppText style={{ ...typography.subtitle, lineHeight: 24, marginTop: 8 }}>
+            Vérifiez les informations avant de confirmer.
           </AppText>
         </View>
-        <View style={{ width: 44 }} />
-      </View>
-
-      <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36 }} numberOfLines={2}>
-        {forExpedition ? "Résumé expédition (ramassage)" : "Résumé produit ramassé"}
-      </AppText>
-      <AppText style={{ ...typography.subtitle, lineHeight: 24, marginTop: 10 }}>
-        Vérifiez les informations avant de confirmer.
-      </AppText>
-
-      <ScrollView style={{ marginTop: 18 }} contentContainerStyle={{ gap: 18, paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+      }
+      footer={
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: "#EDEEEF",
+            backgroundColor: "rgba(255,255,255,0.95)",
+            paddingHorizontal: 24,
+            paddingTop: 14,
+            paddingBottom: 28,
+          }}
+        >
+          <FormButton
+            label="Confirmer la commande"
+            onPress={async () => {
+              await hapticSuccess();
+              router.push("/confirmee");
+            }}
+          />
+        </View>
+      }
+    >
+      <View style={{ gap: 18, marginTop: 8 }}>
         {forExpedition && expeditionClient ? (
           <View>
             <SectionLabel>CLIENT EXPÉDITION</SectionLabel>
@@ -247,48 +270,7 @@ export default function ResumeProduitRamasseScreen() {
             </View>
           </Card>
         </View>
-      </ScrollView>
-
-      {/* Fixed action bar */}
-      <View
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          borderTopWidth: 1,
-          borderTopColor: "#EDEEEF",
-          backgroundColor: "rgba(255,255,255,0.92)",
-          paddingHorizontal: 24,
-          paddingTop: 16,
-          paddingBottom: 24,
-        }}
-      >
-        <Pressable
-          onPress={async () => {
-            await hapticSuccess();
-            router.push("/confirmee");
-          }}
-          style={{
-            minHeight: 56,
-            borderRadius: radii.pill,
-            backgroundColor: colors.primary,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: 14,
-            shadowColor: "#297FC6",
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.18,
-            shadowRadius: 16,
-            elevation: 6,
-          }}
-        >
-          <AppText style={{ fontSize: 16, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
-            Confirmer la commande
-          </AppText>
-        </Pressable>
       </View>
     </ScreenLayout>
   );
 }
-

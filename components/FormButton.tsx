@@ -7,6 +7,8 @@ type Props = {
   onPress: () => void | Promise<void>;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Optional trailing icon rendered to the right of the label */
+  icon?: React.ComponentType<{ size?: number; color?: string }>;
 };
 
 /**
@@ -16,7 +18,7 @@ type Props = {
  * Usage:
  *   <FormButton label="Continuer" onPress={handleSubmit} disabled={!isValid} />
  */
-export default function FormButton({ label, onPress, disabled = false, style }: Props) {
+export default function FormButton({ label, onPress, disabled = false, style, icon: Icon }: Props) {
   return (
     <Pressable
       onPress={onPress}
@@ -26,9 +28,12 @@ export default function FormButton({ label, onPress, disabled = false, style }: 
           minHeight: 56,
           borderRadius: radii.pill,
           paddingVertical: 14,
+          paddingHorizontal: 24,
           backgroundColor: disabled ? "rgba(41,127,198,0.45)" : colors.primary,
           alignItems: "center",
           justifyContent: "center",
+          flexDirection: "row",
+          gap: 10,
           shadowColor: colors.primary,
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: disabled ? 0 : 0.18,
@@ -44,6 +49,7 @@ export default function FormButton({ label, onPress, disabled = false, style }: 
       >
         {label}
       </AppText>
+      {Icon ? <Icon size={18} color={colors.white} /> : null}
     </Pressable>
   );
 }
