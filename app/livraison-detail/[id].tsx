@@ -6,7 +6,7 @@ import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
 import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
-import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { hapticLight } from "@/lib/haptics";
 import AppText from "../../components/AppText";
 
 const WARNING_AMBER = "#F59E0B";
@@ -537,6 +537,29 @@ export default function LivraisonDetailScreen() {
               </View>
             </View>
           </View>
+
+          <Pressable
+            onPress={() => {
+              void hapticLight();
+              router.push({
+                pathname: "/annulation",
+                params: { id: String(delivery.id) },
+              });
+            }}
+            style={{
+              marginTop: 18,
+              minHeight: 56,
+              borderRadius: radii.pill,
+              backgroundColor: "#DC2626",
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 14,
+            }}
+          >
+            <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={2} ellipsizeMode="tail">
+              Annuler la livraison
+            </AppText>
+          </Pressable>
 
         </>
       )}
