@@ -136,19 +136,35 @@ export default function ResumeProduitEnStockScreen() {
 
   function goEdit(editSection: string) {
     router.push({
-      pathname: "/ma-demande-livraison",
+      pathname: forExpedition ? "/ma-demande-expedition" : "/ma-demande-livraison",
       params: {
         mode: "stock",
         editSection,
-        livPhone: phone,
-        livExpress: express,
-        livCollectCash: collectCash,
-        livAmountDueText: amountDueText,
-        livNotes: notes,
-        deliveryQuartier,
-        deliveryLandmark,
-        stockItemId: items[0]?.id ?? "",
-        stockQty: items[0]?.qty ? String(items[0].qty) : "",
+        ...(forExpedition
+          ? {
+              quartier: typeof params.quartier === "string" ? params.quartier : "",
+              expeditionClient: typeof params.expeditionClient === "string" ? params.expeditionClient : "",
+              phone,
+              express,
+              collectCash,
+              amountDueText,
+              notes,
+              deliveryQuartier,
+              deliveryLandmark,
+              selectedItems: typeof params.selectedItems === "string" ? params.selectedItems : "[]",
+              service: typeof params.service === "string" ? params.service : "",
+            }
+          : {
+              livPhone: phone,
+              livExpress: express,
+              livCollectCash: collectCash,
+              livAmountDueText: amountDueText,
+              livNotes: notes,
+              deliveryQuartier,
+              deliveryLandmark,
+              stockItemId: items[0]?.id ?? "",
+              stockQty: items[0]?.qty ? String(items[0].qty) : "",
+            }),
       },
     });
   }
@@ -210,7 +226,7 @@ export default function ResumeProduitEnStockScreen() {
         ) : null}
 
         <View>
-          <SectionRow label={forExpedition ? "CONTACT LIVRAISON" : "DESTINATAIRE"} onEdit={!forExpedition ? () => goEdit("recipient") : undefined} />
+          <SectionRow label={forExpedition ? "CONTACT LIVRAISON" : "DESTINATAIRE"} onEdit={() => goEdit("recipient")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
@@ -226,7 +242,7 @@ export default function ResumeProduitEnStockScreen() {
         </View>
 
         <View>
-          <SectionRow label="TYPE DE LIVRAISON" onEdit={!forExpedition ? () => goEdit("deliveryType") : undefined} />
+          <SectionRow label="TYPE DE LIVRAISON" onEdit={() => goEdit("deliveryType")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
@@ -245,7 +261,7 @@ export default function ResumeProduitEnStockScreen() {
         </View>
 
         <View>
-          <SectionRow label="MODE DE RÉCUPÉRATION" onEdit={!forExpedition ? () => goEdit("mode") : undefined} />
+          <SectionRow label="MODE DE RÉCUPÉRATION" onEdit={() => goEdit("mode")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <View
@@ -272,7 +288,7 @@ export default function ResumeProduitEnStockScreen() {
         </View>
 
         <View>
-          <SectionRow label="ARTICLES" onEdit={!forExpedition ? () => goEdit("items") : undefined} />
+          <SectionRow label="ARTICLES" onEdit={() => goEdit("items")} />
           <Card>
             {items.length ? (
               <View style={{ gap: 10 }}>
@@ -305,7 +321,7 @@ export default function ResumeProduitEnStockScreen() {
         </View>
 
         <View>
-          <SectionRow label="ADRESSE DE LIVRAISON" onEdit={!forExpedition ? () => goEdit("address") : undefined} />
+          <SectionRow label="ADRESSE DE LIVRAISON" onEdit={() => goEdit("address")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
@@ -327,7 +343,7 @@ export default function ResumeProduitEnStockScreen() {
 
         {notes.trim().length ? (
           <View>
-            <SectionRow label="AUTRES DÉTAILS / INSTRUCTIONS" onEdit={!forExpedition ? () => goEdit("notes") : undefined} />
+            <SectionRow label="AUTRES DÉTAILS / INSTRUCTIONS" onEdit={() => goEdit("notes")} />
             <Card>
               <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.9)" }}>
                 {notes}
@@ -337,7 +353,7 @@ export default function ResumeProduitEnStockScreen() {
         ) : null}
 
         <View>
-          <SectionRow label="PAIEMENT" onEdit={!forExpedition ? () => goEdit("payment") : undefined} />
+          <SectionRow label="PAIEMENT" onEdit={() => goEdit("payment")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
@@ -356,42 +372,40 @@ export default function ResumeProduitEnStockScreen() {
           </Card>
         </View>
 
-        {!forExpedition ? (
-          <View>
-            <SectionRow label="TOTAL" />
-            <Card>
-              <View style={{ gap: 10 }}>
+        <View>
+          <SectionRow label="TOTAL" />
+          <Card>
+            <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
+                  Frais de livraison
+                </AppText>
+                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
+                  {deliveryFeeXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
+                </AppText>
+              </View>
+              {expressSupplementXaf > 0 ? (
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
                   <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
-                    Frais de livraison
+                    Supplément express
                   </AppText>
                   <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
-                    {deliveryFeeXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
+                    {expressSupplementXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
                   </AppText>
                 </View>
-                {expressSupplementXaf > 0 ? (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-                    <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
-                      Supplément express
-                    </AppText>
-                    <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
-                      {expressSupplementXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                    </AppText>
-                  </View>
-                ) : null}
-                <View style={{ height: 1, backgroundColor: "#EDEEEF", marginTop: 2 }} />
-                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 2 }}>
-                  <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                    Total
-                  </AppText>
-                  <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                    {totalXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                  </AppText>
-                </View>
+              ) : null}
+              <View style={{ height: 1, backgroundColor: "#EDEEEF", marginTop: 2 }} />
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 2 }}>
+                <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                  Total
+                </AppText>
+                <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                  {totalXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
+                </AppText>
               </View>
-            </Card>
-          </View>
-        ) : null}
+            </View>
+          </Card>
+        </View>
       </View>
     </ScreenLayout>
   );
