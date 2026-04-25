@@ -179,9 +179,10 @@ export default function StockScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (addedName) return; // item ajouté via params — l'useEffect dédié s'en charge
       load();
       return () => {};
-    }, []),
+    }, [addedName]),
   );
 
   function dec(id: string) {
@@ -229,8 +230,13 @@ export default function StockScreen() {
   // Accept new item from /ajouter-au-stock (UI-only navigation contract).
   useEffect(() => {
     if (!addedName) return;
-    const qty = Math.max(0, Number(addedQty ?? "0") || 0);
-    setItems((prev) => [{ id: `tmp:${Date.now()}`, name: addedName, subtitle: addedSubtitle ?? "", qty }, ...prev]);
+    const qty = Math.max(1, Number(addedQty ?? "1") || 1);
+    const newItem: StockItem = { id: `tmp:${Date.now()}`, name: addedName, subtitle: addedSubtitle ?? "", qty };
+    const baseItems = MOCK_ITEMS.map((it) => ({ ...it, low: it.qty <= 2 }));
+    const allItems = [newItem, ...baseItems];
+    initialSnapshotRef.current = toSnapshot(allItems); // snapshot inclut le nouvel item → dirty = false
+    setItems(allItems);
+    setLoading(false);
   }, [addedName, addedQty, addedSubtitle]);
 
   return (

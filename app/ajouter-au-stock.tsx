@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
+import LottieView from "lottie-react-native";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import AppText from "../components/AppText";
@@ -95,7 +96,7 @@ function QtyCounter({
 
 export default function AjouterAuStockScreen() {
   const [name, setName] = useState("");
-  const [qty, setQty] = useState(0);
+  const [qty, setQty] = useState(1);
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,9 +109,8 @@ export default function AjouterAuStockScreen() {
     setError(null);
     try {
       await hapticSuccess();
-      // UI-only: pass new item to previous screen via params.
       router.replace({
-        pathname: "/(tabs)/stock",
+        pathname: "/confirmation-ajout-stock",
         params: {
           addedName: name.trim(),
           addedQty: String(qty),
@@ -207,7 +207,18 @@ export default function AjouterAuStockScreen() {
             paddingVertical: 14,
           }}
         >
-          {submitting ? <ActivityIndicator color={colors.white} /> : <SolarIcon name="solar:add-square-bold" size={24} color={colors.white} />}
+          {submitting ? (
+            <View pointerEvents="none" style={{ width: 28, height: 28 }}>
+              <LottieView
+                source={require("../assets/lottie/loading-dots.json")}
+                autoPlay
+                loop
+                style={{ width: 28, height: 28 }}
+              />
+            </View>
+          ) : (
+            <SolarIcon name="solar:add-square-bold" size={24} color={colors.white} />
+          )}
           <AppText style={{ fontSize: 18, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={2} ellipsizeMode="tail">
             Ajouter au stock
           </AppText>
