@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, MapPin, Phone, PackageOpen, Wallet, Zap } from "lucide-react-native";
+import { ArrowLeft, MapPin, Phone, PackageOpen, Wallet, Zap, Camera } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
 import FormButton from "../components/FormButton";
@@ -14,6 +14,11 @@ type Params = {
   deliveryAddress?: string;
   pickupPhone?: string;
   pickupAddress?: string;
+  pickupPickupQuartier?: string;
+  pickupPickupLandmark?: string;
+  pickupDropoffQuartier?: string;
+  pickupDropoffLandmark?: string;
+  pickupPhotoUri?: string;
   pickupExpress?: "yes" | "no";
   pickupName?: string;
   pickupQty?: string;
@@ -98,6 +103,11 @@ export default function ResumeProduitRamasseScreen() {
   const deliveryAddress = typeof params.deliveryAddress === "string" ? params.deliveryAddress : "";
   const phone = typeof params.pickupPhone === "string" ? params.pickupPhone : "";
   const ramassageAddress = typeof params.pickupAddress === "string" ? params.pickupAddress : "";
+  const pickupPickupQuartier = typeof params.pickupPickupQuartier === "string" ? params.pickupPickupQuartier : "";
+  const pickupPickupLandmark = typeof params.pickupPickupLandmark === "string" ? params.pickupPickupLandmark : "";
+  const pickupDropoffQuartier = typeof params.pickupDropoffQuartier === "string" ? params.pickupDropoffQuartier : "";
+  const pickupDropoffLandmark = typeof params.pickupDropoffLandmark === "string" ? params.pickupDropoffLandmark : "";
+  const pickupPhotoUri = typeof params.pickupPhotoUri === "string" ? params.pickupPhotoUri : "";
   const express = params.pickupExpress === "yes" ? "yes" : "no";
   const itemName = typeof params.pickupName === "string" ? params.pickupName : "";
   const qty = parseIntSafe(typeof params.pickupQty === "string" ? params.pickupQty : "");
@@ -113,6 +123,19 @@ export default function ResumeProduitRamasseScreen() {
     if (collectCash === "no") return "Pas d'argent à récupérer";
     return `${formatFcfa(amount)} FCFA à récupérer`;
   }, [amount, collectCash]);
+
+  const pickupAddressV2 = useMemo(() => {
+    const q = pickupPickupQuartier.trim();
+    const l = pickupPickupLandmark.trim();
+    return [q, l].filter(Boolean).join(" — ") || ramassageAddress || "—";
+  }, [pickupPickupQuartier, pickupPickupLandmark, ramassageAddress]);
+
+  const dropoffAddressV2 = useMemo(() => {
+    const q = pickupDropoffQuartier.trim();
+    const l = pickupDropoffLandmark.trim();
+    const v2 = [q, l].filter(Boolean).join(" — ");
+    return v2 || deliveryAddress || quartierLivraison || "—";
+  }, [pickupDropoffQuartier, pickupDropoffLandmark, deliveryAddress, quartierLivraison]);
 
   return (
     <ScreenLayout
@@ -203,7 +226,7 @@ export default function ResumeProduitRamasseScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                  {deliveryAddress || quartierLivraison || "—"}
+                  {dropoffAddressV2}
                 </AppText>
                 <AppText variant="dense" style={{ marginTop: 2, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={2}>
                   Yaoundé, Cameroun
@@ -232,7 +255,7 @@ export default function ResumeProduitRamasseScreen() {
         <View>
           <SectionLabel>ADRESSE DE RAMASSAGE</SectionLabel>
           <Card>
-            <Line label="Adresse / quartier exact" value={ramassageAddress || "—"} />
+            <Line label="Adresse / quartier exact" value={pickupAddressV2} />
           </Card>
         </View>
 
@@ -249,6 +272,22 @@ export default function ResumeProduitRamasseScreen() {
                 </AppText>
                 <AppText variant="dense" style={{ marginTop: 2, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={1}>
                   {qty > 0 ? `Quantité: x${qty}` : "Quantité: —"}
+                </AppText>
+              </View>
+            </View>
+          </Card>
+        </View>
+
+        <View>
+          <SectionLabel>PHOTO DU COLIS</SectionLabel>
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
+                <Camera size={18} color={"rgba(25,28,29,0.75)"} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+                  {pickupPhotoUri.trim().length ? "Photo ajoutée" : "—"}
                 </AppText>
               </View>
             </View>

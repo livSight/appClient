@@ -12,10 +12,22 @@ import AppText from "../../components/AppText";
 import HomeTopBar from "../../components/HomeTopBar";
 import HomeRecentOrderCard from "../../components/HomeRecentOrderCard";
  
-const MOCK_RECENT = {
+type HomeOrderStatus = "En cours" | "Livré" | "Annulé";
+
+const MOCK_RECENT: {
+  id: string;
+  title: string;
+  meta: string;
+  status: HomeOrderStatus;
+  totalXaf: number;
+  collectCashXaf: number;
+} = {
   id: "101",
   title: "Chechia Homme",
   meta: "Mobile Omnisports • Il y a 2\njours",
+  status: "En cours",
+  totalXaf: 4000,
+  collectCashXaf: 0,
 };
 
 export default function AccueilScreen() {
@@ -23,24 +35,74 @@ export default function AccueilScreen() {
   const contentWidth = width - spacing.screenPaddingX * 2;
   const cardWidth = (contentWidth - spacing.gridColGap) / 2;
   const recentUi = useMemo(() => MOCK_RECENT, []);
+  const hasRecent = Boolean(recentUi?.id);
+  const agencyStatus = useMemo<"online" | "offline">(() => "online", []);
 
   return (
     <ScreenLayout
       header={
         <View style={{ paddingBottom: 20 }}>
           <HomeTopBar
-            locationLabel="Yaounde, Cameroon"
+            locationLabel="Yaoundé, Cameroun"
+            agencyStatus={agencyStatus}
             onProfilePress={() => router.push("/profile")}
           />
           <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
             Bonjour Alex
           </AppText>
           <AppText style={[typography.subtitle, { marginTop: 10 }]}>
-            De que service avez vous besoins aujourd’hui?
+            De quels services avez-vous besoin aujourd’hui ?
           </AppText>
         </View>
       }
     >
+
+      {agencyStatus === "offline" ? (
+        <View style={{ marginBottom: spacing.sectionGap, borderRadius: radii.card, backgroundColor: "rgba(211,47,47,0.10)", padding: 16 }}>
+          <AppText style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, color: "#7A1B1B" }} numberOfLines={3}>
+            Agence hors ligne — la prise en charge peut être plus lente.
+          </AppText>
+        </View>
+      ) : null}
+
+      {/* Recent Deliveries */}
+      <View style={{ marginBottom: spacing.sectionGap }}>
+        <SectionHeader
+          title="Dernière commande"
+          linkLabel="Voir tout"
+          onLinkPress={() => router.push("/(tabs)/livraison")}
+          style={{ marginBottom: 16 }}
+        />
+
+        {hasRecent ? (
+          <HomeRecentOrderCard
+            title={recentUi.title}
+            meta={recentUi.meta}
+            status={recentUi.status}
+            totalXaf={recentUi.totalXaf}
+            collectCashXaf={recentUi.collectCashXaf}
+            onPress={() => router.push(`/livraison-detail/${recentUi.id}`)}
+            onQuickActionPress={() => {}}
+          />
+        ) : (
+          <View style={{ borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
+            <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
+              Aucune commande en cours
+            </AppText>
+            <AppText style={{ ...typography.subtitle, marginTop: 6 }}>
+              Créez votre première livraison en 30 secondes.
+            </AppText>
+            <View style={{ marginTop: 14, flexDirection: "row", gap: 12, alignItems: "center" }}>
+              <PillButton label="Créer une livraison" onPress={() => router.push("/ma-demande-livraison")} />
+              <PillButton
+                label="Créer une expédition"
+                variant="white"
+                onPress={() => router.push({ pathname: "/ma-demande-expedition", params: { quartier: "" } })}
+              />
+            </View>
+          </View>
+        )}
+      </View>
 
       {/* Category Grid */}
       <View style={{ marginBottom: spacing.sectionGap }}>
@@ -66,7 +128,6 @@ export default function AccueilScreen() {
             title="Course"
             subtitle=""
             Icon={ShoppingBasket}
-            selected
             width={cardWidth}
             onPress={() => router.push("/ma-demande-livraison")}
           />
@@ -131,21 +192,6 @@ export default function AccueilScreen() {
           onPress={() => router.push("/ma-demande-livraison")}
         />
       </LinearGradient>
-
-      {/* Recent Deliveries */}
-      <View>
-        <SectionHeader
-          title="Dernière commande"
-          linkLabel="Voir tout"
-          onLinkPress={() => router.push("/(tabs)/livraison")}
-        />
-
-        <HomeRecentOrderCard
-          title={recentUi.title}
-          meta={recentUi.meta}
-          onPress={() => router.push(`/livraison-detail/${recentUi.id}`)}
-        />
-      </View>
     </ScreenLayout>
   );
 }

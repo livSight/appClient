@@ -19,6 +19,8 @@ type Props = {
  *   <FormButton label="Continuer" onPress={handleSubmit} disabled={!isValid} />
  */
 export default function FormButton({ label, onPress, disabled = false, style, icon: Icon }: Props) {
+  const bg = disabled ? "#D1D5DB" : colors.primary;
+  const fg = disabled ? "#374151" : colors.white;
   return (
     <Pressable
       onPress={onPress}
@@ -29,12 +31,12 @@ export default function FormButton({ label, onPress, disabled = false, style, ic
           borderRadius: radii.pill,
           paddingVertical: 14,
           paddingHorizontal: 24,
-          backgroundColor: disabled ? "rgba(41,127,198,0.45)" : colors.primary,
+          backgroundColor: bg,
           alignItems: "center",
           justifyContent: "center",
           flexDirection: "row",
           gap: 10,
-          shadowColor: colors.primary,
+          shadowColor: disabled ? "transparent" : colors.primary,
           shadowOffset: { width: 0, height: 8 },
           shadowOpacity: disabled ? 0 : 0.18,
           shadowRadius: 16,
@@ -44,12 +46,12 @@ export default function FormButton({ label, onPress, disabled = false, style, ic
       ]}
     >
       <AppText
-        style={{ fontSize: 16, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.white }}
+        style={{ fontSize: 16, lineHeight: 24, fontFamily: fonts.bodyBold, color: fg }}
         numberOfLines={1}
       >
         {label}
       </AppText>
-      {Icon ? <Icon size={18} color={colors.white} /> : null}
+      {Icon ? <Icon size={18} color={fg} /> : null}
     </Pressable>
   );
 }

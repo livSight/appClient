@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, Search, PackageOpen, Hand, Hash, Wallet } from "lucide-react-native";
+import { ArrowLeft, Search, PackageOpen, Hand, Hash, Wallet, Camera, X } from "lucide-react-native";
 import ScreenLayout from "./ScreenLayout";
 import AppText from "./AppText";
 import AppTextInput from "./AppTextInput";
@@ -15,6 +15,8 @@ import {
   stringifyExpeditionClient,
 } from "@/lib/expeditionClient";
 import { hapticSuccess } from "@/lib/haptics";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 
 export type MaDemandeProduitsFlow = "livraison" | "expedition";
 
@@ -41,17 +43,197 @@ function RamassageFieldLabel({ children }: { children: string }) {
   );
 }
 
+function QuartierSelect({
+  label,
+  placeholder,
+  query,
+  setQuery,
+  open,
+  setOpen,
+  items,
+  onSelect,
+}: {
+  label: string;
+  placeholder: string;
+  query: string;
+  setQuery: (next: string) => void;
+  open: boolean;
+  setOpen: (next: boolean) => void;
+  items: readonly string[];
+  onSelect: (value: string) => void;
+}) {
+  return (
+    <View>
+      <RamassageFieldLabel>{label}</RamassageFieldLabel>
+      <View
+        style={{
+          minHeight: 56,
+          borderRadius: INPUT_RADIUS,
+          backgroundColor: INPUT_BG,
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <Search size={18} color={"rgba(60,74,60,0.45)"} />
+        <AppTextInput
+          value={query}
+          onChangeText={(t) => {
+            setQuery(t);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder={placeholder}
+          placeholderTextColor={PH}
+          style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
+        />
+      </View>
+
+      {open ? (
+        <View
+          style={{
+            marginTop: 10,
+            borderRadius: 16,
+            backgroundColor: colors.white,
+            borderWidth: 1,
+            borderColor: "rgba(187,203,184,0.20)",
+            overflow: "hidden",
+          }}
+        >
+          {items.slice(0, 8).map((q) => (
+            <Pressable
+              key={q}
+              onPress={() => {
+                onSelect(q);
+                setQuery(q);
+                setOpen(false);
+              }}
+              style={{
+                minHeight: 46,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: "rgba(237,238,239,0.9)",
+                flexDirection: "row",
+                alignItems: "center",
+              }}
+            >
+              <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
+                {q}
+              </AppText>
+            </Pressable>
+          ))}
+          {items.length === 0 ? (
+            <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+              <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
+                Aucun quartier trouvé.
+              </AppText>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function PhotoPicker({
+  label,
+  uri,
+  onChangeUri,
+  required,
+}: {
+  label: string;
+  uri: string | null;
+  onChangeUri: (next: string | null) => void;
+  required?: boolean;
+}) {
+  return (
+    <View style={{ marginTop: 14 }}>
+      <RamassageFieldLabel>{required ? label : `${label} (optionnel)`}</RamassageFieldLabel>
+      {uri ? (
+        <View style={{ borderRadius: 16, backgroundColor: colors.white, overflow: "hidden", borderWidth: 1, borderColor: "rgba(187,203,184,0.20)" }}>
+          <Image source={{ uri }} style={{ width: "100%", height: 180 }} contentFit="cover" />
+          <Pressable
+            onPress={() => onChangeUri(null)}
+            hitSlop={10}
+            style={{
+              position: "absolute",
+              top: 10,
+              right: 10,
+              width: 36,
+              height: 36,
+              borderRadius: radii.pill,
+              backgroundColor: "rgba(15,23,42,0.65)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={18} color={colors.white} />
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable
+          onPress={async () => {
+            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!perm.granted) return;
+            const res = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+            });
+            if (res.canceled) return;
+            const nextUri = res.assets?.[0]?.uri;
+            if (typeof nextUri === "string" && nextUri.length > 0) onChangeUri(nextUri);
+          }}
+          style={{
+            minHeight: 88,
+            borderRadius: 16,
+            borderWidth: 2,
+            borderStyle: "dashed",
+            borderColor: "rgba(187,203,184,0.35)",
+            backgroundColor: colors.white,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingVertical: 18,
+            paddingHorizontal: 16,
+            gap: 10,
+          }}
+        >
+          <Camera size={22} color={"rgba(60,74,60,0.55)"} />
+          <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
+            Ajouter une photo
+          </AppText>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 type InventoryItem = {
   id: string;
   name: string;
   stockLabel: string;
+  stockAvailable: number;
 };
 
 const MOCK_INVENTORY: InventoryItem[] = [
-  { id: "paper-a4", name: "Papier A4 (80g)", stockLabel: "STOCK: 45 RAMES" },
-  { id: "markers", name: "Set Marqueurs (x12)", stockLabel: "STOCK: 12 SETS" },
-  { id: "folders", name: "Classeurs Rigides", stockLabel: "STOCK: 28 UNITÉS" },
+  { id: "paper-a4", name: "Papier A4 (80g)", stockLabel: "STOCK: 45 RAMES", stockAvailable: 45 },
+  { id: "markers", name: "Set Marqueurs (x12)", stockLabel: "STOCK: 12 SETS", stockAvailable: 12 },
+  { id: "folders", name: "Classeurs Rigides", stockLabel: "STOCK: 28 UNITÉS", stockAvailable: 28 },
 ];
+
+const YAOUNDE_QUARTIERS = [
+  "Bastos",
+  "Mvan",
+  "Emombo",
+  "Nlongkak",
+  "Essos",
+  "Ekounou",
+  "Mokolo",
+  "Nkoldongo",
+] as const;
 
 function parseXaf(input: string): number {
   const cleaned = input.replace(/[^\d]/g, "");
@@ -124,12 +306,20 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [pickupName, setPickupName] = useState("");
-  const [pickupAddress, setPickupAddress] = useState("");
   const [pickupQty, setPickupQty] = useState("1");
   const [pickupExpress, setPickupExpress] = useState<"yes" | "no">("no");
   const [pickupCollectCash, setPickupCollectCash] = useState<"yes" | "no">("no");
   const [pickupAmount, setPickupAmount] = useState("");
   const [pickupPhone, setPickupPhone] = useState("");
+  const [pickupPickupQuartierQuery, setPickupPickupQuartierQuery] = useState("");
+  const [pickupPickupQuartierOpen, setPickupPickupQuartierOpen] = useState(false);
+  const [pickupPickupQuartierSelected, setPickupPickupQuartierSelected] = useState<string | null>(null);
+  const [pickupPickupLandmark, setPickupPickupLandmark] = useState("");
+  const [pickupDropoffQuartierQuery, setPickupDropoffQuartierQuery] = useState("");
+  const [pickupDropoffQuartierOpen, setPickupDropoffQuartierOpen] = useState(false);
+  const [pickupDropoffQuartierSelected, setPickupDropoffQuartierSelected] = useState<string | null>(null);
+  const [pickupDropoffLandmark, setPickupDropoffLandmark] = useState("");
+  const [pickupPhotoUri, setPickupPhotoUri] = useState<string | null>(null);
 
   const [expVille, setExpVille] = useState(() => (typeof quartierParam === "string" ? quartierParam.trim() : ""));
   const [expAgence, setExpAgence] = useState("");
@@ -151,7 +341,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const [livSelectedStockItemId, setLivSelectedStockItemId] = useState<string | null>(null);
   const [livStockQty, setLivStockQty] = useState("1");
   const [livPhone, setLivPhone] = useState("");
-  const [livDeliveryAddress, setLivDeliveryAddress] = useState("");
+  const [livQuartierQuery, setLivQuartierQuery] = useState("");
+  const [livQuartierOpen, setLivQuartierOpen] = useState(false);
+  const [livSelectedQuartier, setLivSelectedQuartier] = useState<string | null>(null);
+  const [livDeliveryLandmark, setLivDeliveryLandmark] = useState("");
+  const [livPhotoUri, setLivPhotoUri] = useState<string | null>(null);
   const [livNotes, setLivNotes] = useState("");
   const [livExpress, setLivExpress] = useState<"yes" | "no">("no");
   const [livCollectCash, setLivCollectCash] = useState<"yes" | "no">("no");
@@ -179,6 +373,27 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     return MOCK_INVENTORY.find((it) => it.id === livSelectedStockItemId) ?? null;
   }, [livSelectedStockItemId]);
 
+  const livStockAvailable = livSelectedStockItem?.stockAvailable ?? 0;
+  const livOutOfStock = Boolean(livSelectedStockItem) && livStockAvailable <= 0;
+
+  const livFilteredQuartiers = useMemo(() => {
+    const q = livQuartierQuery.trim().toLowerCase();
+    if (!q) return YAOUNDE_QUARTIERS as readonly string[];
+    return (YAOUNDE_QUARTIERS as readonly string[]).filter((it) => it.toLowerCase().includes(q));
+  }, [livQuartierQuery]);
+
+  const pickupPickupFilteredQuartiers = useMemo(() => {
+    const q = pickupPickupQuartierQuery.trim().toLowerCase();
+    if (!q) return YAOUNDE_QUARTIERS as readonly string[];
+    return (YAOUNDE_QUARTIERS as readonly string[]).filter((it) => it.toLowerCase().includes(q));
+  }, [pickupPickupQuartierQuery]);
+
+  const pickupDropoffFilteredQuartiers = useMemo(() => {
+    const q = pickupDropoffQuartierQuery.trim().toLowerCase();
+    if (!q) return YAOUNDE_QUARTIERS as readonly string[];
+    return (YAOUNDE_QUARTIERS as readonly string[]).filter((it) => it.toLowerCase().includes(q));
+  }, [pickupDropoffQuartierQuery]);
+
   const livNeedsCashAmount = livCollectCash === "yes";
 
   const livAmountDue = useMemo(() => {
@@ -202,9 +417,10 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
       const q = parseXaf(livStockQty);
       const hasQty = q > 0;
       const hasStock = Boolean(livSelectedStockItem);
+      const stockOk = !livOutOfStock;
       const phoneOk = livPhone.trim().length > 0;
-      const addressOk = livDeliveryAddress.trim().length > 0;
-      if (!hasQty || !hasStock || !phoneOk || !addressOk) return false;
+      const addressOk = Boolean(livSelectedQuartier && livSelectedQuartier.trim().length > 0);
+      if (!hasQty || !hasStock || !stockOk || !phoneOk || !addressOk) return false;
       if (!livNeedsCashAmount) return true;
       return Number.isFinite(livAmountDue) && livAmountDue > 0;
     }
@@ -212,8 +428,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
       pickupName.trim().length > 0 &&
       parseXaf(pickupQty) > 0 &&
       pickupPhone.trim().length > 0 &&
-      pickupAddress.trim().length > 0 &&
-      livDeliveryAddress.trim().length > 0;
+      Boolean(pickupPickupQuartierSelected && pickupPickupQuartierSelected.trim().length > 0) &&
+      pickupPickupLandmark.trim().length > 0 &&
+      Boolean(pickupDropoffQuartierSelected && pickupDropoffQuartierSelected.trim().length > 0) &&
+      pickupDropoffLandmark.trim().length > 0 &&
+      Boolean(pickupPhotoUri && pickupPhotoUri.trim().length > 0);
     if (!baseOk) return false;
     if (pickupCollectCash === "no") return true;
     return parseXaf(pickupAmount) > 0;
@@ -227,15 +446,20 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     expTelephoneDestinataire,
     expStockQty,
     livSelectedStockItem,
+    livOutOfStock,
     livStockQty,
     livPhone,
-    livDeliveryAddress,
+    livSelectedQuartier,
     livNeedsCashAmount,
     livAmountDue,
     pickupName,
     pickupQty,
     pickupPhone,
-    pickupAddress,
+    pickupPickupQuartierSelected,
+    pickupPickupLandmark,
+    pickupDropoffQuartierSelected,
+    pickupDropoffLandmark,
+    pickupPhotoUri,
     pickupCollectCash,
     pickupAmount,
   ]);
@@ -269,8 +493,28 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             numberOfLines={2}
             ellipsizeMode="tail"
           >
-            {isExpedition ? "SOURCE DU COLIS (STOCK OU RAMASSAGE)" : "CHOISIR OÙ RECUPERER LE COLIS A LIVRER"}
+            {isExpedition ? "SOURCE DU COLIS (STOCK OU RAMASSAGE)" : "CHOISIR OÙ RÉCUPÉRER LE COLIS À LIVRER"}
           </AppText>
+
+          {!isExpedition ? (
+            <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1, minWidth: 0, paddingVertical: 10, borderRadius: radii.pill, backgroundColor: "rgba(41,127,198,0.12)", borderWidth: 1, borderColor: "rgba(41,127,198,0.18)", alignItems: "center", justifyContent: "center" }}>
+                <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
+                  1 DÉTAILS
+                </AppText>
+              </View>
+              <View style={{ flex: 1, minWidth: 0, paddingVertical: 10, borderRadius: radii.pill, backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }}>
+                <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: "#6B7280", letterSpacing: 0.6 }} numberOfLines={1}>
+                  2 LIVRAISON
+                </AppText>
+              </View>
+              <View style={{ flex: 1, minWidth: 0, paddingVertical: 10, borderRadius: radii.pill, backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }}>
+                <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: "#6B7280", letterSpacing: 0.6 }} numberOfLines={1}>
+                  3 CONFIRMATION
+                </AppText>
+              </View>
+            </View>
+          ) : null}
 
           <View style={{ marginTop: 14, flexDirection: "row", gap: 16 }}>
             <ModeCard label="Ramassage" active={mode === "pickup"} onPress={() => setMode("pickup")} icon={Hand} />
@@ -353,11 +597,16 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                 const chosen = livSelectedStockItem;
                 const q = Math.max(0, Math.floor(parseXaf(livStockQty)));
                 const selectedItemsOne = chosen && q > 0 ? JSON.stringify([{ id: chosen.id, name: chosen.name, qty: q }]) : "[]";
+              const deliveryQuartier = (livSelectedQuartier ?? livQuartierQuery).trim();
+              const deliveryLandmark = livDeliveryLandmark.trim();
+              const deliveryAddress = [deliveryQuartier, deliveryLandmark].filter(Boolean).join(" — ");
                 router.push({
                   pathname: "/resume-produit-en-stock",
                   params: {
-                    quartier,
-                    deliveryAddress: livDeliveryAddress.trim(),
+                  quartier,
+                  deliveryAddress,
+                  deliveryQuartier,
+                  deliveryLandmark,
                     selectedItems: selectedItemsOne,
                     phone: livPhone.trim(),
                     notes: livNotes.trim(),
@@ -370,18 +619,31 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               }
 
               if (mode === "pickup") {
+                const pickupQuartier = (pickupPickupQuartierSelected ?? pickupPickupQuartierQuery).trim();
+                const pickupLandmark = pickupPickupLandmark.trim();
+                const pickupAddress = [pickupQuartier, pickupLandmark].filter(Boolean).join(" — ");
+
+                const dropoffQuartier = (pickupDropoffQuartierSelected ?? pickupDropoffQuartierQuery).trim();
+                const dropoffLandmark = pickupDropoffLandmark.trim();
+                const deliveryAddress = [dropoffQuartier, dropoffLandmark].filter(Boolean).join(" — ");
+
                 router.push({
                   pathname: "/resume-produit-ramasse",
                   params: {
                     quartier,
-                    deliveryAddress: livDeliveryAddress.trim(),
-                    pickupName,
+                    deliveryAddress,
                     pickupAddress,
+                    pickupName,
                     pickupQty,
                     pickupExpress,
                     pickupCollectCash,
                     pickupAmount,
                     pickupPhone,
+                    pickupPickupQuartier: pickupQuartier,
+                    pickupPickupLandmark: pickupLandmark,
+                    pickupDropoffQuartier: dropoffQuartier,
+                    pickupDropoffLandmark: dropoffLandmark,
+                    pickupPhotoUri,
                   },
                 });
               }
@@ -508,7 +770,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           <>
             <View style={{ marginTop: 22, gap: 20 }}>
               <View>
-                <RamassageFieldLabel>Colis en stock</RamassageFieldLabel>
+                <RamassageFieldLabel>Sélectionner un produit</RamassageFieldLabel>
                 <View
                   style={{
                     minHeight: 56,
@@ -530,7 +792,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     }}
                     onFocus={() => setLivStockOpen(true)}
                     onBlur={() => setTimeout(() => setLivStockOpen(false), 150)}
-                    placeholder="Rechercher un colis en stock..."
+                    placeholder="Rechercher dans votre catalogue..."
                     placeholderTextColor={PH}
                     style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
                   />
@@ -544,8 +806,88 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     <AppText variant="dense" style={{ marginTop: 4, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={1}>
                       {livSelectedStockItem.stockLabel}
                     </AppText>
+                  <AppText
+                    variant="dense"
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      lineHeight: 16,
+                      fontFamily: fonts.bodySemi,
+                      color:
+                        livStockAvailable === 0
+                          ? "#B91C1C"
+                          : livStockAvailable === 1
+                            ? "#B45309"
+                            : "rgba(60,74,60,0.75)",
+                    }}
+                    numberOfLines={2}
+                  >
+                    {livStockAvailable === 0
+                      ? "Rupture de stock — commande impossible"
+                      : livStockAvailable === 1
+                        ? "Dernier article disponible"
+                        : `Stock disponible : ${livStockAvailable} unités`}
+                  </AppText>
                   </View>
                 ) : null}
+
+              <View style={{ marginTop: 14 }}>
+                <RamassageFieldLabel>Photo de l&apos;article (optionnel)</RamassageFieldLabel>
+                {livPhotoUri ? (
+                  <View style={{ borderRadius: 16, backgroundColor: colors.white, overflow: "hidden", borderWidth: 1, borderColor: "rgba(187,203,184,0.20)" }}>
+                    <Image source={{ uri: livPhotoUri }} style={{ width: "100%", height: 180 }} contentFit="cover" />
+                    <Pressable
+                      onPress={() => setLivPhotoUri(null)}
+                      hitSlop={10}
+                      style={{
+                        position: "absolute",
+                        top: 10,
+                        right: 10,
+                        width: 36,
+                        height: 36,
+                        borderRadius: radii.pill,
+                        backgroundColor: "rgba(15,23,42,0.65)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <X size={18} color={colors.white} />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={async () => {
+                      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (!perm.granted) return;
+                      const res = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        quality: 0.8,
+                      });
+                      if (res.canceled) return;
+                      const uri = res.assets?.[0]?.uri;
+                      if (typeof uri === "string" && uri.length > 0) setLivPhotoUri(uri);
+                    }}
+                    style={{
+                      minHeight: 88,
+                      borderRadius: 16,
+                      borderWidth: 2,
+                      borderStyle: "dashed",
+                      borderColor: "rgba(187,203,184,0.35)",
+                      backgroundColor: colors.white,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 18,
+                      paddingHorizontal: 16,
+                      gap: 10,
+                    }}
+                  >
+                    <Camera size={22} color={"rgba(60,74,60,0.55)"} />
+                    <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
+                      Ajouter une photo
+                    </AppText>
+                  </Pressable>
+                )}
+              </View>
 
                 {livStockOpen ? (
                   <View
@@ -565,6 +907,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                           setLivSelectedStockItemId(it.id);
                           setLivStockSearch(it.name);
                           setLivStockOpen(false);
+                          if (it.stockAvailable > 0) setLivStockQty("1");
                         }}
                         style={{
                           minHeight: 52,
@@ -601,9 +944,156 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                 ) : null}
               </View>
 
-              <FormInput label="Quantité" keyboardType="number-pad" value={livStockQty} onChangeText={(t) => setLivStockQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
+              <View>
+                <RamassageFieldLabel>Quantité</RamassageFieldLabel>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <Pressable
+                    onPress={() => {
+                      const current = Math.max(1, Math.floor(parseXaf(livStockQty) || 1));
+                      const next = Math.max(1, current - 1);
+                      setLivStockQty(String(next));
+                    }}
+                    disabled={!livSelectedStockItem || livOutOfStock || parseXaf(livStockQty) <= 1}
+                    style={{
+                      width: 56,
+                      minHeight: 56,
+                      borderRadius: radii.pill,
+                      backgroundColor: !livSelectedStockItem || livOutOfStock || parseXaf(livStockQty) <= 1 ? "#E5E7EB" : colors.white,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: "rgba(187,203,184,0.20)",
+                    }}
+                  >
+                    <AppText style={{ fontSize: 22, lineHeight: 28, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                      —
+                    </AppText>
+                  </Pressable>
+
+                  <View
+                    style={{
+                      flex: 1,
+                      minHeight: 56,
+                      borderRadius: radii.pill,
+                      backgroundColor: INPUT_BG,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 12,
+                    }}
+                  >
+                    <AppText style={{ fontSize: 18, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                      {Math.max(1, Math.floor(parseXaf(livStockQty) || 1))}
+                    </AppText>
+                  </View>
+
+                  <Pressable
+                    onPress={() => {
+                      const current = Math.max(1, Math.floor(parseXaf(livStockQty) || 1));
+                      const max = Math.max(1, livStockAvailable || 1);
+                      const next = Math.min(max, current + 1);
+                      setLivStockQty(String(next));
+                    }}
+                    disabled={!livSelectedStockItem || livOutOfStock || (livStockAvailable > 0 && parseXaf(livStockQty) >= livStockAvailable)}
+                    style={{
+                      width: 56,
+                      minHeight: 56,
+                      borderRadius: radii.pill,
+                      backgroundColor:
+                        !livSelectedStockItem || livOutOfStock || (livStockAvailable > 0 && parseXaf(livStockQty) >= livStockAvailable) ? "#E5E7EB" : colors.white,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderWidth: 1,
+                      borderColor: "rgba(187,203,184,0.20)",
+                    }}
+                  >
+                    <AppText style={{ fontSize: 22, lineHeight: 28, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                      +
+                    </AppText>
+                  </Pressable>
+                </View>
+              </View>
               <FormInput label="Numéro destinataire" keyboardType="phone-pad" value={livPhone} onChangeText={setLivPhone} placeholder="6XXXXXXX" />
-              <FormInput label="Adresse de livraison" value={livDeliveryAddress} onChangeText={setLivDeliveryAddress} placeholder="Ex. Rue, repère, quartier…" />
+              <View>
+                <RamassageFieldLabel>Quartier de livraison</RamassageFieldLabel>
+                <View
+                  style={{
+                    minHeight: 56,
+                    borderRadius: INPUT_RADIUS,
+                    backgroundColor: INPUT_BG,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <Search size={18} color={"rgba(60,74,60,0.45)"} />
+                  <AppTextInput
+                    value={livQuartierQuery}
+                    onChangeText={(t) => {
+                      setLivQuartierQuery(t);
+                      setLivQuartierOpen(true);
+                      setLivSelectedQuartier(null);
+                    }}
+                    onFocus={() => setLivQuartierOpen(true)}
+                    onBlur={() => setTimeout(() => setLivQuartierOpen(false), 150)}
+                    placeholder="Sélectionner un quartier..."
+                    placeholderTextColor={PH}
+                    style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
+                  />
+                </View>
+
+                {livQuartierOpen ? (
+                  <View
+                    style={{
+                      marginTop: 10,
+                      borderRadius: 16,
+                      backgroundColor: colors.white,
+                      borderWidth: 1,
+                      borderColor: "rgba(187,203,184,0.20)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {livFilteredQuartiers.slice(0, 8).map((q) => (
+                      <Pressable
+                        key={q}
+                        onPress={() => {
+                          setLivSelectedQuartier(q);
+                          setLivQuartierQuery(q);
+                          setLivQuartierOpen(false);
+                        }}
+                        style={{
+                          minHeight: 46,
+                          paddingHorizontal: 14,
+                          paddingVertical: 12,
+                          borderBottomWidth: 1,
+                          borderBottomColor: "rgba(237,238,239,0.9)",
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                      >
+                        <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
+                          {q}
+                        </AppText>
+                      </Pressable>
+                    ))}
+                    {livFilteredQuartiers.length === 0 ? (
+                      <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+                        <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
+                          Aucun quartier trouvé.
+                        </AppText>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+
+              <FormInput
+                label="Repère (optionnel)"
+                value={livDeliveryLandmark}
+                onChangeText={setLivDeliveryLandmark}
+                placeholder="Ex: Face à la pharmacie, portail rouge"
+              />
 
               <View>
                 <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
@@ -655,14 +1145,14 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                 {livNeedsCashAmount ? (
                   <View style={{ marginTop: 12 }}>
                     <FormInput
-                      label="Montant à récupérer"
-                      keyboardType="decimal-pad"
+                      label="Montant à encaisser"
+                      keyboardType="number-pad"
                       value={livAmountDueText}
                       onChangeText={setLivAmountDueText}
-                      placeholder="0"
+                      placeholder="Ex: 5 000"
                       trailing={
                         <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-                          XAF
+                          FCFA
                         </AppText>
                       }
                     />
@@ -682,15 +1172,100 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
         </View>
       ) : (
         <View style={{ marginTop: 22, gap: 24 }}>
-          <FormInput label="Adresse de ramassage" value={pickupAddress} onChangeText={setPickupAddress} placeholder="Ex: Bastos, face à la pharmacie..." />
-          <FormInput label="Adresse de livraison" value={livDeliveryAddress} onChangeText={setLivDeliveryAddress} placeholder="Ex: Emombo, derrière la station..." />
+          <QuartierSelect
+            label="Adresse de ramassage"
+            placeholder="Quartier de ramassage..."
+            query={pickupPickupQuartierQuery}
+            setQuery={(t) => {
+              setPickupPickupQuartierQuery(t);
+              setPickupPickupQuartierSelected(null);
+            }}
+            open={pickupPickupQuartierOpen}
+            setOpen={setPickupPickupQuartierOpen}
+            items={pickupPickupFilteredQuartiers}
+            onSelect={(q) => setPickupPickupQuartierSelected(q)}
+          />
+          <FormInput
+            label="Repère"
+            value={pickupPickupLandmark}
+            onChangeText={setPickupPickupLandmark}
+            placeholder="Ex: Bastos, face à la pharmacie"
+          />
+
+          <QuartierSelect
+            label="Adresse de livraison"
+            placeholder="Quartier de livraison..."
+            query={pickupDropoffQuartierQuery}
+            setQuery={(t) => {
+              setPickupDropoffQuartierQuery(t);
+              setPickupDropoffQuartierSelected(null);
+            }}
+            open={pickupDropoffQuartierOpen}
+            setOpen={setPickupDropoffQuartierOpen}
+            items={pickupDropoffFilteredQuartiers}
+            onSelect={(q) => setPickupDropoffQuartierSelected(q)}
+          />
+          <FormInput
+            label="Repère"
+            value={pickupDropoffLandmark}
+            onChangeText={setPickupDropoffLandmark}
+            placeholder="Ex: Emombo, derrière la station"
+          />
+
+          <View
+            style={{
+              borderRadius: 24,
+              backgroundColor: colors.white,
+              borderWidth: 1,
+              borderColor: "rgba(187,203,184,0.20)",
+              padding: 16,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 18,
+                  backgroundColor: "rgba(245,158,11,0.18)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Hand size={20} color={"#B45309"} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+                  Ramassage hors stock
+                </AppText>
+                <AppText variant="dense" style={{ marginTop: 2, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={2}>
+                  Le colis sera récupéré à votre adresse
+                </AppText>
+              </View>
+              <View style={{ flexShrink: 0 }}>
+                <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: "#B45309" }} numberOfLines={1}>
+                  +500 FCFA
+                </AppText>
+              </View>
+            </View>
+          </View>
 
           <View>
             <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
             <ExpressToggleCard value={pickupExpress === "yes"} onChange={(next) => setPickupExpress(next ? "yes" : "no")} supplementXaf={1000} />
           </View>
 
-          <FormInput label="Nom du produit" leadingIcon={PackageOpen} value={pickupName} onChangeText={setPickupName} placeholder="Ex: iPhone 15 Pro" />
+          <FormInput
+            label="Description du colis"
+            leadingIcon={PackageOpen}
+            value={pickupName}
+            onChangeText={setPickupName}
+            placeholder="Ex: iPhone 15 Pro, chaussures Nike..."
+          />
+
+          <PhotoPicker label="Photo du colis" uri={pickupPhotoUri} onChangeUri={setPickupPhotoUri} required />
+
           <FormInput label="Quantité" leadingIcon={Hash} keyboardType="number-pad" value={pickupQty} onChangeText={(t) => setPickupQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
 
           <View>
@@ -743,7 +1318,19 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
             {pickupCollectCash === "yes" ? (
               <View style={{ marginTop: 12 }}>
-                <FormInput leadingIcon={Wallet} keyboardType="number-pad" value={pickupAmount} onChangeText={(t) => setPickupAmount(t.replace(/[^\d]/g, ""))} placeholder="50 000" />
+                <FormInput
+                  label="Montant à encaisser"
+                  leadingIcon={Wallet}
+                  keyboardType="number-pad"
+                  value={pickupAmount}
+                  onChangeText={(t) => setPickupAmount(t.replace(/[^\d]/g, ""))}
+                  placeholder="Ex: 5 000"
+                  trailing={
+                    <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                      FCFA
+                    </AppText>
+                  }
+                />
               </View>
             ) : null}
           </View>

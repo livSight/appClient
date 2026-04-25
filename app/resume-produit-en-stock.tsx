@@ -14,6 +14,8 @@ type SelectedItem = { id: string; name: string; qty: number };
 type Params = {
   quartier?: string; // legacy
   deliveryAddress?: string;
+  deliveryQuartier?: string;
+  deliveryLandmark?: string;
   selectedItems?: string; // JSON string of SelectedItem[]
   phone?: string;
   notes?: string;
@@ -67,6 +69,8 @@ export default function ResumeProduitEnStockScreen() {
   const params = useLocalSearchParams<Params>();
   const quartier = typeof params.quartier === "string" ? params.quartier : "";
   const deliveryAddress = typeof params.deliveryAddress === "string" ? params.deliveryAddress : "";
+  const deliveryQuartier = typeof params.deliveryQuartier === "string" ? params.deliveryQuartier : "";
+  const deliveryLandmark = typeof params.deliveryLandmark === "string" ? params.deliveryLandmark : "";
   const selectedItemsRaw = typeof params.selectedItems === "string" ? params.selectedItems : "[]";
   const phone = typeof params.phone === "string" ? params.phone : "";
   const notes = typeof params.notes === "string" ? params.notes : "";
@@ -260,8 +264,13 @@ export default function ResumeProduitEnStockScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                  {deliveryAddress || quartier || "—"}
+                  {deliveryQuartier || deliveryAddress || quartier || "—"}
                 </AppText>
+                {deliveryLandmark.trim().length ? (
+                  <AppText variant="dense" style={{ marginTop: 4, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={2} ellipsizeMode="tail">
+                    {deliveryLandmark}
+                  </AppText>
+                ) : null}
               </View>
             </View>
           </Card>

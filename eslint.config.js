@@ -11,6 +11,11 @@ module.exports = defineConfig([
     files: ['**/*.{js,jsx,ts,tsx}'],
     ignores: ['components/AppText.tsx', 'components/AppTextInput.tsx'],
     rules: {
+      // `expo lint` sometimes parses TS/TSX imports with a non-TS parser in import rules.
+      // These rules are not critical for this UI-only app and can false-positive.
+      'import/namespace': 'off',
+      'import/no-named-as-default': 'off',
+      'import/no-named-as-default-member': 'off',
       'no-restricted-imports': [
         'error',
         {
