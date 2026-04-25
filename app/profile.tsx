@@ -9,7 +9,6 @@ import AppText from "../components/AppText";
 
 function SettingRow({
   iconName,
-  iconBg,
   iconColor,
   title,
   titleColor,
@@ -17,7 +16,6 @@ function SettingRow({
   showChevron = true,
 }: {
   iconName: string;
-  iconBg: string;
   iconColor: string;
   title: string;
   titleColor?: string;
@@ -39,17 +37,8 @@ function SettingRow({
         alignItems: "center",
       }}
     >
-      <View
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          backgroundColor: iconBg,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <SolarIcon name={iconName} size={24} color={iconColor} />
+      <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}>
+        <SolarIcon name={iconName} size={26} color={iconColor} />
       </View>
 
       <View style={{ flex: 1, minWidth: 0, marginLeft: 16 }}>
@@ -150,33 +139,29 @@ export default function ProfileScreen() {
         <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
           <SettingRow
             iconName="solar:user-outline"
-            iconBg={"rgba(58,139,201,0.10)"}
             iconColor={colors.primary}
             title="Mes informations"
             onPress={() => {}}
           />
           <Divider />
           <SettingRow
-            iconName="solar:map-point-outline"
-            iconBg={"rgba(58,139,201,0.10)"}
+            iconName="solar:tag-outline"
             iconColor={colors.primary}
-            title="Adresses enregistrées"
-            onPress={() => {}}
+            title="Consulter les tarifs"
+            onPress={() => router.push("/tarifs")}
           />
         </View>
 
         <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
           <SettingRow
             iconName="solar:question-circle-outline"
-            iconBg={"#F3F4F5"}
-            iconColor={"rgba(25,28,29,0.7)"}
+            iconColor={"rgba(25,28,29,0.5)"}
             title="Aide"
             onPress={() => {}}
           />
           <Divider />
           <SettingRow
             iconName="solar:logout-2-outline"
-            iconBg={"#FEF2F2"}
             iconColor={"#BA1A1A"}
             title="Déconnexion"
             titleColor={"#BA1A1A"}
