@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, View, Pressable, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
+import { DialogBold } from "@solar-icons/react-native";
 import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
-import { card, row } from "../../theme/styles";
+import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import AppText from "../../components/AppText";
@@ -409,6 +410,29 @@ export default function LivraisonDetailScreen() {
             </View>
           </View>
 
+          <View style={{ marginTop: 16 }}>
+            <Pressable
+              onPress={() => {
+                Alert.alert("Signaler un problème", "Signaler un problème avec cette livraison (UI-only).");
+              }}
+              style={{
+                minHeight: 56,
+                borderRadius: radii.pill,
+                backgroundColor: "#E5E7EB",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 10,
+                paddingVertical: 14,
+              }}
+            >
+              <DialogBold size={24} color={colors.text} />
+              <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
+                Signaler un problème
+              </AppText>
+            </Pressable>
+          </View>
+
           {/* Summary & details */}
           <View style={{ marginTop: 18, gap: 16 }}>
             {/* Pickup address (only for pickup mode) */}
@@ -514,46 +538,6 @@ export default function LivraisonDetailScreen() {
             </View>
           </View>
 
-          <Pressable
-            style={{
-              marginTop: 16,
-              minHeight: 56,
-              borderRadius: radii.pill,
-              backgroundColor: "#E5E7EB",
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "row",
-              gap: 10,
-              paddingVertical: 14,
-            }}
-          >
-            <SolarIcon name="solar:question-circle-outline" size={24} color={colors.text} />
-            <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
-              Besoin d&apos;aide ?
-            </AppText>
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              void hapticLight();
-              Alert.alert("Annuler la livraison ?", "Voulez-vous annuler cette livraison (UI-only) ?", [
-                { text: "Retour", style: "cancel" },
-                {
-                  text: "Annuler",
-                  style: "destructive",
-                  onPress: async () => {
-                    await hapticSuccess();
-                    router.replace("/livraison");
-                  },
-                },
-              ]);
-            }}
-            style={{ marginTop: 18, alignItems: "center" }}
-          >
-            <AppText style={{ ...typography.link, color: colors.primary }} numberOfLines={2} ellipsizeMode="tail">
-              Annuler la livraison
-            </AppText>
-          </Pressable>
         </>
       )}
     </ScreenLayout>

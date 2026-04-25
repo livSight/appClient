@@ -1,6 +1,6 @@
 import { View, Switch } from "react-native";
-import { Zap } from "lucide-react-native";
 import AppText from "./AppText";
+import SolarIcon from "./SolarIcon";
 import { colors, fonts, radii } from "../theme/tokens";
 
 type Props = {
@@ -41,7 +41,7 @@ export default function ExpressToggleCard({ value, onChange, supplementXaf = 100
             flexShrink: 0,
           }}
         >
-          <Zap size={18} color={"#9A5B00"} />
+          <SolarIcon name="solar:lightning-bold-duotone" size={24} color={"#9A5B00"} />
         </View>
 
         <View style={{ flex: 1, minWidth: 0 }}>

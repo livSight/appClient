@@ -2,6 +2,7 @@ import { View, type TextInputProps } from "react-native";
 import AppText from "./AppText";
 import AppTextInput from "./AppTextInput";
 import { colors, fonts } from "../theme/tokens";
+import SolarIcon from "./SolarIcon";
 
 const INPUT_BG = "#F3F4F5";
 const INPUT_RADIUS = 24;
@@ -11,7 +12,9 @@ type Props = TextInputProps & {
   /** Field label rendered above the input */
   label?: string;
   /** Icon rendered on the left inside the input */
-  leadingIcon?: React.ComponentType<{ size?: number; color?: string }>;
+  leadingIconName?: string;
+  leadingIconSize?: number;
+  leadingIconColor?: string;
   /** Element rendered on the right inside the input (e.g. currency tag) */
   trailing?: React.ReactNode;
 };
@@ -28,13 +31,15 @@ type Props = TextInputProps & {
  */
 export default function FormInput({
   label,
-  leadingIcon: LeadingIcon,
+  leadingIconName,
+  leadingIconSize = 18,
+  leadingIconColor = PH,
   trailing,
   multiline,
   style,
   ...rest
 }: Props) {
-  const hasAdornment = Boolean(LeadingIcon) || Boolean(trailing);
+  const hasAdornment = Boolean(leadingIconName) || Boolean(trailing);
 
   return (
     <View>
@@ -66,7 +71,7 @@ export default function FormInput({
           gap: hasAdornment ? 10 : undefined,
         }}
       >
-        {LeadingIcon ? <LeadingIcon size={18} color={PH} /> : null}
+        {leadingIconName ? <SolarIcon name={leadingIconName} size={leadingIconSize} color={leadingIconColor} /> : null}
 
         <AppTextInput
           placeholderTextColor={PH}

@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router } from "expo-router";
-import { ArrowLeft, ArrowRight } from "lucide-react-native";
-import { colors, fonts, typography } from "../theme/tokens";
+import { colors, fonts, spacing, typography } from "../theme/tokens";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
 import FormInput from "../components/FormInput";
 import FormButton from "../components/FormButton";
+import SolarIcon from "../components/SolarIcon";
 import { hapticSuccess } from "@/lib/haptics";
 import { stringifyExpeditionClient } from "@/lib/expeditionClient";
 
@@ -24,12 +24,25 @@ export default function DemandeExpeditionScreen() {
 
   return (
     <ScreenLayout
+      header={
+        <View style={{ marginHorizontal: -spacing.screenPaddingX, paddingHorizontal: spacing.screenPaddingX, paddingBottom: 12, backgroundColor: "rgba(255,255,255,0.85)" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", minHeight: 41 }}>
+            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
+              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
+              <AppText variant="dense" style={{ fontSize: 18, lineHeight: 28, fontFamily: fonts.bodySemi, color: "#0F172A", letterSpacing: -0.45 }} numberOfLines={1}>
+                Expédition
+              </AppText>
+            </View>
+            <View style={{ width: 44 }} />
+          </View>
+        </View>
+      }
       footer={
         <View
           style={{
-            borderTopWidth: 1,
-            borderTopColor: "#EDEEEF",
-            backgroundColor: "rgba(255,255,255,0.95)",
+            backgroundColor: "transparent",
             paddingHorizontal: 24,
             paddingTop: 14,
             paddingBottom: 28,
@@ -37,7 +50,7 @@ export default function DemandeExpeditionScreen() {
         >
           <FormButton
             label="Continuer"
-            icon={ArrowRight}
+            iconName="solar:alt-arrow-right-outline"
             disabled={!canContinue}
             onPress={async () => {
               await hapticSuccess();
@@ -65,31 +78,6 @@ export default function DemandeExpeditionScreen() {
         </View>
       }
     >
-      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, marginBottom: 12 }}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={{ width: 44, height: 44, justifyContent: "center" }}
-        >
-          <ArrowLeft size={22} color={colors.text} />
-        </Pressable>
-      </View>
-
-      <AppText
-        variant="dense"
-        style={{
-          fontSize: 12,
-          lineHeight: 16,
-          fontFamily: fonts.bodyBold,
-          color: colors.primary,
-          letterSpacing: 1.2,
-          textTransform: "uppercase",
-        }}
-        numberOfLines={1}
-      >
-        Expedition
-      </AppText>
-
       <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36, marginTop: 8 }} numberOfLines={2}>
         Nouvelle demande
       </AppText>

@@ -1,8 +1,8 @@
 import { Pressable, View } from "react-native";
-import { MessageCircleMore } from "lucide-react-native";
 import { card, icon } from "../theme/styles";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import AppText from "./AppText";
+import SolarIcon from "./SolarIcon";
 
 function formatXaf(n) {
   const v = Math.max(0, Math.round(n));
@@ -71,7 +71,7 @@ export default function HomeRecentOrderCard({
   return (
     <Pressable onPress={onPress} style={[card.outlined, { position: "relative", padding: 20, overflow: "visible" }]}>
       <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <View style={[icon.placeholder, { backgroundColor: "#F3F4F5", borderRadius: 24, marginRight: 16 }]} />
+        <View style={[icon.placeholder, { borderRadius: 24, marginRight: 16 }]} />
 
         <View style={{ flex: 1, minWidth: 0, paddingRight: 56 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -109,7 +109,7 @@ export default function HomeRecentOrderCard({
           elevation: 6,
         }}
       >
-        <MessageCircleMore size={22} color={colors.white} />
+        <SolarIcon name="solar:chat-round-dots-bold" size={24} color={colors.white} />
       </Pressable>
     </Pressable>
   );

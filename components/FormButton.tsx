@@ -1,6 +1,7 @@
 import { Pressable, type StyleProp, type ViewStyle } from "react-native";
 import AppText from "./AppText";
 import { colors, fonts, radii } from "../theme/tokens";
+import SolarIcon from "./SolarIcon";
 
 type Props = {
   label: string;
@@ -8,7 +9,8 @@ type Props = {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   /** Optional trailing icon rendered to the right of the label */
-  icon?: React.ComponentType<{ size?: number; color?: string }>;
+  iconName?: string;
+  iconSize?: number;
 };
 
 /**
@@ -18,7 +20,7 @@ type Props = {
  * Usage:
  *   <FormButton label="Continuer" onPress={handleSubmit} disabled={!isValid} />
  */
-export default function FormButton({ label, onPress, disabled = false, style, icon: Icon }: Props) {
+export default function FormButton({ label, onPress, disabled = false, style, iconName, iconSize = 18 }: Props) {
   const bg = disabled ? "#D1D5DB" : colors.primary;
   const fg = disabled ? "#374151" : colors.white;
   return (
@@ -51,7 +53,7 @@ export default function FormButton({ label, onPress, disabled = false, style, ic
       >
         {label}
       </AppText>
-      {Icon ? <Icon size={18} color={fg} /> : null}
+      {iconName ? <SolarIcon name={iconName} size={iconSize} color={fg} /> : null}
     </Pressable>
   );
 }

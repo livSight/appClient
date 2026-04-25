@@ -1,7 +1,8 @@
-import { ScrollView, View } from "react-native";
+import { ScrollView, View, type ScrollViewProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { layout } from "../theme/styles";
 import { colors, spacing } from "../theme/tokens";
+import HeroGridBackground from "./HeroGridBackground";
 
 type Props = {
   children: React.ReactNode;
@@ -11,37 +12,46 @@ type Props = {
   header?: React.ReactNode;
   /** Rendered below the ScrollView so it stays fixed while content scrolls */
   footer?: React.ReactNode;
+  /** Optional props forwarded to the internal ScrollView (e.g. ref/keyboardShouldPersistTaps) */
+  scrollViewProps?: Omit<ScrollViewProps, "children">;
+  /** Optional ref to the internal ScrollView (for scrollTo on deep-links) */
+  scrollViewRef?: React.Ref<ScrollView>;
 };
 
 /**
  * Wraps every screen with the correct background, safe-area padding,
  * and horizontal gutters. Import this instead of writing ScrollView boilerplate.
  */
-export default function ScreenLayout({ children, scrollable = true, header, footer }: Props) {
+export default function ScreenLayout({ children, scrollable = true, header, footer, scrollViewProps, scrollViewRef }: Props) {
   const insets = useSafeAreaInsets();
 
   const topPadding = Math.max(spacing.screenPaddingX, insets.top + spacing.screenPaddingX);
   const bottomPadding = Math.max(24, insets.bottom + 24);
+  const footerSpacer = footer ? 120 : 0;
+  const background = colors.white;
 
   if (header) {
     return (
-      <View style={layout.screen}>
+      <View style={[layout.screen, { backgroundColor: background }]}>
+        <HeroGridBackground />
         <View
           style={{
             paddingTop: topPadding,
             paddingHorizontal: spacing.screenPaddingX,
-            backgroundColor: colors.bg,
+            backgroundColor: "transparent",
           }}
         >
           {header}
         </View>
         <ScrollView
+          ref={scrollViewRef}
           style={{ flex: 1 }}
           contentContainerStyle={{
             paddingHorizontal: spacing.screenPaddingX,
-            paddingBottom: bottomPadding,
+            paddingBottom: bottomPadding + footerSpacer,
           }}
           showsVerticalScrollIndicator={false}
+          {...scrollViewProps}
         >
           {children}
         </ScrollView>
@@ -52,12 +62,13 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
 
   const contentStyle = [
     layout.scrollContent,
-    { paddingTop: topPadding, paddingBottom: bottomPadding },
+    { paddingTop: topPadding, paddingBottom: bottomPadding + footerSpacer },
   ];
 
   if (!scrollable) {
     return (
-      <View style={[layout.screen, contentStyle[0], { paddingTop: topPadding }]}>
+      <View style={[layout.screen, contentStyle[0], { paddingTop: topPadding, backgroundColor: background }]}>
+        <HeroGridBackground />
         {children}
       </View>
     );
@@ -65,11 +76,14 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
 
   if (footer) {
     return (
-      <View style={layout.screen}>
+      <View style={[layout.screen, { backgroundColor: background }]}>
+        <HeroGridBackground />
         <ScrollView
+          ref={scrollViewRef}
           style={{ flex: 1 }}
           contentContainerStyle={contentStyle}
           showsVerticalScrollIndicator={false}
+          {...scrollViewProps}
         >
           {children}
         </ScrollView>
@@ -80,10 +94,13 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
 
   return (
     <ScrollView
-      style={layout.screen}
+      ref={scrollViewRef}
+      style={[layout.screen, { backgroundColor: background }]}
       contentContainerStyle={contentStyle}
       showsVerticalScrollIndicator={false}
+      {...scrollViewProps}
     >
+      <HeroGridBackground />
       {children}
     </ScrollView>
   );

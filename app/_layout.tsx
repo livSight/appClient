@@ -1,7 +1,9 @@
+// @@iconify-code-gen
 import { Stack, usePathname } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import "../global.css";
 import { usePushNotifications } from "@/lib/push/usePushNotifications";
+import AppBackground from "@/components/AppBackground";
 import { useFonts } from "expo-font";
 import {
   Montserrat_400Regular,
@@ -37,5 +39,9 @@ export default function RootLayout() {
     );
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <AppBackground opacity={0.12}>
+      <Stack screenOptions={{ headerShown: false }} />
+    </AppBackground>
+  );
 }

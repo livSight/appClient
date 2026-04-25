@@ -1,14 +1,14 @@
 import { View, Pressable } from "react-native";
 import { router } from "expo-router";
-import { ChevronRight, Pencil, LogOut, HelpCircle, MapPin, User } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
+import SolarIcon from "../components/SolarIcon";
 import { card } from "../theme/styles";
 import { colors, fonts, typography } from "../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../components/AppText";
 
 function SettingRow({
-  icon,
+  iconName,
   iconBg,
   iconColor,
   title,
@@ -16,7 +16,7 @@ function SettingRow({
   onPress,
   showChevron = true,
 }: {
-  icon: React.ComponentType<{ size?: number; color?: string }>;
+  iconName: string;
   iconBg: string;
   iconColor: string;
   title: string;
@@ -24,7 +24,6 @@ function SettingRow({
   onPress?: () => void;
   showChevron?: boolean;
 }) {
-  const Icon = icon;
   return (
     <Pressable
       onPress={async () => {
@@ -50,7 +49,7 @@ function SettingRow({
           justifyContent: "center",
         }}
       >
-        <Icon size={18} color={iconColor} />
+        <SolarIcon name={iconName} size={24} color={iconColor} />
       </View>
 
       <View style={{ flex: 1, minWidth: 0, marginLeft: 16 }}>
@@ -67,7 +66,7 @@ function SettingRow({
         </AppText>
       </View>
 
-      {showChevron ? <ChevronRight size={18} color={"rgba(25,28,29,0.25)"} /> : null}
+      {showChevron ? <SolarIcon name="solar:alt-arrow-right-outline" size={24} color={"rgba(25,28,29,0.25)"} /> : null}
     </Pressable>
   );
 }
@@ -91,11 +90,7 @@ export default function ProfileScreen() {
             hitSlop={10}
             style={{ width: 44, height: 44, justifyContent: "center" }}
           >
-            <ChevronRight
-              size={20}
-              color={colors.primary}
-              style={{ transform: [{ rotate: "180deg" }] }}
-            />
+            <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
           </Pressable>
           <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
             <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: "#0F172A" }} numberOfLines={1}>
@@ -138,7 +133,7 @@ export default function ProfileScreen() {
               elevation: 4,
             }}
           >
-            <Pencil size={14} color={colors.white} />
+            <SolarIcon name="solar:pen-outline" size={24} color={colors.white} />
           </Pressable>
         </View>
 
@@ -154,7 +149,7 @@ export default function ProfileScreen() {
       <View style={{ gap: 24 }}>
         <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
           <SettingRow
-            icon={User}
+            iconName="solar:user-outline"
             iconBg={"rgba(58,139,201,0.10)"}
             iconColor={colors.primary}
             title="Mes informations"
@@ -162,7 +157,7 @@ export default function ProfileScreen() {
           />
           <Divider />
           <SettingRow
-            icon={MapPin}
+            iconName="solar:map-point-outline"
             iconBg={"rgba(58,139,201,0.10)"}
             iconColor={colors.primary}
             title="Adresses enregistrées"
@@ -172,7 +167,7 @@ export default function ProfileScreen() {
 
         <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
           <SettingRow
-            icon={HelpCircle}
+            iconName="solar:question-circle-outline"
             iconBg={"#F3F4F5"}
             iconColor={"rgba(25,28,29,0.7)"}
             title="Aide"
@@ -180,7 +175,7 @@ export default function ProfileScreen() {
           />
           <Divider />
           <SettingRow
-            icon={LogOut}
+            iconName="solar:logout-2-outline"
             iconBg={"#FEF2F2"}
             iconColor={"#BA1A1A"}
             title="Déconnexion"

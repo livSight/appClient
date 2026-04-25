@@ -1,3 +1,4 @@
+import React from "react";
 import { View, Pressable } from "react-native";
 import { card, icon } from "../theme/styles";
 import { colors, fonts, typography } from "../theme/tokens";
@@ -9,20 +10,23 @@ type Props = {
   rightTop?: string;
   rightBottom?: string;
   onPress?: () => void;
+  leading?: React.ReactNode;
 };
 
 /**
  * Outlined row card for displaying an order summary.
  * Shows a placeholder image, title, subtitle, and a right-pointing chevron.
  */
-export default function OrderCard({ title, subtitle, rightTop, rightBottom, onPress }: Props) {
+export default function OrderCard({ title, subtitle, rightTop, rightBottom, onPress, leading }: Props) {
   const hasRight = Boolean(rightTop || rightBottom);
   return (
     <Pressable
       onPress={onPress}
       style={[card.outlined, { flexDirection: "row", alignItems: "center" }]}
     >
-      <View style={[icon.placeholder, { marginRight: 16 }]} />
+      <View style={{ marginRight: 16 }}>
+        {leading ?? <View style={icon.placeholder} />}
+      </View>
 
       <View style={{ flex: 1, minWidth: 0 }}>
         <AppText style={typography.cardTitle} numberOfLines={2} ellipsizeMode="tail">

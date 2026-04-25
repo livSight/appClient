@@ -1,7 +1,7 @@
 import { Pressable, View } from "react-native";
-import { MapPin } from "lucide-react-native";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import AppText from "./AppText";
+import SolarIcon from "./SolarIcon";
 
 type Props = {
   locationLabel: string;
@@ -43,7 +43,7 @@ export default function HomeTopBar({ locationLabel, agencyStatus, onProfilePress
       }}
     >
       <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <MapPin size={16} color={colors.text} />
+        <SolarIcon name="solar:map-point-outline" size={24} color={colors.text} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi, fontSize: 14, lineHeight: 20 }} numberOfLines={1} ellipsizeMode="tail">
             {locationLabel}
