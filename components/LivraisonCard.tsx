@@ -1,53 +1,80 @@
 import { useMemo } from "react";
 import { View, Pressable } from "react-native";
+import { router } from "expo-router";
 import SolarIcon from "./SolarIcon";
 import AppText from "./AppText";
 import { card, row } from "../theme/styles";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 
-type Props = {
+type Status = "Tout" | "En cours" | "Livré" | "Annulé";
+
+export type LivraisonOrder = {
+  id: string;
   title: string;
-  meta: string;
-  amount: string;
-  tag: string;
-  onPress?: () => void;
+  quartier: string;
+  dateLabel: string;
+  status: Status;
+  amountLabel: string;
 };
 
-function TagPill({ tag }: { tag: string }) {
-  const t = tag.toUpperCase();
+function StatusPill({ status }: { status: Status }) {
+  if (status === "Tout") return null;
+
   const bg =
-    t === "EXPEDITION" ? "rgba(99,102,241,0.12)" : t === "PICKUP" ? "rgba(245,158,11,0.16)" : "rgba(14,165,233,0.12)";
+    status === "En cours"
+      ? "#E9F4FB"
+      : status === "Livré"
+        ? "#EAF7EE"
+        : status === "Annulé"
+          ? "#FCECEC"
+          : "#EEF2F7";
+
   const fg =
-    t === "EXPEDITION" ? "#4F46E5" : t === "PICKUP" ? "#B45309" : colors.primary;
+    status === "En cours"
+      ? colors.primary
+      : status === "Livré"
+        ? "#2E7D32"
+        : status === "Annulé"
+          ? "#D32F2F"
+          : colors.text;
 
   return (
     <View
       style={{
-        paddingHorizontal: 10,
-        paddingVertical: 4,
+        paddingHorizontal: 12,
+        minHeight: 28,
+        paddingVertical: 6,
         borderRadius: radii.pill,
         backgroundColor: bg,
-        alignSelf: "flex-start",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
-      <AppText variant="dense" style={{ fontSize: 10, fontFamily: fonts.bodyBold, color: fg, letterSpacing: 0.6 }} numberOfLines={1}>
-        {t}
+      <AppText
+        variant="dense"
+        style={{ fontSize: 11, fontFamily: fonts.bodyBold, color: fg, letterSpacing: 0.6 }}
+        numberOfLines={1}
+      >
+        {status.toUpperCase()}
       </AppText>
     </View>
   );
 }
 
-export default function DeliveryHistoryCard({ title, meta, amount, tag, onPress }: Props) {
+export default function LivraisonCard({ order }: { order: LivraisonOrder }) {
   const iconName = useMemo(() => {
-    const t = String(title ?? "").toLowerCase();
+    const t = String(order.title ?? "").toLowerCase();
     if (t.includes("vêt") || t.includes("vet")) return "solar:t-shirt-bold-duotone";
-    if (t.includes("panier") || t.includes("légume") || t.includes("legume") || t.includes("fruit")) return "solar:bag-bold-duotone";
+    if (t.includes("nourrit") || t.includes("panier") || t.includes("légume") || t.includes("legume") || t.includes("fruit")) return "solar:bag-bold-duotone";
     if (t.includes("iphone") || t.includes("électron") || t.includes("electron") || t.includes("smart")) return "solar:smartphone-bold-duotone";
     return "solar:box-bold-duotone";
-  }, [title]);
+  }, [order.title]);
 
   return (
-    <Pressable onPress={onPress} style={[card.base, { padding: 20 }]}>
+    <Pressable
+      onPress={() => router.push(`/livraison-detail/${order.id}`)}
+      style={[card.base, { padding: 20 }]}
+    >
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <View
           style={{
@@ -64,7 +91,7 @@ export default function DeliveryHistoryCard({ title, meta, amount, tag, onPress 
 
         <View style={{ flex: 1, minWidth: 0 }}>
           <AppText style={{ fontSize: 16, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-            {title}
+            {order.title}
           </AppText>
           <AppText
             variant="dense"
@@ -72,19 +99,19 @@ export default function DeliveryHistoryCard({ title, meta, amount, tag, onPress 
             numberOfLines={2}
             ellipsizeMode="tail"
           >
-            {meta}
+            {`${order.quartier} · ${order.dateLabel}`}
           </AppText>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginLeft: 12, flexShrink: 0 }}>
-          <TagPill tag={tag} />
+          <StatusPill status={order.status} />
           <SolarIcon name="solar:alt-arrow-right-outline" size={24} color={"rgba(60,74,60,0.55)"} />
         </View>
       </View>
 
       <View style={{ marginTop: 18, ...row.spaceBetween }}>
         <AppText style={{ fontSize: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-          {amount}
+          {order.amountLabel}
         </AppText>
       </View>
     </Pressable>

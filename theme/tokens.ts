@@ -1,14 +1,14 @@
 // ─── Colors ──────────────────────────────────────────────────────────────────
 export const colors = {
   bg: "#F8F9FA",
-  primary: "#3090C0",
-  primaryDark: "#1D6E96",
+  primary: "#0EA5E9",
+  primaryDark: "#0284C7",
   text: "#191C1D",
   muted: "#3C4A3C",
   white: "#FFFFFF",
   cardBg: "#FFFFFF",
-  cardStroke: "#BBCBB8",
-  iconBg: "#E9F4FB",
+  cardStroke: "#E2E8F0",
+  iconBg: "#E0F2FE",
   placeholderBg: "#EEF2F7",
   tabInactive: {
     commandes: "#64748B",

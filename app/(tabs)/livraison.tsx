@@ -1,24 +1,14 @@
 import { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
-import { Package2, ChevronRight } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
-import { card, row } from "../../theme/styles";
+import LivraisonCard, { type LivraisonOrder } from "../../components/LivraisonCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
 
 type Status = "Tout" | "En cours" | "Livré" | "Annulé";
 
-type Order = {
-  id: string;
-  title: string;
-  quartier: string;
-  dateLabel: string;
-  status: Status;
-  amountLabel: string;
-};
-
-const MOCK_ORDERS: Order[] = [
+const MOCK_ORDERS: LivraisonOrder[] = [
   {
     id: "101",
     title: "Panier de légumes bio",
@@ -73,101 +63,6 @@ function Chip({ label, active }: { label: Status; active?: boolean }) {
   );
 }
 
-function StatusPill({ status }: { status: Status }) {
-  if (status === "Tout") return null;
-  const bg =
-    status === "En cours"
-      ? "#E9F4FB"
-      : status === "Livré"
-        ? "#EAF7EE"
-        : status === "Annulé"
-          ? "#FCECEC"
-          : "#EEF2F7";
-
-  const fg =
-    status === "En cours"
-      ? colors.primary
-      : status === "Livré"
-        ? "#2E7D32"
-        : status === "Annulé"
-          ? "#D32F2F"
-          : colors.text;
-
-  return (
-    <View
-      style={{
-        paddingHorizontal: 12,
-        minHeight: 28,
-        paddingVertical: 6,
-        borderRadius: radii.pill,
-        backgroundColor: bg,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <AppText
-        variant="dense"
-        style={{ fontSize: 11, fontFamily: fonts.bodyBold, color: fg, letterSpacing: 0.6 }}
-        numberOfLines={1}
-      >
-        {status.toUpperCase()}
-      </AppText>
-    </View>
-  );
-}
-
-function OrderCard({ order }: { order: Order }) {
-  return (
-    <Pressable
-      onPress={() => router.push(`/livraison-detail/${order.id}`)}
-      style={[card.outlined, { padding: 20 }]}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <View
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 16,
-            backgroundColor: "#F1F3F5",
-            alignItems: "center",
-            justifyContent: "center",
-            marginRight: 12,
-          }}
-        >
-          <Package2 size={22} color={colors.primary} />
-        </View>
-
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <AppText style={{ fontSize: 16, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-            {order.title}
-          </AppText>
-          <AppText
-            variant="dense"
-            style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-          >
-            {`${order.quartier} · ${order.dateLabel}`}
-          </AppText>
-        </View>
-
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginLeft: 12, flexShrink: 0 }}>
-          <StatusPill status={order.status} />
-          <ChevronRight size={18} color={"rgba(60,74,60,0.55)"} />
-        </View>
-      </View>
-
-      <View style={{ marginTop: 18, ...row.spaceBetween }}>
-        <View>
-          <AppText style={{ fontSize: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-            {order.amountLabel}
-          </AppText>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
 export default function LivraisonScreen() {
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [active, setActive] = useState<Status>(() => {
@@ -194,7 +89,6 @@ export default function LivraisonScreen() {
         </View>
       }
     >
-
       <View style={{ flexDirection: "row", gap: 12, marginBottom: spacing.sectionGap / 2 }}>
         <Pressable onPress={() => setActive("Tout")}>
           <Chip label="Tout" active={active === "Tout"} />
@@ -264,11 +158,10 @@ export default function LivraisonScreen() {
       ) : (
         <View style={{ gap: 24, paddingBottom: 8 }}>
           {orders.map((o) => (
-            <OrderCard key={o.id} order={o} />
+            <LivraisonCard key={o.id} order={o} />
           ))}
         </View>
       )}
     </ScreenLayout>
   );
 }
-

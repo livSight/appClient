@@ -1,14 +1,15 @@
-import { useMemo, useState } from "react";
-import { View, Pressable } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { View, Pressable, ScrollView as RNScrollView } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, Search, PackageOpen, Hand, Hash, Wallet, Camera, X } from "lucide-react-native";
 import ScreenLayout from "./ScreenLayout";
 import AppText from "./AppText";
 import AppTextInput from "./AppTextInput";
 import ExpressToggleCard from "./ExpressToggleCard";
 import FormInput from "./FormInput";
 import FormButton from "./FormButton";
-import { colors, fonts, radii, typography } from "../theme/tokens";
+import SolarIcon from "./SolarIcon";
+import { card } from "../theme/styles";
+import { colors, fonts, radii, shadows, typography } from "../theme/tokens";
 import {
   parseExpeditionClient,
   SERVICE_EXPEDITION,
@@ -75,7 +76,7 @@ function PhotoPicker({
               justifyContent: "center",
             }}
           >
-            <X size={18} color={colors.white} />
+            <SolarIcon name="solar:close-circle-bold" size={18} color={colors.white} />
           </Pressable>
         </View>
       ) : (
@@ -105,7 +106,7 @@ function PhotoPicker({
             gap: 10,
           }}
         >
-          <Camera size={22} color={"rgba(60,74,60,0.55)"} />
+          <SolarIcon name="solar:camera-outline" size={22} color={"rgba(60,74,60,0.55)"} />
           <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
             Ajouter une photo
           </AppText>
@@ -149,38 +150,36 @@ function ModeCard({
   label,
   active,
   onPress,
-  icon,
+  iconName,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
-  icon: React.ComponentType<{ size?: number; color?: string }>;
+  iconName: string;
 }) {
-  const Icon = icon;
   return (
     <Pressable
       onPress={onPress}
       style={{
         flex: 1,
-        minHeight: 103,
-        borderRadius: 24,
-        backgroundColor: active ? "#297FC6" : colors.white,
-        borderWidth: active ? 0 : 1,
-        borderColor: active ? "transparent" : "rgba(187,203,184,0.20)",
+        borderRadius: radii.card,
+        backgroundColor: active ? colors.primary : colors.cardBg,
         alignItems: "center",
         justifyContent: "center",
-        paddingVertical: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 4,
+        ...shadows.card,
       }}
     >
-      <Icon size={22} color={active ? colors.white : colors.muted} />
+      <SolarIcon name={iconName} size={28} color={active ? colors.white : colors.primary} />
       <AppText
         style={{
-          marginTop: 10,
-          fontSize: 14,
-          lineHeight: 20,
+          marginTop: 6,
+          fontSize: 12,
+          lineHeight: 16,
           fontFamily: active ? fonts.bodyBold : fonts.bodySemi,
-          color: active ? colors.white : colors.muted,
-          letterSpacing: 0.35,
+          color: active ? colors.white : colors.text,
+          textAlign: "center",
         }}
         numberOfLines={2}
         ellipsizeMode="tail"
@@ -199,27 +198,82 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const isExpedition = flow === "expedition";
   const screenTitle = isExpedition ? "Ma demande d'expédition" : "Ma demande de livraison";
 
-  const { quartier: quartierParam, mode: modeParam, expeditionClient: expeditionClientRaw } = useLocalSearchParams<{
+  const {
+    quartier: quartierParam,
+    mode: modeParam,
+    expeditionClient: expeditionClientRaw,
+    editSection,
+    phone: expPhoneParam,
+    selectedItems: expSelectedItemsParam,
+    livPhone: livPhoneParam,
+    livNotes: livNotesParam,
+    livExpress: livExpressParam,
+    livCollectCash: livCollectCashParam,
+    livAmountDueText: livAmountDueTextParam,
+    deliveryQuartier: deliveryQuartierParam,
+    deliveryLandmark: deliveryLandmarkParam,
+    stockItemId: stockItemIdParam,
+    stockQty: stockQtyParam,
+    pickupPhone: pickupPhoneParam,
+    pickupExpress: pickupExpressParam,
+    pickupCollectCash: pickupCollectCashParam,
+    pickupAmount: pickupAmountParam,
+    pickupName: pickupNameParam,
+    pickupQty: pickupQtyParam,
+    pickupPickupQuartier: pickupPickupQuartierParam,
+    pickupPickupLandmark: pickupPickupLandmarkParam,
+    pickupDropoffQuartier: pickupDropoffQuartierParam,
+    pickupDropoffLandmark: pickupDropoffLandmarkParam,
+    pickupPhotoUri: pickupPhotoUriParam,
+  } = useLocalSearchParams<{
     quartier?: string;
     mode?: Mode;
     expeditionClient?: string;
+    editSection?: string;
+    phone?: string;
+    notes?: string;
+    express?: "yes" | "no";
+    collectCash?: "yes" | "no";
+    amountDueText?: string;
+    selectedItems?: string;
+    livPhone?: string;
+    livNotes?: string;
+    livExpress?: "yes" | "no";
+    livCollectCash?: "yes" | "no";
+    livAmountDueText?: string;
+    deliveryQuartier?: string;
+    deliveryLandmark?: string;
+    stockItemId?: string;
+    stockQty?: string;
+    pickupPhone?: string;
+    pickupExpress?: "yes" | "no";
+    pickupCollectCash?: "yes" | "no";
+    pickupAmount?: string;
+    pickupName?: string;
+    pickupQty?: string;
+    pickupPickupQuartier?: string;
+    pickupPickupLandmark?: string;
+    pickupDropoffQuartier?: string;
+    pickupDropoffLandmark?: string;
+    pickupPhotoUri?: string;
   }>();
 
   const quartier = typeof quartierParam === "string" ? quartierParam : "";
   const initialMode: Mode = modeParam === "pickup" ? "pickup" : "stock";
+  const editSectionKey = typeof editSection === "string" ? editSection : "";
 
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [pickupName, setPickupName] = useState("");
-  const [pickupQty, setPickupQty] = useState("1");
-  const [pickupExpress, setPickupExpress] = useState<"yes" | "no">("no");
-  const [pickupCollectCash, setPickupCollectCash] = useState<"yes" | "no">("no");
-  const [pickupAmount, setPickupAmount] = useState("");
-  const [pickupPhone, setPickupPhone] = useState("");
-  const [pickupPickupQuartierQuery, setPickupPickupQuartierQuery] = useState("");
-  const [pickupPickupLandmark, setPickupPickupLandmark] = useState("");
-  const [pickupDropoffQuartierQuery, setPickupDropoffQuartierQuery] = useState("");
-  const [pickupDropoffLandmark, setPickupDropoffLandmark] = useState("");
-  const [pickupPhotoUri, setPickupPhotoUri] = useState<string | null>(null);
+  const [pickupName, setPickupName] = useState(() => (typeof pickupNameParam === "string" ? pickupNameParam : ""));
+  const [pickupQty, setPickupQty] = useState(() => (typeof pickupQtyParam === "string" && pickupQtyParam.length ? pickupQtyParam : "1"));
+  const [pickupExpress, setPickupExpress] = useState<"yes" | "no">(() => (pickupExpressParam === "yes" ? "yes" : "no"));
+  const [pickupCollectCash, setPickupCollectCash] = useState<"yes" | "no">(() => (pickupCollectCashParam === "yes" ? "yes" : "no"));
+  const [pickupAmount, setPickupAmount] = useState(() => (typeof pickupAmountParam === "string" ? pickupAmountParam : ""));
+  const [pickupPhone, setPickupPhone] = useState(() => (typeof pickupPhoneParam === "string" ? pickupPhoneParam : ""));
+  const [pickupPickupQuartierQuery, setPickupPickupQuartierQuery] = useState(() => (typeof pickupPickupQuartierParam === "string" ? pickupPickupQuartierParam : ""));
+  const [pickupPickupLandmark, setPickupPickupLandmark] = useState(() => (typeof pickupPickupLandmarkParam === "string" ? pickupPickupLandmarkParam : ""));
+  const [pickupDropoffQuartierQuery, setPickupDropoffQuartierQuery] = useState(() => (typeof pickupDropoffQuartierParam === "string" ? pickupDropoffQuartierParam : ""));
+  const [pickupDropoffLandmark, setPickupDropoffLandmark] = useState(() => (typeof pickupDropoffLandmarkParam === "string" ? pickupDropoffLandmarkParam : ""));
+  const [pickupPhotoUri, setPickupPhotoUri] = useState<string | null>(() => (typeof pickupPhotoUriParam === "string" && pickupPhotoUriParam.length ? pickupPhotoUriParam : null));
 
   const [expVille, setExpVille] = useState(() => (typeof quartierParam === "string" ? quartierParam.trim() : ""));
   const [expAgence, setExpAgence] = useState("");
@@ -228,28 +282,80 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     parseExpeditionClient(typeof expeditionClientRaw === "string" ? expeditionClientRaw : undefined)?.clientName ?? ""
   );
   const [expTelephoneDestinataire, setExpTelephoneDestinataire] = useState(() =>
-    parseExpeditionClient(typeof expeditionClientRaw === "string" ? expeditionClientRaw : undefined)?.phone ?? ""
+    (typeof expPhoneParam === "string" && expPhoneParam.trim().length ? expPhoneParam.trim() : "") ||
+    (parseExpeditionClient(typeof expeditionClientRaw === "string" ? expeditionClientRaw : undefined)?.phone ?? "")
   );
 
   const [expStockSearch, setExpStockSearch] = useState("");
   const [expStockOpen, setExpStockOpen] = useState(false);
-  const [expSelectedStockItemId, setExpSelectedStockItemId] = useState<string | null>(null);
-  const [expStockQty, setExpStockQty] = useState("1");
+  const expSelectedFromParams = useMemo(() => {
+    if (typeof expSelectedItemsParam !== "string" || !expSelectedItemsParam.length) return null;
+    try {
+      const parsed = JSON.parse(expSelectedItemsParam);
+      if (!Array.isArray(parsed) || !parsed.length) return null;
+      const first = parsed[0];
+      const id = typeof first?.id === "string" ? first.id : "";
+      const name = typeof first?.name === "string" ? first.name : "";
+      const qty = Number.isFinite(Number(first?.qty)) ? String(Math.max(1, Math.floor(Number(first.qty)))) : "1";
+      if (!id) return null;
+      return { id, name, qty };
+    } catch {
+      return null;
+    }
+  }, [expSelectedItemsParam]);
+
+  const [expSelectedStockItemId, setExpSelectedStockItemId] = useState<string | null>(() => expSelectedFromParams?.id ?? null);
+  const [expStockQty, setExpStockQty] = useState(() => expSelectedFromParams?.qty ?? "1");
+  useEffect(() => {
+    if (!isExpedition) return;
+    if (!expSelectedFromParams?.name) return;
+    setExpStockSearch((prev) => (prev.trim().length ? prev : expSelectedFromParams.name));
+  }, [expSelectedFromParams?.name, isExpedition]);
 
   const [livStockSearch, setLivStockSearch] = useState("");
   const [livStockOpen, setLivStockOpen] = useState(false);
-  const [livSelectedStockItemId, setLivSelectedStockItemId] = useState<string | null>(null);
-  const [livStockQty, setLivStockQty] = useState("1");
-  const [livPhone, setLivPhone] = useState("");
-  const [livQuartierQuery, setLivQuartierQuery] = useState("");
+  const [livSelectedStockItemId, setLivSelectedStockItemId] = useState<string | null>(() =>
+    typeof stockItemIdParam === "string" && stockItemIdParam.length ? stockItemIdParam : null
+  );
+  const [livStockQty, setLivStockQty] = useState(() =>
+    typeof stockQtyParam === "string" && stockQtyParam.length ? stockQtyParam : "1"
+  );
+  const [livPhone, setLivPhone] = useState(() => (typeof livPhoneParam === "string" ? livPhoneParam : ""));
+  const [livQuartierQuery, setLivQuartierQuery] = useState(() => (typeof deliveryQuartierParam === "string" ? deliveryQuartierParam : ""));
   const [livQuartierOpen, setLivQuartierOpen] = useState(false);
-  const [livSelectedQuartier, setLivSelectedQuartier] = useState<string | null>(null);
-  const [livDeliveryLandmark, setLivDeliveryLandmark] = useState("");
+  const [livSelectedQuartier, setLivSelectedQuartier] = useState<string | null>(() =>
+    typeof deliveryQuartierParam === "string" && deliveryQuartierParam.length ? deliveryQuartierParam : null
+  );
+  const [livDeliveryLandmark, setLivDeliveryLandmark] = useState(() => (typeof deliveryLandmarkParam === "string" ? deliveryLandmarkParam : ""));
   const [livPhotoUri, setLivPhotoUri] = useState<string | null>(null);
-  const [livNotes, setLivNotes] = useState("");
-  const [livExpress, setLivExpress] = useState<"yes" | "no">("no");
-  const [livCollectCash, setLivCollectCash] = useState<"yes" | "no">("no");
-  const [livAmountDueText, setLivAmountDueText] = useState("");
+  const [livNotes, setLivNotes] = useState(() => (typeof livNotesParam === "string" ? livNotesParam : ""));
+  const [livExpress, setLivExpress] = useState<"yes" | "no">(() => (livExpressParam === "yes" ? "yes" : "no"));
+  const [livCollectCash, setLivCollectCash] = useState<"yes" | "no">(() => (livCollectCashParam === "yes" ? "yes" : "no"));
+  const [livAmountDueText, setLivAmountDueText] = useState(() => (typeof livAmountDueTextParam === "string" ? livAmountDueTextParam : ""));
+
+  const scrollRef = useRef<RNScrollView>(null);
+  const sectionY = useRef<Record<string, number>>({});
+  const setSectionLayout = (key: string) => (e: any) => {
+    sectionY.current[key] = e?.nativeEvent?.layout?.y ?? 0;
+  };
+
+  useEffect(() => {
+    if (!editSectionKey) return;
+    if (mode !== "stock" && mode !== "pickup") return;
+    const y = sectionY.current[editSectionKey];
+    if (typeof y !== "number") return;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true });
+      if (mode === "stock") {
+        if (!isExpedition) {
+          if (editSectionKey === "address") setLivQuartierOpen(true);
+          if (editSectionKey === "items") setLivStockOpen(true);
+        } else {
+          if (editSectionKey === "items") setExpStockOpen(true);
+        }
+      }
+    });
+  }, [editSectionKey, isExpedition, mode]);
 
   const expFilteredStock = useMemo(() => {
     const q = expStockSearch.trim().toLowerCase();
@@ -352,11 +458,12 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
   return (
     <ScreenLayout
+      scrollViewRef={scrollRef}
       header={
         <View style={{ paddingBottom: 10 }}>
           <View style={{ flexDirection: "row", alignItems: "flex-start", minHeight: 44 }}>
             <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginRight: 10 }}>
-              <ArrowLeft size={22} color={colors.text} />
+              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
             </Pressable>
             <View style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
               <AppText style={{ ...typography.screenTitle, fontSize: 26, lineHeight: 30 }} numberOfLines={2} ellipsizeMode="tail">
@@ -375,6 +482,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               color: "rgba(60,74,60,0.7)",
               letterSpacing: 1,
               textTransform: "uppercase",
+              textAlign: "center",
             }}
             numberOfLines={2}
             ellipsizeMode="tail"
@@ -382,38 +490,17 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             {isExpedition ? "SOURCE DU COLIS (STOCK OU RAMASSAGE)" : "CHOISIR OÙ RÉCUPÉRER LE COLIS À LIVRER"}
           </AppText>
 
-          {!isExpedition ? (
-            <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1, minWidth: 0, paddingVertical: 10, borderRadius: radii.pill, backgroundColor: "rgba(41,127,198,0.12)", borderWidth: 1, borderColor: "rgba(41,127,198,0.18)", alignItems: "center", justifyContent: "center" }}>
-                <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
-                  1 DÉTAILS
-                </AppText>
-              </View>
-              <View style={{ flex: 1, minWidth: 0, paddingVertical: 10, borderRadius: radii.pill, backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }}>
-                <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: "#6B7280", letterSpacing: 0.6 }} numberOfLines={1}>
-                  2 LIVRAISON
-                </AppText>
-              </View>
-              <View style={{ flex: 1, minWidth: 0, paddingVertical: 10, borderRadius: radii.pill, backgroundColor: "#E5E7EB", alignItems: "center", justifyContent: "center" }}>
-                <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: "#6B7280", letterSpacing: 0.6 }} numberOfLines={1}>
-                  3 CONFIRMATION
-                </AppText>
-              </View>
-            </View>
-          ) : null}
-
+          <View onLayout={setSectionLayout("mode")} />
           <View style={{ marginTop: 14, flexDirection: "row", gap: 16 }}>
-            <ModeCard label="Ramassage" active={mode === "pickup"} onPress={() => setMode("pickup")} icon={Hand} />
-            <ModeCard label="Colis en stock" active={mode === "stock"} onPress={() => setMode("stock")} icon={PackageOpen} />
+            <ModeCard label="Ramassage" active={mode === "pickup"} onPress={() => setMode("pickup")} iconName="solar:hand-shake-bold" />
+            <ModeCard label="Colis en stock" active={mode === "stock"} onPress={() => setMode("stock")} iconName="solar:box-bold" />
           </View>
         </View>
       }
       footer={
         <View
           style={{
-            borderTopWidth: 1,
-            borderTopColor: "#EDEEEF",
-            backgroundColor: "rgba(255,255,255,0.95)",
+            backgroundColor: "transparent",
             paddingHorizontal: 24,
             paddingTop: 14,
             paddingBottom: 28,
@@ -553,6 +640,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           <View style={{ marginTop: 22, gap: 20 }}>
             <View>
               <RamassageFieldLabel>Colis en stock</RamassageFieldLabel>
+              <View onLayout={setSectionLayout("items")} />
               <View
                 style={{
                   minHeight: 56,
@@ -565,7 +653,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   gap: 12,
                 }}
               >
-                <Search size={18} color={"rgba(60,74,60,0.45)"} />
+              <SolarIcon name="solar:magnifer-outline" size={24} color={"rgba(60,74,60,0.45)"} />
                 <AppTextInput
                   value={expStockSearch}
                   onChangeText={(t) => {
@@ -581,7 +669,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               </View>
 
               {expSelectedStockItem ? (
-                <View style={{ marginTop: 10, borderRadius: 16, backgroundColor: colors.white, paddingHorizontal: 14, paddingVertical: 12 }}>
+                <View style={[card.base, { marginTop: 10, paddingHorizontal: 14, paddingVertical: 12 }]}>
                   <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
                     {expSelectedStockItem.name}
                   </AppText>
@@ -622,7 +710,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       }}
                     >
                       <View style={{ width: 36, height: 36, borderRadius: 14, backgroundColor: "#EDEEEF", alignItems: "center", justifyContent: "center" }}>
-                        <PackageOpen size={16} color={"rgba(25,28,29,0.75)"} />
+                        <SolarIcon name="solar:box-outline" size={24} color={"rgba(25,28,29,0.75)"} />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -646,9 +734,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             </View>
 
             <FormInput label="Quantité" keyboardType="number-pad" value={expStockQty} onChangeText={(t) => setExpStockQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
+            <View onLayout={setSectionLayout("pickupAddress")} />
             <FormInput label="Ville de l'expédition" value={expVille} onChangeText={setExpVille} placeholder="Ex. Douala" />
             <FormInput label="Agence de l'expédition" value={expAgence} onChangeText={setExpAgence} placeholder="Ex. Agence Liv Sight" />
             <FormInput label="Adresse de ramassage" value={expPickupAddress} onChangeText={setExpPickupAddress} placeholder="Ex. Rue, repère, quartier…" />
+            <View onLayout={setSectionLayout("recipient")} />
             <FormInput label="Nom du destinataire" value={expNomDestinataire} onChangeText={setExpNomDestinataire} placeholder="Nom complet" autoCapitalize="words" />
             <FormInput label="Numéro de téléphone du destinataire" keyboardType="phone-pad" value={expTelephoneDestinataire} onChangeText={setExpTelephoneDestinataire} placeholder="6XXXXXX" />
           </View>
@@ -657,6 +747,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             <View style={{ marginTop: 22, gap: 20 }}>
               <View>
                 <RamassageFieldLabel>Sélectionner un produit</RamassageFieldLabel>
+                <View onLayout={setSectionLayout("items")} />
                 <View
                   style={{
                     minHeight: 56,
@@ -669,7 +760,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     gap: 12,
                   }}
                 >
-                  <Search size={18} color={"rgba(60,74,60,0.45)"} />
+                <SolarIcon name="solar:magnifer-outline" size={24} color={"rgba(60,74,60,0.45)"} />
                   <AppTextInput
                     value={livStockSearch}
                     onChangeText={(t) => {
@@ -685,7 +776,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                 </View>
 
                 {livSelectedStockItem ? (
-                  <View style={{ marginTop: 10, borderRadius: 16, backgroundColor: colors.white, paddingHorizontal: 14, paddingVertical: 12 }}>
+                  <View style={[card.base, { marginTop: 10, paddingHorizontal: 14, paddingVertical: 12 }]}>
                     <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
                       {livSelectedStockItem.name}
                     </AppText>
@@ -749,7 +840,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                         }}
                       >
                         <View style={{ width: 36, height: 36, borderRadius: 14, backgroundColor: "#EDEEEF", alignItems: "center", justifyContent: "center" }}>
-                          <PackageOpen size={16} color={"rgba(25,28,29,0.75)"} />
+                          <SolarIcon name="solar:box-outline" size={24} color={"rgba(25,28,29,0.75)"} />
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -840,8 +931,10 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   </Pressable>
                 </View>
               </View>
+              <View onLayout={setSectionLayout("recipient")} />
               <FormInput label="Numéro destinataire" keyboardType="phone-pad" value={livPhone} onChangeText={setLivPhone} placeholder="6XXXXXXX" />
               <View>
+                <View onLayout={setSectionLayout("address")} />
                 <RamassageFieldLabel>Quartier de livraison</RamassageFieldLabel>
                 <View
                   style={{
@@ -855,7 +948,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     gap: 12,
                   }}
                 >
-                  <Search size={18} color={"rgba(60,74,60,0.45)"} />
+                  <SolarIcon name="solar:magnifer-outline" size={24} color={"rgba(60,74,60,0.45)"} />
                   <AppTextInput
                     value={livQuartierQuery}
                     onChangeText={(t) => {
@@ -924,13 +1017,16 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               />
 
               <View>
+                <View onLayout={setSectionLayout("deliveryType")} />
                 <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
                 <ExpressToggleCard value={livExpress === "yes"} onChange={(next) => setLivExpress(next ? "yes" : "no")} supplementXaf={1000} />
               </View>
 
+              <View onLayout={setSectionLayout("notes")} />
               <FormInput label="Instructions (optionnel)" multiline value={livNotes} onChangeText={setLivNotes} placeholder="Ex: appeler avant d'arriver, laisser au gardien..." />
 
               <View>
+                <View onLayout={setSectionLayout("payment")} />
                 <RamassageFieldLabel>Y a-t-il de l&apos;argent à récupérer ?</RamassageFieldLabel>
                 <View style={{ flexDirection: "row", gap: 12 }}>
                   <Pressable
@@ -939,7 +1035,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       flex: 1,
                       minHeight: 48,
                       borderRadius: radii.pill,
-                      backgroundColor: livCollectCash === "yes" ? "#297FC6" : INPUT_BG,
+                      backgroundColor: livCollectCash === "yes" ? colors.primary : INPUT_BG,
                       alignItems: "center",
                       justifyContent: "center",
                       paddingVertical: 10,
@@ -958,7 +1054,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       flex: 1,
                       minHeight: 48,
                       borderRadius: radii.pill,
-                      backgroundColor: livCollectCash === "no" ? "#297FC6" : INPUT_BG,
+                      backgroundColor: livCollectCash === "no" ? colors.primary : INPUT_BG,
                       alignItems: "center",
                       justifyContent: "center",
                       paddingVertical: 10,
@@ -1008,7 +1104,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                         justifyContent: "center",
                       }}
                     >
-                      <X size={18} color={colors.white} />
+                      <SolarIcon name="solar:close-circle-bold" size={18} color={colors.white} />
                     </Pressable>
                   </View>
                 ) : (
@@ -1038,7 +1134,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       gap: 10,
                     }}
                   >
-                    <Camera size={22} color={"rgba(60,74,60,0.55)"} />
+                    <SolarIcon name="solar:camera-outline" size={22} color={"rgba(60,74,60,0.55)"} />
                     <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
                       Ajouter une photo
                     </AppText>
@@ -1050,14 +1146,17 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
         )
       ) : isExpedition ? (
         <View style={{ marginTop: 22, gap: 20 }}>
+          <View onLayout={setSectionLayout("pickupAddress")} />
           <FormInput label="Ville de l'expédition" value={expVille} onChangeText={setExpVille} placeholder="Ex. Douala" />
           <FormInput label="Agence de l'expédition" value={expAgence} onChangeText={setExpAgence} placeholder="Ex. Agence Liv Sight" />
           <FormInput label="Adresse de ramassage" value={expPickupAddress} onChangeText={setExpPickupAddress} placeholder="Ex. Rue, repère, quartier…" />
+          <View onLayout={setSectionLayout("recipient")} />
           <FormInput label="Nom du destinataire" value={expNomDestinataire} onChangeText={setExpNomDestinataire} placeholder="Nom complet" autoCapitalize="words" />
           <FormInput label="Numéro de téléphone du destinataire" keyboardType="phone-pad" value={expTelephoneDestinataire} onChangeText={setExpTelephoneDestinataire} placeholder="6XXXXXX" />
         </View>
       ) : (
         <View style={{ marginTop: 22, gap: 24 }}>
+          <View onLayout={setSectionLayout("pickupAddress")} />
           <FormInput
             label="Quartier de ramassage"
             value={pickupPickupQuartierQuery}
@@ -1071,6 +1170,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             placeholder="Ex: Bastos, face à la pharmacie"
           />
 
+          <View onLayout={setSectionLayout("deliveryAddress")} />
           <FormInput
             label="Quartier de livraison"
             value={pickupDropoffQuartierQuery}
@@ -1084,28 +1184,18 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             placeholder="Ex: Emombo, derrière la station"
           />
 
-          <View
-            style={{
-              borderRadius: 24,
-              backgroundColor: colors.white,
-              borderWidth: 1,
-              borderColor: "rgba(187,203,184,0.20)",
-              padding: 16,
-            }}
-          >
+          <View style={[card.base, { padding: 20 }]}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View
                 style={{
                   width: 44,
                   height: 44,
-                  borderRadius: 18,
-                  backgroundColor: "rgba(245,158,11,0.18)",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
                 }}
               >
-                <Hand size={20} color={"#B45309"} />
+                <SolarIcon name="solar:hand-shake-bold" size={28} color={"#B45309"} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -1124,21 +1214,25 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           </View>
 
           <View>
+            <View onLayout={setSectionLayout("deliveryType")} />
             <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
             <ExpressToggleCard value={pickupExpress === "yes"} onChange={(next) => setPickupExpress(next ? "yes" : "no")} supplementXaf={1000} />
           </View>
 
+          <View onLayout={setSectionLayout("items")} />
           <FormInput
             label="Description du colis"
-            leadingIcon={PackageOpen}
+            leadingIconName="solar:box-outline"
+            leadingIconSize={24}
             value={pickupName}
             onChangeText={setPickupName}
             placeholder="Ex: iPhone 15 Pro, chaussures Nike..."
           />
 
-          <FormInput label="Quantité" leadingIcon={Hash} keyboardType="number-pad" value={pickupQty} onChangeText={(t) => setPickupQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
+          <FormInput label="Quantité" leadingIconName="solar:hashtag-outline" leadingIconSize={24} keyboardType="number-pad" value={pickupQty} onChangeText={(t) => setPickupQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
 
           <View>
+            <View onLayout={setSectionLayout("payment")} />
             <RamassageFieldLabel>Y a-t-il de l&apos;argent à récupérer ?</RamassageFieldLabel>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Pressable
@@ -1147,7 +1241,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   flex: 1,
                   minHeight: 48,
                   borderRadius: radii.pill,
-                  backgroundColor: pickupCollectCash === "yes" ? "#297FC6" : INPUT_BG,
+                  backgroundColor: pickupCollectCash === "yes" ? colors.primary : INPUT_BG,
                   alignItems: "center",
                   justifyContent: "center",
                   paddingVertical: 10,
@@ -1170,7 +1264,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   flex: 1,
                   minHeight: 48,
                   borderRadius: radii.pill,
-                  backgroundColor: pickupCollectCash === "no" ? "#297FC6" : INPUT_BG,
+                  backgroundColor: pickupCollectCash === "no" ? colors.primary : INPUT_BG,
                   alignItems: "center",
                   justifyContent: "center",
                   paddingVertical: 10,
@@ -1190,7 +1284,8 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               <View style={{ marginTop: 12 }}>
                 <FormInput
                   label="Montant à encaisser"
-                  leadingIcon={Wallet}
+                  leadingIconName="solar:wallet-outline"
+                  leadingIconSize={24}
                   keyboardType="number-pad"
                   value={pickupAmount}
                   onChangeText={(t) => setPickupAmount(t.replace(/[^\d]/g, ""))}
@@ -1207,6 +1302,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
           <FormInput label="Téléphone" keyboardType="phone-pad" value={pickupPhone} onChangeText={setPickupPhone} placeholder="6XXXXXXX" />
 
+          <View onLayout={setSectionLayout("photo")} />
           <PhotoPicker label="Photo du colis" uri={pickupPhotoUri} onChangeUri={setPickupPhotoUri} />
         </View>
       )}

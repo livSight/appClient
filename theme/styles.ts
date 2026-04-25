@@ -59,7 +59,6 @@ export const icon = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: radii.pill,
-    backgroundColor: colors.iconBg,
     alignItems: "center",
     justifyContent: "center",
   },

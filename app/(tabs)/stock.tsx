@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, View, Pressable, ScrollView, ActivityIndicator } from "react-native";
-import { Minus, Plus, Trash2 } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import SolarIcon from "../../components/SolarIcon";
 import { card, row } from "../../theme/styles";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
@@ -67,7 +67,7 @@ function QtyPill({
           justifyContent: "center",
         }}
       >
-        <Minus size={18} color={colors.primary} />
+        <SolarIcon name="solar:minus-square-outline" size={24} color={colors.primary} />
       </Pressable>
 
       <View style={{ flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" }}>
@@ -92,7 +92,7 @@ function QtyPill({
           justifyContent: "center",
         }}
       >
-        <Plus size={18} color={colors.primary} />
+        <SolarIcon name="solar:add-square-outline" size={24} color={colors.primary} />
       </Pressable>
     </View>
   );
@@ -133,7 +133,7 @@ function ProductCard({
           hitSlop={10}
           style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
         >
-          <Trash2 size={18} color={"rgba(25,28,29,0.35)"} />
+          <SolarIcon name="solar:trash-bin-trash-outline" size={24} color={"rgba(25,28,29,0.35)"} />
         </Pressable>
       </View>
     </View>
@@ -338,7 +338,7 @@ export default function StockScreen() {
               minHeight: 68,
               paddingVertical: 16,
               borderRadius: 24,
-              backgroundColor: saving ? "rgba(48,144,192,0.65)" : colors.primary,
+              backgroundColor: saving ? "rgba(14,165,233,0.65)" : colors.primary,
               alignItems: "center",
               justifyContent: "center",
             }}

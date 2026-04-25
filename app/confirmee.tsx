@@ -1,7 +1,7 @@
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { X, Check } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
+import SolarIcon from "../components/SolarIcon";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import AppText from "../components/AppText";
 
@@ -14,7 +14,7 @@ export default function ConfirmeeScreen() {
       {/* Top bar (close + centered title) */}
       <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, marginBottom: 32 }}>
         <Pressable onPress={() => router.back()} style={{ width: 44, minHeight: 44, justifyContent: "center" }}>
-          <X size={22} color={colors.text} />
+          <SolarIcon name="solar:close-circle-bold" size={24} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
           <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
@@ -30,7 +30,7 @@ export default function ConfirmeeScreen() {
             width: 120,
             height: 120,
             borderRadius: radii.card,
-            backgroundColor: "rgba(48,144,192,0.12)",
+            backgroundColor: "rgba(14,165,233,0.12)",
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 28,
@@ -46,7 +46,7 @@ export default function ConfirmeeScreen() {
               justifyContent: "center",
             }}
           >
-            <Check size={28} color={colors.white} />
+            <SolarIcon name="solar:check-circle-bold" size={28} color={colors.white} />
           </View>
         </View>
 

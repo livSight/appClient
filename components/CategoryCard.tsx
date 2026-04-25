@@ -1,14 +1,15 @@
 import { Pressable, View } from "react-native";
-import { LucideIcon } from "lucide-react-native";
 import { card, icon } from "../theme/styles";
 import { colors, typography } from "../theme/tokens";
 import AppText from "./AppText";
+import SolarIcon from "./SolarIcon";
 
 type Props = {
   title: string;
   subtitle?: string;
   width: number;
-  Icon?: LucideIcon;
+  iconName?: string;
+  iconSize?: number;
   selected?: boolean;
   onPress?: () => void;
 };
@@ -17,7 +18,7 @@ type Props = {
  * Square category card used in the 2-column grid on the Accueil screen.
  * Width must be passed by the parent (computed from screen width).
  */
-export default function CategoryCard({ title, subtitle, width, Icon, selected, onPress }: Props) {
+export default function CategoryCard({ title, subtitle, width, iconName, iconSize = 32, selected, onPress }: Props) {
   const hasSubtitle = Boolean(subtitle && subtitle.trim().length > 0);
   return (
     <Pressable
@@ -26,7 +27,7 @@ export default function CategoryCard({ title, subtitle, width, Icon, selected, o
     >
       <View style={{ minHeight: 80, paddingVertical: 12, alignItems: "center", justifyContent: "center" }}>
         <View style={icon.container}>
-          {Icon ? <Icon size={26} color={colors.primary} /> : <View style={icon.dot} />}
+          {iconName ? <SolarIcon name={iconName} size={iconSize} color={colors.primary} /> : <View style={icon.dot} />}
         </View>
       </View>
 

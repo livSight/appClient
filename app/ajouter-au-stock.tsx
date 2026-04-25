@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { Minus, Plus, PackagePlus } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
+import SolarIcon from "../components/SolarIcon";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import AppText from "../components/AppText";
@@ -65,7 +65,7 @@ function QtyCounter({
           justifyContent: "center",
         }}
       >
-        <Minus size={18} color={colors.primary} />
+        <SolarIcon name="solar:minus-square-outline" size={24} color={colors.primary} />
       </Pressable>
 
       <AppText style={{ fontSize: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
@@ -87,7 +87,7 @@ function QtyCounter({
           justifyContent: "center",
         }}
       >
-        <Plus size={18} color={colors.white} />
+        <SolarIcon name="solar:add-square-bold" size={24} color={colors.white} />
       </Pressable>
     </View>
   );
@@ -126,6 +126,11 @@ export default function AjouterAuStockScreen() {
 
   return (
     <ScreenLayout>
+      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, marginBottom: 12 }}>
+        <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
+          <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
+        </Pressable>
+      </View>
       <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36 }} numberOfLines={3}>
         Ajouter un nouveau{"\n"}produit
       </AppText>
@@ -194,7 +199,7 @@ export default function AjouterAuStockScreen() {
           style={{
             minHeight: 68,
             borderRadius: 24,
-            backgroundColor: canSubmit ? colors.primary : "rgba(48,144,192,0.45)",
+            backgroundColor: canSubmit ? colors.primary : "rgba(14,165,233,0.45)",
             alignItems: "center",
             justifyContent: "center",
             flexDirection: "row",
@@ -202,7 +207,7 @@ export default function AjouterAuStockScreen() {
             paddingVertical: 14,
           }}
         >
-          {submitting ? <ActivityIndicator color={colors.white} /> : <PackagePlus size={20} color={colors.white} />}
+          {submitting ? <ActivityIndicator color={colors.white} /> : <SolarIcon name="solar:add-square-bold" size={24} color={colors.white} />}
           <AppText style={{ fontSize: 18, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={2} ellipsizeMode="tail">
             Ajouter au stock
           </AppText>

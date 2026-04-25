@@ -1,18 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, View, Pressable, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import {
-  ArrowLeft,
-  CircleCheck,
-  CircleDot,
-  MapPin,
-  CircleHelp,
-  CreditCard,
-  CircleX,
-  PackageOpen,
-  Zap,
-} from "lucide-react-native";
 import ScreenLayout from "../../components/ScreenLayout";
+import SolarIcon from "../../components/SolarIcon";
 import { card, row } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
@@ -99,8 +89,8 @@ function mapBackendStatusToChip(status?: string | null): Chip {
   if (s === "pickup")
     return {
       label: "AU BUREAU",
-      color: "#2563EB",
-      bg: "#E9F0FF",
+      color: colors.primary,
+      bg: "#E0F2FE",
     };
   if (s === "failed" || s === "cancelled") return { label: "ANNULÉ", color: "#D32F2F", bg: "#FCECEC" };
 
@@ -164,11 +154,11 @@ function mapBackendStatusToTimeline(status?: string | null): Timeline {
 }
 
 function iconForStep(state: StepState) {
-  if (state === "completed") return { Icon: CircleCheck, color: colors.primary };
-  if (state === "cancelled") return { Icon: CircleX, color: "#D32F2F" };
-  if (state === "warning") return { Icon: CircleDot, color: WARNING_AMBER };
-  if (state === "active") return { Icon: CircleDot, color: colors.primary };
-  return { Icon: CircleDot, color: "#CBD5E1" };
+  if (state === "completed") return { iconName: "solar:check-circle-bold", color: colors.primary };
+  if (state === "cancelled") return { iconName: "solar:close-circle-bold", color: "#D32F2F" };
+  if (state === "warning") return { iconName: "solar:danger-circle-bold", color: WARNING_AMBER };
+  if (state === "active") return { iconName: "solar:record-circle-bold", color: colors.primary };
+  return { iconName: "solar:record-circle-bold", color: "#CBD5E1" };
 }
 
 type StatusFilter = "EN COURS" | "LIVRÉ" | "AU BUREAU" | "PROBLÈME" | "ANNULÉ";
@@ -238,7 +228,7 @@ export default function LivraisonDetailScreen() {
       header={
         <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8, marginBottom: 12 }}>
           <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
-            <ArrowLeft size={22} color={colors.text} />
+            <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
           </Pressable>
           <View style={{ flex: 1 }} />
           <View
@@ -276,15 +266,15 @@ export default function LivraisonDetailScreen() {
                 borderRadius: radii.pill,
                 paddingHorizontal: 14,
                 paddingVertical: 8,
-                backgroundColor: "rgba(41,127,198,0.10)",
+                backgroundColor: "rgba(14,165,233,0.10)",
                 borderWidth: 1,
-                borderColor: "rgba(41,127,198,0.20)",
+                borderColor: "rgba(14,165,233,0.20)",
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 8,
               }}
             >
-              <PackageOpen size={16} color={colors.primary} />
+              <SolarIcon name="solar:box-bold-duotone" size={24} color={colors.primary} />
               <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.4 }} numberOfLines={1}>
                 {delivery.mode === "pickup" ? "PRODUIT RAMASSÉ" : "PRODUIT EN STOCK"}
               </AppText>
@@ -304,7 +294,7 @@ export default function LivraisonDetailScreen() {
                 gap: 8,
               }}
             >
-              <Zap size={16} color={"#B45309"} />
+              <SolarIcon name="solar:lightning-bold-duotone" size={24} color={"#B45309"} />
               <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: "#92400E", letterSpacing: 0.4 }} numberOfLines={1}>
                 {delivery.deliveryType === "express" ? "EXPRESS" : "NORMAL"}
               </AppText>
@@ -334,7 +324,7 @@ export default function LivraisonDetailScreen() {
           </ScrollView>
 
           {/* Status card */}
-          <View style={[card.outlined, { padding: 24 }]}>
+          <View style={[card.base, { padding: 24 }]}>
             <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
               <View style={{ alignItems: "center", marginRight: 14 }}>
                 {(() => {
@@ -353,11 +343,11 @@ export default function LivraisonDetailScreen() {
                   );
                   return (
                     <>
-                      <s1.Icon size={18} color={s1.color} />
+                      <SolarIcon name={s1.iconName} size={18} color={s1.color} />
                       <Line active={timeline.step2 !== "upcoming"} />
-                      <s2.Icon size={18} color={s2.color} />
+                      <SolarIcon name={s2.iconName} size={18} color={s2.color} />
                       <Line active={timeline.step3 !== "upcoming"} />
-                      <s3.Icon size={18} color={s3.color} />
+                      <SolarIcon name={s3.iconName} size={18} color={s3.color} />
                     </>
                   );
                 })()}
@@ -423,9 +413,9 @@ export default function LivraisonDetailScreen() {
           <View style={{ marginTop: 18, gap: 16 }}>
             {/* Pickup address (only for pickup mode) */}
             {delivery.mode === "pickup" ? (
-              <View style={[card.outlined, { padding: 24 }]}>
+              <View style={[card.base, { padding: 24 }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                  <MapPin size={18} color={colors.primary} />
+                  <SolarIcon name="solar:map-point-outline" size={24} color={colors.primary} />
                   <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
                     Adresse de ramassage
                   </AppText>
@@ -437,9 +427,9 @@ export default function LivraisonDetailScreen() {
             ) : null}
 
             {/* Dropoff address */}
-            <View style={[card.outlined, { padding: 24 }]}>
+            <View style={[card.base, { padding: 24 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <MapPin size={18} color={colors.primary} />
+                <SolarIcon name="solar:map-point-outline" size={24} color={colors.primary} />
                 <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
                   Adresse de livraison
                 </AppText>
@@ -450,9 +440,9 @@ export default function LivraisonDetailScreen() {
             </View>
 
             {/* Articles */}
-            <View style={[card.outlined, { padding: 24 }]}>
+            <View style={[card.base, { padding: 24 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <PackageOpen size={18} color={colors.primary} />
+                <SolarIcon name="solar:bag-outline" size={24} color={colors.primary} />
                 <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
                   Articles
                 </AppText>
@@ -466,7 +456,7 @@ export default function LivraisonDetailScreen() {
                       </AppText>
                     </View>
                     <View style={{ flexShrink: 0 }}>
-                      <View style={{ minHeight: 28, borderRadius: radii.pill, backgroundColor: "rgba(48,144,192,0.18)", paddingHorizontal: 10, paddingVertical: 6 }}>
+                      <View style={{ minHeight: 28, borderRadius: radii.pill, backgroundColor: "rgba(14,165,233,0.18)", paddingHorizontal: 10, paddingVertical: 6 }}>
                         <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
                           x{it.qty}
                         </AppText>
@@ -516,7 +506,7 @@ export default function LivraisonDetailScreen() {
                   gap: 8,
                 }}
               >
-                <CreditCard size={16} color={colors.white} />
+                <SolarIcon name="solar:card-outline" size={24} color={colors.white} />
                 <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
                   Paiement à la livraison
                 </AppText>
@@ -537,7 +527,7 @@ export default function LivraisonDetailScreen() {
               paddingVertical: 14,
             }}
           >
-            <CircleHelp size={18} color={colors.text} />
+            <SolarIcon name="solar:question-circle-outline" size={24} color={colors.text} />
             <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
               Besoin d&apos;aide ?
             </AppText>
@@ -560,7 +550,7 @@ export default function LivraisonDetailScreen() {
             }}
             style={{ marginTop: 18, alignItems: "center" }}
           >
-            <AppText style={{ ...typography.link, color: "#2563EB" }} numberOfLines={2} ellipsizeMode="tail">
+            <AppText style={{ ...typography.link, color: colors.primary }} numberOfLines={2} ellipsizeMode="tail">
               Annuler la livraison
             </AppText>
           </Pressable>

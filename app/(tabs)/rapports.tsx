@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
-import { Download, ShoppingBag, Wallet, ChevronRight } from "lucide-react-native";
 import { router } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
-import OrderCard from "../../components/OrderCard";
+import DeliveryHistoryCard from "../../components/DeliveryHistoryCard";
+import DonutCard from "../../components/DonutCard";
+import MetricCard from "../../components/MetricCard";
+import SolarIcon from "../../components/SolarIcon";
 import { card, row } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
@@ -22,6 +24,11 @@ function safeNumber(n: unknown): number {
   return Number.isFinite(v) ? v : 0;
 }
 
+function formatXaf(n: number): string {
+  const v = Math.max(0, Math.round(safeNumber(n)));
+  return v.toLocaleString("fr-FR").replace(/\s/g, " ");
+}
+
 function deriveTitle(d: MockDelivery): string {
   return d.items?.trim() ? d.items.trim() : "Livraison";
 }
@@ -32,6 +39,7 @@ function deriveTag(d: MockDelivery): string {
   if (s === "expedition") return "EXPEDITION";
   return "LIVRAISON";
 }
+
 
 function formatHistoryMeta(d: MockDelivery): string {
   const iso = d.created_at;
@@ -45,6 +53,13 @@ function formatHistoryMeta(d: MockDelivery): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function statusLabel(raw: string): string {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "delivered") return "Livré";
+  if (s === "failed" || s === "cancelled") return "Annulé";
+  return "En cours";
 }
 
 function bucketCounts(deliveries: MockDelivery[]): BucketCounts {
@@ -81,6 +96,43 @@ function formatDeltaPct(current: number, prev: number): string {
   const delta = Math.round(((current - prev) / denom) * 100);
   const sign = delta >= 0 ? "+" : "";
   return `${sign}${delta}%`;
+}
+
+function startOfWeekMonday(d: Date): Date {
+  const dt = new Date(d);
+  dt.setHours(0, 0, 0, 0);
+  const day = dt.getDay(); // 0=Sun..6=Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  dt.setDate(dt.getDate() + diff);
+  return dt;
+}
+
+function endOfWeekSunday(d: Date): Date {
+  const start = startOfWeekMonday(d);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+function formatDateLongFr(d: Date): string {
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function formatDayMonthFr(d: Date): string {
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long" });
+}
+
+function formatMonthYearFr(d: Date): string {
+  return d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+}
+
+function formatPeriodLabel(range: Range, now: Date): string {
+  if (range === "Journalier") return `Aujourd’hui — ${formatDateLongFr(now)}`;
+  if (range === "Mensuel") return formatMonthYearFr(now);
+  const start = startOfWeekMonday(now);
+  const end = endOfWeekSunday(now);
+  return `Semaine du ${formatDayMonthFr(start)} au ${formatDateLongFr(end)}`;
 }
 
 function RangeToggle({
@@ -132,145 +184,7 @@ function RangeToggle({
   );
 }
 
-function MetricCard({
-  title,
-  value,
-  suffix,
-  delta,
-  Icon,
-}: {
-  title: string;
-  value: string;
-  suffix?: string;
-  delta?: string;
-  Icon: React.ComponentType<{ size?: number; color?: string }>;
-}) {
-  return (
-    <View style={[card.base, { padding: 20, minHeight: 120, justifyContent: "center" }]}>
-      <View style={{ ...row.spaceBetween }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: radii.pill,
-              backgroundColor: colors.iconBg,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon size={18} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <AppText
-              variant="dense"
-              style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }}
-              numberOfLines={2}
-              ellipsizeMode="tail"
-            >
-              {title}
-            </AppText>
-          </View>
-        </View>
-      </View>
 
-      <View style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 12 }}>
-        <AppText style={{ fontSize: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-          {value}
-        </AppText>
-        {suffix ? (
-          <AppText
-            variant="dense"
-            style={{ ...typography.subtitle, marginLeft: 10, marginBottom: 4 }}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {suffix}
-          </AppText>
-        ) : null}
-      </View>
-
-      {delta ? (
-        <AppText variant="dense" style={{ marginTop: 6, fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-          {delta}
-        </AppText>
-      ) : null}
-
-      {/* Decorative circle */}
-      <View
-        style={{
-          position: "absolute",
-          right: -10,
-          top: 10,
-          width: 64,
-          height: 64,
-          borderRadius: 9999,
-          backgroundColor: "rgba(48,144,192,0.10)",
-        }}
-      />
-    </View>
-  );
-}
-
-function LegendRow({ label, pct, color }: { label: string; pct: string; color: string }) {
-  return (
-    <View style={{ ...row.spaceBetween, marginTop: 10 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-        <View style={{ width: 8, height: 8, borderRadius: 9999, backgroundColor: color }} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <AppText
-            variant="dense"
-            style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-          >
-            {label}
-          </AppText>
-        </View>
-      </View>
-      <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-        {pct}
-      </AppText>
-    </View>
-  );
-}
-
-function Donut({ pct }: { pct: number }) {
-  // Lightweight approximation (static) without adding chart deps.
-  return (
-    <View style={{ width: 160, height: 160, alignItems: "center", justifyContent: "center" }}>
-      <View
-        style={{
-          position: "absolute",
-          width: 160,
-          height: 160,
-          borderRadius: 9999,
-          borderWidth: 16,
-          borderColor: "#E5E7EB",
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          width: 160,
-          height: 160,
-          borderRadius: 9999,
-          borderWidth: 16,
-          borderColor: "#22C55E",
-          borderRightColor: "#F59E0B",
-          borderTopColor: "#EF4444",
-          transform: [{ rotate: "-90deg" }],
-        }}
-      />
-      <AppText style={{ fontSize: 28, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-        {pct}%
-      </AppText>
-      <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.muted, marginTop: 2 }} numberOfLines={1}>
-        de reussite
-      </AppText>
-    </View>
-  );
-}
 
 type MockDelivery = {
   id: string;
@@ -296,12 +210,14 @@ export default function RapportsScreen() {
   // UI-only: keep range toggle for UI, but use mock data.
   const current = useMemo(() => MOCK_CURRENT, []);
   const previous = useMemo(() => MOCK_PREVIOUS, []);
+  const periodLabel = useMemo(() => formatPeriodLabel(range, new Date()), [range]);
 
   const computed = useMemo(() => {
     const count = current.length;
     const prevCount = previous.length;
 
-    const totalAmount = current.reduce((sum, d) => sum + safeNumber(d.amount_due), 0);
+    const collectXafCurrent = current.reduce((sum, d) => sum + (safeNumber(d.amount_due) > 0 ? safeNumber(d.amount_due) : 0), 0);
+    const collectXafPrevious = previous.reduce((sum, d) => sum + (safeNumber(d.amount_due) > 0 ? safeNumber(d.amount_due) : 0), 0);
 
     const buckets = bucketCounts(current);
     const successPct = pct(buckets.delivered, Math.max(buckets.totalRelevant, 1));
@@ -315,21 +231,23 @@ export default function RapportsScreen() {
       .map((d) => ({
         id: String(d.id),
         title: deriveTitle(d),
-        meta: `${formatHistoryMeta(d)} • ${String(d.status ?? "").toLowerCase() === "delivered" ? "Livré" : "En cours"}`,
-        amount: `${safeNumber(d.amount_due)} XAF`,
+        meta: `${formatHistoryMeta(d)} • ${statusLabel(String(d.status ?? ""))}`,
+        amount: `${formatXaf(safeNumber(d.amount_due))} XAF`,
         tag: deriveTag(d),
       }));
 
     return {
       deliveriesCount: String(count),
       deliveriesDelta: formatDeltaPct(count, prevCount),
-      totalAmount: String(totalAmount),
+      collectAmount: formatXaf(collectXafCurrent),
+      collectDelta: formatDeltaPct(collectXafCurrent, collectXafPrevious),
       totalSuffix: "XAF",
       successPct,
+      buckets,
       legend: {
-        delivered: `${deliveredPct}%`,
-        injoignable: `${injoignablePct}%`,
-        annule: `${annulePct}%`,
+        delivered: `${deliveredPct}% (${buckets.delivered})`,
+        injoignable: `${injoignablePct}% (${buckets.injoignable})`,
+        annule: `${annulePct}% (${buckets.annule})`,
       },
       history,
     };
@@ -341,7 +259,7 @@ export default function RapportsScreen() {
         <View>
           <View style={{ minHeight: 44, paddingVertical: 8, alignItems: "flex-end", justifyContent: "center" }}>
             <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Download size={18} color={colors.text} />
+              <SolarIcon name="solar:download-outline" size={24} color={colors.text} />
               <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
                 Exporter
               </AppText>
@@ -350,8 +268,8 @@ export default function RapportsScreen() {
           <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
             Rapports d&apos;activité
           </AppText>
-          <AppText style={[typography.subtitle, { marginTop: 4 }]}>
-            Suivez vos performances
+          <AppText style={[typography.subtitle, { marginTop: 4 }]} numberOfLines={2} ellipsizeMode="tail">
+            {periodLabel}
           </AppText>
           <RangeToggle value={range} onChange={setRange} />
         </View>
@@ -364,31 +282,20 @@ export default function RapportsScreen() {
           title="Livraisons"
           value={computed.deliveriesCount}
           delta={computed.deliveriesDelta}
-          Icon={ShoppingBag}
+          iconName="solar:box-bold-duotone"
         />
         <MetricCard
-          title="Montant Total"
-          value={computed.totalAmount}
+          title="Montant à encaisser"
+          value={computed.collectAmount}
           suffix={computed.totalSuffix}
-          Icon={Wallet}
+          delta={computed.collectDelta}
+          iconName="solar:wallet-bold-duotone"
         />
       </View>
 
       {/* Success donut + legend */}
       <View style={{ marginTop: 18 }}>
-        <View style={[card.base, { padding: 24 }]}>
-          <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }} numberOfLines={2} ellipsizeMode="tail">
-            Taux de réussite
-          </AppText>
-          <View style={{ alignItems: "center", marginTop: 12 }}>
-            <Donut pct={computed.successPct} />
-          </View>
-          <View style={{ marginTop: 10 }}>
-            <LegendRow label="Livré" pct={computed.legend.delivered} color="#22C55E" />
-            <LegendRow label="Client injoignable" pct={computed.legend.injoignable} color="#F59E0B" />
-            <LegendRow label="Annulé" pct={computed.legend.annule} color="#EF4444" />
-          </View>
-        </View>
+        <DonutCard successPct={computed.successPct} legend={computed.legend} />
       </View>
 
       {/* Historique */}
@@ -401,18 +308,18 @@ export default function RapportsScreen() {
             <AppText variant="dense" style={{ ...typography.link, fontSize: 12 }} numberOfLines={1}>
               Voir tout
             </AppText>
-            <ChevronRight size={16} color={colors.primary} />
+            <SolarIcon name="solar:alt-arrow-right-outline" size={24} color={colors.primary} />
           </Pressable>
         </View>
 
         <View style={{ gap: 12 }}>
           {computed.history.map((it) => (
-            <OrderCard
+            <DeliveryHistoryCard
               key={it.id}
               title={it.title}
-              subtitle={it.meta}
-              rightTop={it.amount}
-              rightBottom={it.tag}
+              meta={it.meta}
+              amount={it.amount}
+              tag={it.tag}
               onPress={() => router.push(`/livraison-detail/${it.id}`)}
             />
           ))}

@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, ArrowRight } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
 import FormInput from "../components/FormInput";
 import FormButton from "../components/FormButton";
 import ExpressToggleCard from "../components/ExpressToggleCard";
+import SolarIcon from "../components/SolarIcon";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient, SERVICE_EXPEDITION } from "@/lib/expeditionClient";
@@ -60,9 +60,7 @@ export default function InfoProduitEnStockScreen() {
       footer={
         <View
           style={{
-            borderTopWidth: 1,
-            borderTopColor: "#EDEEEF",
-            backgroundColor: "rgba(255,255,255,0.95)",
+            backgroundColor: "transparent",
             paddingHorizontal: 24,
             paddingTop: 14,
             paddingBottom: 28,
@@ -70,7 +68,7 @@ export default function InfoProduitEnStockScreen() {
         >
           <FormButton
             label="Continuer"
-            icon={ArrowRight}
+            iconName="solar:alt-arrow-right-outline"
             disabled={!canContinue}
             onPress={async () => {
               await hapticSuccess();
@@ -113,7 +111,7 @@ export default function InfoProduitEnStockScreen() {
       {/* Top app bar */}
       <View style={{ flexDirection: "row", alignItems: "center", minHeight: 41, marginBottom: 18 }}>
         <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
-          <ArrowLeft size={22} color={colors.text} />
+          <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
           <AppText variant="dense" style={{ fontSize: 18, lineHeight: 28, fontFamily: fonts.bodySemi, color: "#0F172A" }} numberOfLines={1}>
@@ -193,7 +191,7 @@ export default function InfoProduitEnStockScreen() {
                   flex: 1,
                   minHeight: 48,
                   borderRadius: radii.pill,
-                  backgroundColor: collectCash === "yes" ? "#297FC6" : INPUT_BG,
+                  backgroundColor: collectCash === "yes" ? colors.primary : INPUT_BG,
                   alignItems: "center",
                   justifyContent: "center",
                   paddingVertical: 10,
@@ -212,7 +210,7 @@ export default function InfoProduitEnStockScreen() {
                   flex: 1,
                   minHeight: 48,
                   borderRadius: radii.pill,
-                  backgroundColor: collectCash === "no" ? "#297FC6" : INPUT_BG,
+                  backgroundColor: collectCash === "no" ? colors.primary : INPUT_BG,
                   alignItems: "center",
                   justifyContent: "center",
                   paddingVertical: 10,

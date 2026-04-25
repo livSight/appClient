@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, MapPin, Phone, PackageOpen, Wallet, Zap, Camera, Clock } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
 import FormButton from "../components/FormButton";
-import { colors, fonts, typography } from "../theme/tokens";
+import SolarIcon from "../components/SolarIcon";
+import { card } from "../theme/styles";
+import { colors, fonts } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
 
@@ -71,22 +72,7 @@ function SectionRow({ label, onEdit }: { label: string; onEdit?: () => void }) {
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <View
-      style={{
-        backgroundColor: colors.white,
-        borderRadius: 24,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.04,
-        shadowRadius: 16,
-        elevation: 2,
-        overflow: "hidden",
-      }}
-    >
-      <View style={{ padding: 16 }}>{children}</View>
-    </View>
-  );
+  return <View style={[card.base, { padding: 20 }]}>{children}</View>;
 }
 
 function Line({ label, value }: { label: string; value: string }) {
@@ -201,31 +187,40 @@ export default function ResumeProduitRamasseScreen() {
     <ScreenLayout
       header={
         <View style={{ paddingBottom: 10 }}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginBottom: 4 }}>
-            <ArrowLeft size={22} color={colors.text} />
-          </Pressable>
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
-            {forExpedition ? "Résumé expédition (ramassage)" : "Résumé produit ramassé"}
-          </AppText>
-          <AppText style={[typography.subtitle, { marginTop: 4 }]}>
-            Vérifiez les informations avant de confirmer.
+          <View style={{ flexDirection: "row", alignItems: "flex-start", minHeight: 44 }}>
+            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginRight: 10 }}>
+              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
+            </Pressable>
+            <View style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+              <AppText style={{ fontFamily: fonts.titleBold, fontSize: 26, lineHeight: 30, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+                {forExpedition ? "Résumé expédition (ramassage)" : "Résumé produit ramassé"}
+              </AppText>
+            </View>
+          </View>
+          <AppText
+            variant="dense"
+            style={{
+              marginTop: 14,
+              fontSize: 10,
+              lineHeight: 15,
+              fontFamily: fonts.bodyBold,
+              color: "rgba(60,74,60,0.7)",
+              letterSpacing: 1,
+              textTransform: "uppercase",
+            }}
+            numberOfLines={2}
+          >
+            Vérifiez les informations avant de confirmer
           </AppText>
         </View>
       }
       footer={
         <View
           style={{
-            borderTopWidth: 1,
-            borderTopColor: "#EDEEEF",
-            backgroundColor: colors.white,
+            backgroundColor: "transparent",
             paddingHorizontal: 24,
             paddingTop: 14,
             paddingBottom: 28,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: -8 },
-            shadowOpacity: 0.06,
-            shadowRadius: 14,
-            elevation: 10,
           }}
         >
           <FormButton
@@ -262,8 +257,8 @@ export default function ResumeProduitRamasseScreen() {
           <SectionRow label={forExpedition ? "CONTACT RAMASSAGE" : "DESTINATAIRE"} onEdit={() => goEdit("recipient")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
-                <Phone size={18} color={"rgba(25,28,29,0.75)"} />
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                <SolarIcon name="solar:phone-outline" size={24} color={colors.primary} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -278,8 +273,8 @@ export default function ResumeProduitRamasseScreen() {
           <SectionRow label="ADRESSE DE LIVRAISON" onEdit={() => goEdit("deliveryAddress")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
-                <MapPin size={18} color={"rgba(25,28,29,0.75)"} />
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                <SolarIcon name="solar:map-point-outline" size={24} color={colors.primary} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -297,8 +292,12 @@ export default function ResumeProduitRamasseScreen() {
           <SectionRow label="TYPE DE LIVRAISON" onEdit={() => goEdit("deliveryType")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
-                {express === "yes" ? <Zap size={18} color={"rgba(25,28,29,0.75)"} /> : <Clock size={18} color={"rgba(25,28,29,0.75)"} />}
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                {express === "yes" ? (
+                  <SolarIcon name="solar:lightning-bold-duotone" size={24} color={colors.primary} />
+                ) : (
+                  <SolarIcon name="solar:clock-circle-outline" size={24} color={colors.primary} />
+                )}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
@@ -321,9 +320,9 @@ export default function ResumeProduitRamasseScreen() {
                   paddingHorizontal: 10,
                   paddingVertical: 6,
                   borderRadius: 999,
-                  backgroundColor: "rgba(41,127,198,0.10)",
+                  backgroundColor: "rgba(14,165,233,0.10)",
                   borderWidth: 1,
-                  borderColor: "rgba(41,127,198,0.20)",
+                  borderColor: "rgba(14,165,233,0.20)",
                 }}
               >
                 <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
@@ -350,8 +349,8 @@ export default function ResumeProduitRamasseScreen() {
           <SectionRow label="ARTICLE" onEdit={() => goEdit("items")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
-                <PackageOpen size={18} color={"rgba(25,28,29,0.75)"} />
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                <SolarIcon name="solar:bag-outline" size={24} color={colors.primary} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -369,8 +368,8 @@ export default function ResumeProduitRamasseScreen() {
           <SectionRow label="PHOTO DU COLIS" onEdit={() => goEdit("photo")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
-                <Camera size={18} color={"rgba(25,28,29,0.75)"} />
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                <SolarIcon name="solar:camera-outline" size={24} color={colors.primary} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -385,8 +384,8 @@ export default function ResumeProduitRamasseScreen() {
           <SectionRow label="PAIEMENT" onEdit={() => goEdit("payment")} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
-                <Wallet size={18} color={"rgba(25,28,29,0.75)"} />
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                <SolarIcon name="solar:wallet-outline" size={24} color={colors.primary} />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
