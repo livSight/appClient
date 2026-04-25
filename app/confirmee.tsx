@@ -2,6 +2,7 @@ import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
+import LottieView from "lottie-react-native";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import AppText from "../components/AppText";
 
@@ -11,7 +12,7 @@ export default function ConfirmeeScreen() {
 
   return (
     <ScreenLayout>
-      {/* Top bar (close + centered title) */}
+      {/* Top bar */}
       <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, marginBottom: 32 }}>
         <Pressable onPress={() => router.back()} style={{ width: 44, minHeight: 44, justifyContent: "center" }}>
           <SolarIcon name="solar:close-circle-bold" size={24} color={colors.text} />
@@ -25,36 +26,18 @@ export default function ConfirmeeScreen() {
       </View>
 
       <View style={{ alignItems: "center", justifyContent: "center", paddingTop: 24, paddingBottom: 24 }}>
-        <View
-          style={{
-            width: 120,
-            height: 120,
-            borderRadius: radii.card,
-            backgroundColor: "rgba(14,165,233,0.12)",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 28,
-          }}
-        >
-          <View
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: radii.pill,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <SolarIcon name="solar:check-circle-bold" size={28} color={colors.white} />
-          </View>
-        </View>
+        <LottieView
+          source={require("../assets/lottie/success-check.json")}
+          autoPlay
+          loop={false}
+          style={{ width: 120, height: 120, marginBottom: 28 }}
+        />
 
         <AppText style={{ ...typography.screenTitle, fontSize: 28, lineHeight: 34 }} numberOfLines={2}>
           Demande envoyée !
         </AppText>
         <AppText style={{ ...typography.subtitle, marginTop: 8 }} numberOfLines={2}>
-          {isExpedition ? "Expédition enregistrée" : "Livraison Enregistrée"}
+          {isExpedition ? "Expédition enregistrée" : "Livraison enregistrée"}
         </AppText>
       </View>
 
@@ -97,4 +80,3 @@ export default function ConfirmeeScreen() {
     </ScreenLayout>
   );
 }
-
