@@ -9,13 +9,15 @@ type Props = {
   scrollable?: boolean;
   /** Rendered above the ScrollView so it stays fixed while content scrolls */
   header?: React.ReactNode;
+  /** Rendered below the ScrollView so it stays fixed while content scrolls */
+  footer?: React.ReactNode;
 };
 
 /**
  * Wraps every screen with the correct background, safe-area padding,
  * and horizontal gutters. Import this instead of writing ScrollView boilerplate.
  */
-export default function ScreenLayout({ children, scrollable = true, header }: Props) {
+export default function ScreenLayout({ children, scrollable = true, header, footer }: Props) {
   const insets = useSafeAreaInsets();
 
   const topPadding = Math.max(spacing.screenPaddingX, insets.top + spacing.screenPaddingX);
@@ -43,6 +45,7 @@ export default function ScreenLayout({ children, scrollable = true, header }: Pr
         >
           {children}
         </ScrollView>
+        {footer}
       </View>
     );
   }

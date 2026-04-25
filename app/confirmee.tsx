@@ -60,6 +60,7 @@ export default function ConfirmeeScreen() {
 
       <View style={{ marginTop: 40, gap: 16 }}>
         <Pressable
+          onPress={() => router.replace("/(tabs)/livraison")}
           style={{
             minHeight: 64,
             borderRadius: radii.pill,
@@ -76,7 +77,7 @@ export default function ConfirmeeScreen() {
         </Pressable>
 
         <Pressable
-          onPress={() => router.replace("/livraison")}
+          onPress={() => router.replace("/(tabs)/livraison")}
           style={{
             minHeight: 64,
             borderRadius: radii.pill,

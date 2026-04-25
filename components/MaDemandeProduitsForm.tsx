@@ -6,12 +6,15 @@ import ScreenLayout from "./ScreenLayout";
 import AppText from "./AppText";
 import AppTextInput from "./AppTextInput";
 import ExpressToggleCard from "./ExpressToggleCard";
+import FormInput from "./FormInput";
+import FormButton from "./FormButton";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import {
   parseExpeditionClient,
   SERVICE_EXPEDITION,
   stringifyExpeditionClient,
 } from "@/lib/expeditionClient";
+import { hapticSuccess } from "@/lib/haptics";
 
 export type MaDemandeProduitsFlow = "livraison" | "expedition";
 
@@ -124,8 +127,8 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupQty, setPickupQty] = useState("1");
   const [pickupExpress, setPickupExpress] = useState<"yes" | "no">("no");
-  const [pickupCollectCash, setPickupCollectCash] = useState<"yes" | "no">("yes");
-  const [pickupAmount, setPickupAmount] = useState("50000");
+  const [pickupCollectCash, setPickupCollectCash] = useState<"yes" | "no">("no");
+  const [pickupAmount, setPickupAmount] = useState("");
   const [pickupPhone, setPickupPhone] = useState("");
 
   const [expVille, setExpVille] = useState(() => (typeof quartierParam === "string" ? quartierParam.trim() : ""));
@@ -275,6 +278,126 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           </View>
         </View>
       }
+      footer={
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: "#EDEEEF",
+            backgroundColor: "rgba(255,255,255,0.95)",
+            paddingHorizontal: 24,
+            paddingTop: 14,
+            paddingBottom: 28,
+          }}
+        >
+          <FormButton
+            label="Continuer"
+            disabled={!canContinuePickup}
+            onPress={async () => {
+              await hapticSuccess();
+              if (mode === "stock" && isExpedition) {
+                const chosen = expSelectedStockItem;
+                const q = Math.max(0, Math.floor(parseXaf(expStockQty)));
+                const itemsOne = chosen && q > 0 ? JSON.stringify([{ id: chosen.id, name: chosen.name, qty: q }]) : "[]";
+                const expeditionClient = stringifyExpeditionClient({
+                  clientName: expNomDestinataire.trim(),
+                  phone: expTelephoneDestinataire.trim(),
+                  address: [expVille.trim(), expAgence.trim()].filter(Boolean).join(" — ") || quartier.trim(),
+                  notes: "",
+                });
+                router.push({
+                  pathname: "/resume-produit-en-stock",
+                  params: {
+                    quartier: expVille.trim(),
+                    selectedItems: itemsOne,
+                    phone: expTelephoneDestinataire.trim(),
+                    notes: "",
+                    express: "no",
+                    collectCash: "no",
+                    amountDueText: "",
+                    service: SERVICE_EXPEDITION,
+                    expeditionClient,
+                  },
+                });
+                return;
+              }
+
+              if (mode === "pickup" && isExpedition) {
+                const pickupAddressCombined = [expAgence.trim(), expPickupAddress.trim()].filter(Boolean).join(" — ");
+                const expeditionPickupParams = {
+                  service: SERVICE_EXPEDITION,
+                  expeditionClient: stringifyExpeditionClient({
+                    clientName: expNomDestinataire.trim(),
+                    phone: expTelephoneDestinataire.trim(),
+                    address: [expVille.trim(), pickupAddressCombined].filter(Boolean).join(" — "),
+                    notes: "",
+                  }),
+                };
+                router.push({
+                  pathname: "/resume-produit-ramasse",
+                  params: {
+                    quartier: expVille.trim(),
+                    pickupName: expNomDestinataire.trim(),
+                    pickupAddress: pickupAddressCombined,
+                    pickupQty: "1",
+                    pickupExpress: "no",
+                    pickupCollectCash: "no",
+                    pickupAmount: "",
+                    pickupPhone: expTelephoneDestinataire.trim(),
+                    ...expeditionPickupParams,
+                  },
+                });
+                return;
+              }
+
+              if (mode === "stock" && !isExpedition) {
+                const chosen = livSelectedStockItem;
+                const q = Math.max(0, Math.floor(parseXaf(livStockQty)));
+                const selectedItemsOne = chosen && q > 0 ? JSON.stringify([{ id: chosen.id, name: chosen.name, qty: q }]) : "[]";
+                router.push({
+                  pathname: "/resume-produit-en-stock",
+                  params: {
+                    quartier,
+                    deliveryAddress: livDeliveryAddress.trim(),
+                    selectedItems: selectedItemsOne,
+                    phone: livPhone.trim(),
+                    notes: livNotes.trim(),
+                    express: livExpress,
+                    collectCash: livCollectCash,
+                    amountDueText: livNeedsCashAmount ? livAmountDueText : "",
+                  },
+                });
+                return;
+              }
+
+              if (mode === "pickup") {
+                router.push({
+                  pathname: "/resume-produit-ramasse",
+                  params: {
+                    quartier,
+                    deliveryAddress: livDeliveryAddress.trim(),
+                    pickupName,
+                    pickupAddress,
+                    pickupQty,
+                    pickupExpress,
+                    pickupCollectCash,
+                    pickupAmount,
+                    pickupPhone,
+                  },
+                });
+              }
+            }}
+          />
+          {!canContinuePickup ? (
+            <AppText
+              variant="dense"
+              style={{ marginTop: 8, textAlign: "center", fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.5)" }}
+              numberOfLines={2}
+            >
+              Complétez tous les champs obligatoires pour continuer
+            </AppText>
+          ) : null}
+        </View>
+      }
     >
 
       {mode === "stock" ? (
@@ -302,6 +425,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     setExpStockOpen(true);
                   }}
                   onFocus={() => setExpStockOpen(true)}
+                  onBlur={() => setTimeout(() => setExpStockOpen(false), 150)}
                   placeholder="Rechercher un colis en stock..."
                   placeholderTextColor={PH}
                   style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
@@ -373,140 +497,12 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               ) : null}
             </View>
 
-            <View>
-              <RamassageFieldLabel>Quantité</RamassageFieldLabel>
-              <View
-                style={{
-                  minHeight: 56,
-                  borderRadius: INPUT_RADIUS,
-                  backgroundColor: INPUT_BG,
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  justifyContent: "center",
-                }}
-              >
-                <AppTextInput
-                  value={expStockQty}
-                  onChangeText={(t) => setExpStockQty(t.replace(/[^\d]/g, ""))}
-                  placeholder="1"
-                  placeholderTextColor={PH}
-                  keyboardType="number-pad"
-                  style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                />
-              </View>
-            </View>
-
-            <View>
-              <RamassageFieldLabel>Ville de l&apos;expédition</RamassageFieldLabel>
-              <View
-                style={{
-                  minHeight: 56,
-                  borderRadius: INPUT_RADIUS,
-                  backgroundColor: INPUT_BG,
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  justifyContent: "center",
-                }}
-              >
-                <AppTextInput
-                  value={expVille}
-                  onChangeText={setExpVille}
-                  placeholder="Ex. Douala"
-                  placeholderTextColor={PH}
-                  style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                />
-              </View>
-            </View>
-
-            <View>
-              <RamassageFieldLabel>Agence de l&apos;expédition</RamassageFieldLabel>
-              <View
-                style={{
-                  minHeight: 56,
-                  borderRadius: INPUT_RADIUS,
-                  backgroundColor: INPUT_BG,
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  justifyContent: "center",
-                }}
-              >
-                <AppTextInput
-                  value={expAgence}
-                  onChangeText={setExpAgence}
-                  placeholder="Ex. Agence Liv Sight"
-                  placeholderTextColor={PH}
-                  style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                />
-              </View>
-            </View>
-
-            <View>
-              <RamassageFieldLabel>Adresse de ramassage</RamassageFieldLabel>
-              <View
-                style={{
-                  minHeight: 56,
-                  borderRadius: INPUT_RADIUS,
-                  backgroundColor: INPUT_BG,
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  justifyContent: "center",
-                }}
-              >
-                <AppTextInput
-                  value={expPickupAddress}
-                  onChangeText={setExpPickupAddress}
-                  placeholder="Ex. Rue, repère, quartier…"
-                  placeholderTextColor={PH}
-                  style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                />
-              </View>
-            </View>
-
-            <View>
-              <RamassageFieldLabel>Nom du destinataire</RamassageFieldLabel>
-              <View
-                style={{
-                  minHeight: 56,
-                  borderRadius: INPUT_RADIUS,
-                  backgroundColor: INPUT_BG,
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  justifyContent: "center",
-                }}
-              >
-                <AppTextInput
-                  value={expNomDestinataire}
-                  onChangeText={setExpNomDestinataire}
-                  placeholder="Nom complet"
-                  placeholderTextColor={PH}
-                  autoCapitalize="words"
-                  style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                />
-              </View>
-            </View>
-
-            <View>
-              <RamassageFieldLabel>Numéro de téléphone du destinataire</RamassageFieldLabel>
-              <View
-                style={{
-                  minHeight: 56,
-                  borderRadius: INPUT_RADIUS,
-                  backgroundColor: INPUT_BG,
-                  paddingHorizontal: 20,
-                  paddingVertical: 12,
-                  justifyContent: "center",
-                }}
-              >
-                <AppTextInput
-                  value={expTelephoneDestinataire}
-                  onChangeText={setExpTelephoneDestinataire}
-                  placeholder="6XXXXXX"
-                  placeholderTextColor={PH}
-                  keyboardType="phone-pad"
-                  style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                />
-              </View>
-            </View>
+            <FormInput label="Quantité" keyboardType="number-pad" value={expStockQty} onChangeText={(t) => setExpStockQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
+            <FormInput label="Ville de l'expédition" value={expVille} onChangeText={setExpVille} placeholder="Ex. Douala" />
+            <FormInput label="Agence de l'expédition" value={expAgence} onChangeText={setExpAgence} placeholder="Ex. Agence Liv Sight" />
+            <FormInput label="Adresse de ramassage" value={expPickupAddress} onChangeText={setExpPickupAddress} placeholder="Ex. Rue, repère, quartier…" />
+            <FormInput label="Nom du destinataire" value={expNomDestinataire} onChangeText={setExpNomDestinataire} placeholder="Nom complet" autoCapitalize="words" />
+            <FormInput label="Numéro de téléphone du destinataire" keyboardType="phone-pad" value={expTelephoneDestinataire} onChangeText={setExpTelephoneDestinataire} placeholder="6XXXXXX" />
           </View>
         ) : (
           <>
@@ -533,6 +529,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       setLivStockOpen(true);
                     }}
                     onFocus={() => setLivStockOpen(true)}
+                    onBlur={() => setTimeout(() => setLivStockOpen(false), 150)}
                     placeholder="Rechercher un colis en stock..."
                     placeholderTextColor={PH}
                     style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
@@ -604,92 +601,16 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                 ) : null}
               </View>
 
-              <View>
-                <RamassageFieldLabel>Quantité</RamassageFieldLabel>
-                <View
-                  style={{
-                    minHeight: 56,
-                    borderRadius: INPUT_RADIUS,
-                    backgroundColor: INPUT_BG,
-                    paddingHorizontal: 20,
-                    paddingVertical: 12,
-                    justifyContent: "center",
-                  }}
-                >
-                  <AppTextInput
-                    value={livStockQty}
-                    onChangeText={(t) => setLivStockQty(t.replace(/[^\d]/g, ""))}
-                    placeholder="1"
-                    placeholderTextColor={PH}
-                    keyboardType="number-pad"
-                    style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                  />
-                </View>
-              </View>
-
-              <View>
-                <RamassageFieldLabel>Numéro destinataire</RamassageFieldLabel>
-                <View
-                  style={{
-                    minHeight: 56,
-                    borderRadius: INPUT_RADIUS,
-                    backgroundColor: INPUT_BG,
-                    paddingHorizontal: 20,
-                    paddingVertical: 12,
-                    justifyContent: "center",
-                  }}
-                >
-                  <AppTextInput
-                    value={livPhone}
-                    onChangeText={setLivPhone}
-                    placeholder="6XXXXXXX"
-                    placeholderTextColor={PH}
-                    keyboardType="phone-pad"
-                    style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                  />
-                </View>
-              </View>
-
-              <View>
-                <RamassageFieldLabel>Adresse de livraison</RamassageFieldLabel>
-                <View
-                  style={{
-                    minHeight: 56,
-                    borderRadius: INPUT_RADIUS,
-                    backgroundColor: INPUT_BG,
-                    paddingHorizontal: 20,
-                    paddingVertical: 12,
-                    justifyContent: "center",
-                  }}
-                >
-                  <AppTextInput
-                    value={livDeliveryAddress}
-                    onChangeText={setLivDeliveryAddress}
-                    placeholder="Ex. Rue, repère, quartier…"
-                    placeholderTextColor={PH}
-                    style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-                  />
-                </View>
-              </View>
+              <FormInput label="Quantité" keyboardType="number-pad" value={livStockQty} onChangeText={(t) => setLivStockQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
+              <FormInput label="Numéro destinataire" keyboardType="phone-pad" value={livPhone} onChangeText={setLivPhone} placeholder="6XXXXXXX" />
+              <FormInput label="Adresse de livraison" value={livDeliveryAddress} onChangeText={setLivDeliveryAddress} placeholder="Ex. Rue, repère, quartier…" />
 
               <View>
                 <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
                 <ExpressToggleCard value={livExpress === "yes"} onChange={(next) => setLivExpress(next ? "yes" : "no")} supplementXaf={1000} />
               </View>
 
-              <View>
-                <RamassageFieldLabel>Instructions (optionnel)</RamassageFieldLabel>
-                <View style={{ minHeight: 128, borderRadius: 16, backgroundColor: INPUT_BG, paddingHorizontal: 16, paddingTop: 14 }}>
-                  <AppTextInput
-                    value={livNotes}
-                    onChangeText={setLivNotes}
-                    placeholder={"Ex: appeler avant d'arriver, laisser au gardien..."}
-                    placeholderTextColor={PH}
-                    multiline
-                    style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: colors.text }}
-                  />
-                </View>
-              </View>
+              <FormInput label="Instructions (optionnel)" multiline value={livNotes} onChangeText={setLivNotes} placeholder="Ex: appeler avant d'arriver, laisser au gardien..." />
 
               <View>
                 <RamassageFieldLabel>Y a-t-il de l&apos;argent à récupérer ?</RamassageFieldLabel>
@@ -700,7 +621,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       flex: 1,
                       minHeight: 48,
                       borderRadius: radii.pill,
-                      backgroundColor: livCollectCash === "yes" ? "#297FC6" : "#E9E9EA",
+                      backgroundColor: livCollectCash === "yes" ? "#297FC6" : INPUT_BG,
                       alignItems: "center",
                       justifyContent: "center",
                       paddingVertical: 10,
@@ -719,7 +640,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       flex: 1,
                       minHeight: 48,
                       borderRadius: radii.pill,
-                      backgroundColor: livCollectCash === "no" ? "#297FC6" : "#E9E9EA",
+                      backgroundColor: livCollectCash === "no" ? "#297FC6" : INPUT_BG,
                       alignItems: "center",
                       justifyContent: "center",
                       paddingVertical: 10,
@@ -733,20 +654,18 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
                 {livNeedsCashAmount ? (
                   <View style={{ marginTop: 12 }}>
-                    <RamassageFieldLabel>Montant à récupérer</RamassageFieldLabel>
-                    <View style={{ minHeight: 56, borderRadius: 16, backgroundColor: INPUT_BG, paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", alignItems: "center" }}>
-                      <AppTextInput
-                        value={livAmountDueText}
-                        onChangeText={setLivAmountDueText}
-                        placeholder="0"
-                        placeholderTextColor={PH}
-                        keyboardType="decimal-pad"
-                        style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text, flex: 1 }}
-                      />
-                      <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, marginLeft: 10 }} numberOfLines={1}>
-                        XAF
-                      </AppText>
-                    </View>
+                    <FormInput
+                      label="Montant à récupérer"
+                      keyboardType="decimal-pad"
+                      value={livAmountDueText}
+                      onChangeText={setLivAmountDueText}
+                      placeholder="0"
+                      trailing={
+                        <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                          XAF
+                        </AppText>
+                      }
+                    />
                   </View>
                 ) : null}
               </View>
@@ -755,280 +674,27 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
         )
       ) : isExpedition ? (
         <View style={{ marginTop: 22, gap: 20 }}>
-          <View>
-            <RamassageFieldLabel>Ville de l&apos;expédition</RamassageFieldLabel>
-            <View
-              style={{
-                minHeight: 56,
-                borderRadius: INPUT_RADIUS,
-                backgroundColor: INPUT_BG,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                justifyContent: "center",
-              }}
-            >
-              <AppTextInput
-                value={expVille}
-                onChangeText={setExpVille}
-                placeholder="Ex. Douala"
-                placeholderTextColor={PH}
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
-          </View>
-          <View>
-            <RamassageFieldLabel>Agence de l&apos;expédition</RamassageFieldLabel>
-            <View
-              style={{
-                minHeight: 56,
-                borderRadius: INPUT_RADIUS,
-                backgroundColor: INPUT_BG,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                justifyContent: "center",
-              }}
-            >
-              <AppTextInput
-                value={expAgence}
-                onChangeText={setExpAgence}
-                placeholder="Ex. Agence Liv Sight"
-                placeholderTextColor={PH}
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
-          </View>
-          <View>
-            <RamassageFieldLabel>Adresse de ramassage</RamassageFieldLabel>
-            <View
-              style={{
-                minHeight: 56,
-                borderRadius: INPUT_RADIUS,
-                backgroundColor: INPUT_BG,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                justifyContent: "center",
-              }}
-            >
-              <AppTextInput
-                value={expPickupAddress}
-                onChangeText={setExpPickupAddress}
-                placeholder="Ex. Rue, repère, quartier…"
-                placeholderTextColor={PH}
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
-          </View>
-          <View>
-            <RamassageFieldLabel>Nom du destinataire</RamassageFieldLabel>
-            <View
-              style={{
-                minHeight: 56,
-                borderRadius: INPUT_RADIUS,
-                backgroundColor: INPUT_BG,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                justifyContent: "center",
-              }}
-            >
-              <AppTextInput
-                value={expNomDestinataire}
-                onChangeText={setExpNomDestinataire}
-                placeholder="Nom complet"
-                placeholderTextColor={PH}
-                autoCapitalize="words"
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
-          </View>
-          <View>
-            <RamassageFieldLabel>Numéro de téléphone du destinataire</RamassageFieldLabel>
-            <View
-              style={{
-                minHeight: 56,
-                borderRadius: INPUT_RADIUS,
-                backgroundColor: INPUT_BG,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                justifyContent: "center",
-              }}
-            >
-              <AppTextInput
-                value={expTelephoneDestinataire}
-                onChangeText={setExpTelephoneDestinataire}
-                placeholder="6XXXXXX"
-                placeholderTextColor={PH}
-                keyboardType="phone-pad"
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
-          </View>
+          <FormInput label="Ville de l'expédition" value={expVille} onChangeText={setExpVille} placeholder="Ex. Douala" />
+          <FormInput label="Agence de l'expédition" value={expAgence} onChangeText={setExpAgence} placeholder="Ex. Agence Liv Sight" />
+          <FormInput label="Adresse de ramassage" value={expPickupAddress} onChangeText={setExpPickupAddress} placeholder="Ex. Rue, repère, quartier…" />
+          <FormInput label="Nom du destinataire" value={expNomDestinataire} onChangeText={setExpNomDestinataire} placeholder="Nom complet" autoCapitalize="words" />
+          <FormInput label="Numéro de téléphone du destinataire" keyboardType="phone-pad" value={expTelephoneDestinataire} onChangeText={setExpTelephoneDestinataire} placeholder="6XXXXXX" />
         </View>
       ) : (
         <View style={{ marginTop: 22, gap: 24 }}>
-          <View>
-            <AppText
-              variant="dense"
-              style={{
-                fontSize: 10,
-                lineHeight: 15,
-                fontFamily: fonts.bodyBold,
-                color: "rgba(60,74,60,0.6)",
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                marginBottom: 8,
-              }}
-              numberOfLines={1}
-            >
-              ADRESSE EXACTE / QUARTIER (RAMASSAGE)
-            </AppText>
-            <View
-              style={{
-                minHeight: 64,
-                borderRadius: 16,
-                backgroundColor: colors.white,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.04,
-                shadowRadius: 2,
-                elevation: 1,
-              }}
-            >
-              <AppTextInput
-                value={pickupAddress}
-                onChangeText={setPickupAddress}
-                placeholder="Ex: Bastos, face à la pharmacie..."
-                placeholderTextColor={"rgba(60,74,60,0.4)"}
-                style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
-          </View>
+          <FormInput label="Adresse de ramassage" value={pickupAddress} onChangeText={setPickupAddress} placeholder="Ex: Bastos, face à la pharmacie..." />
+          <FormInput label="Adresse de livraison" value={livDeliveryAddress} onChangeText={setLivDeliveryAddress} placeholder="Ex: Emombo, derrière la station..." />
 
           <View>
-            <AppText
-              variant="dense"
-              style={{
-                fontSize: 10,
-                lineHeight: 15,
-                fontFamily: fonts.bodyBold,
-                color: "rgba(60,74,60,0.6)",
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                marginBottom: 8,
-              }}
-              numberOfLines={1}
-            >
-              ADRESSE DE LIVRAISON
-            </AppText>
-            <View
-              style={{
-                minHeight: 64,
-                borderRadius: 16,
-                backgroundColor: colors.white,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.04,
-                shadowRadius: 2,
-                elevation: 1,
-              }}
-            >
-              <AppTextInput
-                value={livDeliveryAddress}
-                onChangeText={setLivDeliveryAddress}
-                placeholder="Ex: Emombo, derrière la station..."
-                placeholderTextColor={"rgba(60,74,60,0.4)"}
-                style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
+            <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
+            <ExpressToggleCard value={pickupExpress === "yes"} onChange={(next) => setPickupExpress(next ? "yes" : "no")} supplementXaf={1000} />
           </View>
 
-          <View>
-            <AppText
-              variant="dense"
-              style={{ fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: "rgba(60,74,60,0.7)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}
-              numberOfLines={1}
-            >
-              TYPE DE LIVRAISON
-            </AppText>
-            <ExpressToggleCard
-              value={pickupExpress === "yes"}
-              onChange={(next) => setPickupExpress(next ? "yes" : "no")}
-              supplementXaf={1000}
-            />
-          </View>
+          <FormInput label="Nom du produit" leadingIcon={PackageOpen} value={pickupName} onChangeText={setPickupName} placeholder="Ex: iPhone 15 Pro" />
+          <FormInput label="Quantité" leadingIcon={Hash} keyboardType="number-pad" value={pickupQty} onChangeText={(t) => setPickupQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
 
           <View>
-            <AppText
-              variant="dense"
-              style={{ fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: "rgba(60,74,60,0.7)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}
-              numberOfLines={1}
-            >
-              NOM DU PRODUITS
-            </AppText>
-            <View
-              style={{
-                minHeight: 55,
-                borderRadius: 24,
-                backgroundColor: "#F3F4F5",
-                paddingHorizontal: 18,
-                paddingVertical: 12,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <PackageOpen size={18} color={"rgba(60,74,60,0.45)"} />
-              <AppTextInput
-                value={pickupName}
-                onChangeText={setPickupName}
-                placeholder="Ex: iPhone 15 Pro"
-                placeholderTextColor={"rgba(60,74,60,0.4)"}
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyMedium, color: colors.text, flex: 1, marginLeft: 10 }}
-              />
-            </View>
-          </View>
-
-          <View>
-            <AppText
-              variant="dense"
-              style={{ fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: "rgba(60,74,60,0.7)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}
-              numberOfLines={1}
-            >
-              QUANTITÉ
-            </AppText>
-            <View
-              style={{
-                minHeight: 56,
-                borderRadius: 24,
-                backgroundColor: "#F3F4F5",
-                paddingHorizontal: 18,
-                paddingVertical: 12,
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <Hash size={18} color={"rgba(60,74,60,0.45)"} />
-              <AppTextInput
-                keyboardType="number-pad"
-                value={pickupQty}
-                onChangeText={(t) => setPickupQty(t.replace(/[^\d]/g, ""))}
-                placeholder="1"
-                placeholderTextColor={"rgba(60,74,60,0.4)"}
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyMedium, color: colors.text, flex: 1, marginLeft: 10 }}
-              />
-            </View>
-          </View>
-
-          <View>
-            <AppText
-              variant="dense"
-              style={{ fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: "rgba(60,74,60,0.7)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}
-              numberOfLines={1}
-            >
-              Y a-t-il de l&apos;argent à récupérer ?
-            </AppText>
+            <RamassageFieldLabel>Y a-t-il de l&apos;argent à récupérer ?</RamassageFieldLabel>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Pressable
                 onPress={() => setPickupCollectCash("yes")}
@@ -1036,7 +702,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   flex: 1,
                   minHeight: 48,
                   borderRadius: radii.pill,
-                  backgroundColor: pickupCollectCash === "yes" ? "#297FC6" : "#F3F4F5",
+                  backgroundColor: pickupCollectCash === "yes" ? "#297FC6" : INPUT_BG,
                   alignItems: "center",
                   justifyContent: "center",
                   paddingVertical: 10,
@@ -1059,7 +725,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   flex: 1,
                   minHeight: 48,
                   borderRadius: radii.pill,
-                  backgroundColor: pickupCollectCash === "no" ? "#297FC6" : "#F3F4F5",
+                  backgroundColor: pickupCollectCash === "no" ? "#297FC6" : INPUT_BG,
                   alignItems: "center",
                   justifyContent: "center",
                   paddingVertical: 10,
@@ -1076,177 +742,16 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             </View>
 
             {pickupCollectCash === "yes" ? (
-              <View
-                style={{
-                  marginTop: 12,
-                  minHeight: 55,
-                  borderRadius: 24,
-                  backgroundColor: "#F3F4F5",
-                  paddingHorizontal: 18,
-                  paddingVertical: 12,
-                  flexDirection: "row",
-                  alignItems: "center",
-                }}
-              >
-                <Wallet size={18} color={"rgba(60,74,60,0.45)"} />
-                <AppTextInput
-                  keyboardType="number-pad"
-                  value={pickupAmount}
-                  onChangeText={(t) => setPickupAmount(t.replace(/[^\d]/g, ""))}
-                  placeholder="50 000"
-                  placeholderTextColor={"rgba(60,74,60,0.4)"}
-                  style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyMedium, color: colors.text, flex: 1, marginLeft: 10 }}
-                />
+              <View style={{ marginTop: 12 }}>
+                <FormInput leadingIcon={Wallet} keyboardType="number-pad" value={pickupAmount} onChangeText={(t) => setPickupAmount(t.replace(/[^\d]/g, ""))} placeholder="50 000" />
               </View>
             ) : null}
           </View>
 
-          <View>
-            <AppText
-              variant="dense"
-              style={{ fontSize: 11, lineHeight: 16.5, fontFamily: fonts.bodyBold, color: "#6C7B6A", letterSpacing: 0.55, textTransform: "uppercase", marginBottom: 8 }}
-              numberOfLines={1}
-            >
-              TÉLÉPHONE
-            </AppText>
-            <View
-              style={{
-                minHeight: 55,
-                borderRadius: 16,
-                backgroundColor: "#FCFCFE",
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-              }}
-            >
-              <AppTextInput
-                value={pickupPhone}
-                onChangeText={setPickupPhone}
-                placeholder="6XXXXXXX."
-                placeholderTextColor={"rgba(60,74,60,0.4)"}
-                keyboardType="phone-pad"
-                style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyRegular, color: colors.text }}
-              />
-            </View>
-          </View>
+          <FormInput label="Téléphone" keyboardType="phone-pad" value={pickupPhone} onChangeText={setPickupPhone} placeholder="6XXXXXXX" />
         </View>
       )}
 
-      <View style={{ marginTop: 14, paddingBottom: 10 }}>
-        <Pressable
-          onPress={() => {
-            if (mode === "stock" && isExpedition) {
-              const chosen = expSelectedStockItem;
-              const q = Math.max(0, Math.floor(parseXaf(expStockQty)));
-              const itemsOne = chosen && q > 0 ? JSON.stringify([{ id: chosen.id, name: chosen.name, qty: q }]) : "[]";
-              const expeditionClient = stringifyExpeditionClient({
-                clientName: expNomDestinataire.trim(),
-                phone: expTelephoneDestinataire.trim(),
-                address: [expVille.trim(), expAgence.trim()].filter(Boolean).join(" — ") || quartier.trim(),
-                notes: "",
-              });
-              router.push({
-                pathname: "/resume-produit-en-stock",
-                params: {
-                  quartier: expVille.trim(),
-                  selectedItems: itemsOne,
-                  phone: expTelephoneDestinataire.trim(),
-                  notes: "",
-                  express: "no",
-                  collectCash: "no",
-                  amountDueText: "",
-                  service: SERVICE_EXPEDITION,
-                  expeditionClient,
-                },
-              });
-              return;
-            }
-
-            if (mode === "pickup" && isExpedition) {
-              const pickupAddressCombined = [expAgence.trim(), expPickupAddress.trim()].filter(Boolean).join(" — ");
-              const expeditionPickupParams = {
-                service: SERVICE_EXPEDITION,
-                expeditionClient: stringifyExpeditionClient({
-                  clientName: expNomDestinataire.trim(),
-                  phone: expTelephoneDestinataire.trim(),
-                  address: [expVille.trim(), pickupAddressCombined].filter(Boolean).join(" — "),
-                  notes: "",
-                }),
-              };
-              router.push({
-                pathname: "/resume-produit-ramasse",
-                params: {
-                  quartier: expVille.trim(),
-                  pickupName: expNomDestinataire.trim(),
-                  pickupAddress: pickupAddressCombined,
-                  pickupQty: "1",
-                  pickupExpress: "no",
-                  pickupCollectCash: "no",
-                  pickupAmount: "",
-                  pickupPhone: expTelephoneDestinataire.trim(),
-                  ...expeditionPickupParams,
-                },
-              });
-              return;
-            }
-
-            if (mode === "stock" && !isExpedition) {
-              const chosen = livSelectedStockItem;
-              const q = Math.max(0, Math.floor(parseXaf(livStockQty)));
-              const selectedItemsOne = chosen && q > 0 ? JSON.stringify([{ id: chosen.id, name: chosen.name, qty: q }]) : "[]";
-              router.push({
-                pathname: "/resume-produit-en-stock",
-                params: {
-                  quartier,
-                  deliveryAddress: livDeliveryAddress.trim(),
-                  selectedItems: selectedItemsOne,
-                  phone: livPhone.trim(),
-                  notes: livNotes.trim(),
-                  express: livExpress,
-                  collectCash: livCollectCash,
-                  amountDueText: livNeedsCashAmount ? livAmountDueText : "",
-                },
-              });
-              return;
-            }
-
-            if (mode === "pickup") {
-              router.push({
-                pathname: "/resume-produit-ramasse",
-                params: {
-                  quartier,
-                  deliveryAddress: livDeliveryAddress.trim(),
-                  pickupName,
-                  pickupAddress,
-                  pickupQty,
-                  pickupExpress,
-                  pickupCollectCash,
-                  pickupAmount,
-                  pickupPhone,
-                },
-              });
-            }
-          }}
-          disabled={mode === "pickup" ? !canContinuePickup : false}
-          style={{
-            minHeight: 68,
-            borderRadius: 24,
-            paddingVertical: 18,
-            backgroundColor:
-              mode === "pickup" && !canContinuePickup ? "rgba(41,127,198,0.45)" : "#297FC6",
-            alignItems: "center",
-            justifyContent: "center",
-            shadowColor: "#297FC6",
-            shadowOffset: { width: 0, height: 20 },
-            shadowOpacity: 0.15,
-            shadowRadius: 25,
-            elevation: 6,
-          }}
-        >
-          <AppText style={{ fontSize: 18, lineHeight: 28, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
-            Continuer
-          </AppText>
-        </Pressable>
-      </View>
     </ScreenLayout>
   );
 }
