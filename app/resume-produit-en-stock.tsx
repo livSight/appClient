@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowLeft, MapPin, PackageOpen, Phone, Wallet, Zap } from "lucide-react-native";
+import { ArrowLeft, MapPin, PackageOpen, Phone, Wallet, Zap, Clock } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
 import FormButton from "../components/FormButton";
@@ -26,23 +26,40 @@ type Params = {
   expeditionClient?: string;
 };
 
-function SectionLabel({ children }: { children: string }) {
+function SectionRow({
+  label,
+  onEdit,
+}: {
+  label: string;
+  onEdit?: () => void;
+}) {
   return (
-    <AppText
-      variant="dense"
-      style={{
-        fontSize: 12,
-        lineHeight: 16,
-        fontFamily: fonts.bodyBold,
-        color: "rgba(60,74,60,0.7)",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-        marginBottom: 8,
-      }}
-      numberOfLines={1}
-    >
-      {children}
-    </AppText>
+    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <AppText
+          variant="dense"
+          style={{
+            fontSize: 12,
+            lineHeight: 16,
+            fontFamily: fonts.bodyBold,
+            color: "rgba(60,74,60,0.7)",
+            letterSpacing: 0.6,
+            textTransform: "uppercase",
+          }}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {label}
+        </AppText>
+      </View>
+      {onEdit ? (
+        <Pressable onPress={onEdit} hitSlop={10}>
+          <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+            Modifier
+          </AppText>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -63,6 +80,12 @@ function Card({ children }: { children: React.ReactNode }) {
       <View style={{ padding: 16 }}>{children}</View>
     </View>
   );
+}
+
+function formatCmPhone(input: string): string {
+  const digits = input.replace(/[^\d]/g, "");
+  if (digits.length !== 9) return "—";
+  return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
 }
 
 export default function ResumeProduitEnStockScreen() {
@@ -89,6 +112,8 @@ export default function ResumeProduitEnStockScreen() {
     return Number.isFinite(n) ? n : NaN;
   }, [amountDueText]);
 
+  const phoneDisplay = useMemo(() => formatCmPhone(phone), [phone]);
+
   const items = useMemo<SelectedItem[]>(() => {
     try {
       const parsed = JSON.parse(selectedItemsRaw);
@@ -105,26 +130,42 @@ export default function ResumeProduitEnStockScreen() {
     }
   }, [selectedItemsRaw]);
 
+  const deliveryFeeXaf = 1500;
+  const expressSupplementXaf = express === "yes" ? 1000 : 0;
+  const totalXaf = deliveryFeeXaf + expressSupplementXaf;
+
+  function goEdit(editSection: string) {
+    router.push({
+      pathname: "/ma-demande-livraison",
+      params: {
+        mode: "stock",
+        editSection,
+        livPhone: phone,
+        livExpress: express,
+        livCollectCash: collectCash,
+        livAmountDueText: amountDueText,
+        livNotes: notes,
+        deliveryQuartier,
+        deliveryLandmark,
+        stockItemId: items[0]?.id ?? "",
+        stockQty: items[0]?.qty ? String(items[0].qty) : "",
+      },
+    });
+  }
+
   return (
     <ScreenLayout
       header={
         <View style={{ paddingBottom: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", minHeight: 44 }}>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginRight: 10 }}>
-              <ArrowLeft size={22} color={colors.text} />
-            </Pressable>
-            <View style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-              <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodySemi, color: "rgba(15,23,42,0.8)" }} numberOfLines={1}>
-                {forExpedition ? "Expédition" : "Livraison"}
-              </AppText>
-              <AppText style={{ ...typography.screenTitle, fontSize: 26, lineHeight: 30, marginTop: 4 }} numberOfLines={2} ellipsizeMode="tail">
-                {forExpedition ? "Résumé expédition (stock)" : "Résumé produit en stock"}
-              </AppText>
-              <AppText style={{ ...typography.subtitle, lineHeight: 22, marginTop: 6 }} numberOfLines={2} ellipsizeMode="tail">
-                Veuillez vérifier les détails de votre{"\n"}commande avant de confirmer.
-              </AppText>
-            </View>
-          </View>
+          <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginBottom: 4 }}>
+            <ArrowLeft size={22} color={colors.text} />
+          </Pressable>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+            {forExpedition ? "Résumé expédition (stock)" : "Résumé produit en stock"}
+          </AppText>
+          <AppText style={[typography.subtitle, { marginTop: 4 }]}>
+            Vérifiez les informations avant de confirmer.
+          </AppText>
         </View>
       }
       footer={
@@ -132,10 +173,15 @@ export default function ResumeProduitEnStockScreen() {
           style={{
             borderTopWidth: 1,
             borderTopColor: "#EDEEEF",
-            backgroundColor: "rgba(255,255,255,0.95)",
+            backgroundColor: colors.white,
             paddingHorizontal: 24,
             paddingTop: 14,
             paddingBottom: 28,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -8 },
+            shadowOpacity: 0.06,
+            shadowRadius: 14,
+            elevation: 10,
           }}
         >
           <FormButton
@@ -151,7 +197,7 @@ export default function ResumeProduitEnStockScreen() {
       <View style={{ marginTop: 18, gap: 18 }}>
         {forExpedition && expeditionClient ? (
           <View>
-            <SectionLabel>CLIENT EXPÉDITION</SectionLabel>
+            <SectionRow label="CLIENT EXPÉDITION" />
             <Card>
               <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
                 {expeditionClient.clientName}
@@ -164,7 +210,7 @@ export default function ResumeProduitEnStockScreen() {
         ) : null}
 
         <View>
-          <SectionLabel>{forExpedition ? "CONTACT LIVRAISON" : "DESTINATAIRE"}</SectionLabel>
+          <SectionRow label={forExpedition ? "CONTACT LIVRAISON" : "DESTINATAIRE"} onEdit={!forExpedition ? () => goEdit("recipient") : undefined} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
@@ -172,7 +218,7 @@ export default function ResumeProduitEnStockScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                  {phone || "—"}
+                  {phoneDisplay}
                 </AppText>
               </View>
             </View>
@@ -180,23 +226,26 @@ export default function ResumeProduitEnStockScreen() {
         </View>
 
         <View>
-          <SectionLabel>TYPE DE LIVRAISON</SectionLabel>
+          <SectionRow label="TYPE DE LIVRAISON" onEdit={!forExpedition ? () => goEdit("deliveryType") : undefined} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
-                <Zap size={18} color={"rgba(25,28,29,0.75)"} />
+                {express === "yes" ? <Zap size={18} color={"rgba(25,28,29,0.75)"} /> : <Clock size={18} color={"rgba(25,28,29,0.75)"} />}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
                   {express === "yes" ? "Express" : "Normal"}
                 </AppText>
+                <AppText variant="dense" style={{ marginTop: 4, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={1}>
+                  {express === "yes" ? "Livraison estimée sous 45 min" : "Livraison estimée sous 2h"}
+                </AppText>
               </View>
             </View>
           </Card>
         </View>
 
         <View>
-          <SectionLabel>MODE DE RÉCUPÉRATION</SectionLabel>
+          <SectionRow label="MODE DE RÉCUPÉRATION" onEdit={!forExpedition ? () => goEdit("mode") : undefined} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <View
@@ -223,7 +272,7 @@ export default function ResumeProduitEnStockScreen() {
         </View>
 
         <View>
-          <SectionLabel>ARTICLES</SectionLabel>
+          <SectionRow label="ARTICLES" onEdit={!forExpedition ? () => goEdit("items") : undefined} />
           <Card>
             {items.length ? (
               <View style={{ gap: 10 }}>
@@ -256,7 +305,7 @@ export default function ResumeProduitEnStockScreen() {
         </View>
 
         <View>
-          <SectionLabel>ADRESSE DE LIVRAISON</SectionLabel>
+          <SectionRow label="ADRESSE DE LIVRAISON" onEdit={!forExpedition ? () => goEdit("address") : undefined} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
@@ -278,7 +327,7 @@ export default function ResumeProduitEnStockScreen() {
 
         {notes.trim().length ? (
           <View>
-            <SectionLabel>AUTRES DÉTAILS / INSTRUCTIONS</SectionLabel>
+            <SectionRow label="AUTRES DÉTAILS / INSTRUCTIONS" onEdit={!forExpedition ? () => goEdit("notes") : undefined} />
             <Card>
               <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.9)" }}>
                 {notes}
@@ -288,7 +337,7 @@ export default function ResumeProduitEnStockScreen() {
         ) : null}
 
         <View>
-          <SectionLabel>PAIEMENT</SectionLabel>
+          <SectionRow label="PAIEMENT" onEdit={!forExpedition ? () => goEdit("payment") : undefined} />
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
               <View style={{ width: 40, height: 40, borderRadius: 16, backgroundColor: "#F3F4F5", alignItems: "center", justifyContent: "center" }}>
@@ -306,6 +355,43 @@ export default function ResumeProduitEnStockScreen() {
             </View>
           </Card>
         </View>
+
+        {!forExpedition ? (
+          <View>
+            <SectionRow label="TOTAL" />
+            <Card>
+              <View style={{ gap: 10 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
+                    Frais de livraison
+                  </AppText>
+                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
+                    {deliveryFeeXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
+                  </AppText>
+                </View>
+                {expressSupplementXaf > 0 ? (
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                    <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
+                      Supplément express
+                    </AppText>
+                    <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
+                      {expressSupplementXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
+                    </AppText>
+                  </View>
+                ) : null}
+                <View style={{ height: 1, backgroundColor: "#EDEEEF", marginTop: 2 }} />
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 2 }}>
+                  <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                    Total
+                  </AppText>
+                  <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                    {totalXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
+                  </AppText>
+                </View>
+              </View>
+            </Card>
+          </View>
+        ) : null}
       </View>
     </ScreenLayout>
   );
