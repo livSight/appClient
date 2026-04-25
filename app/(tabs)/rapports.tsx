@@ -256,18 +256,18 @@ export default function RapportsScreen() {
   return (
     <ScreenLayout
       header={
-        <View>
-          <View style={{ minHeight: 44, paddingVertical: 8, alignItems: "flex-end", justifyContent: "center" }}>
-            <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ paddingBottom: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30, flex: 1, paddingRight: 12 }]} numberOfLines={2}>
+              Rapports d&apos;activité
+            </AppText>
+            <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 4 }}>
               <SolarIcon name="solar:download-outline" size={24} color={colors.text} />
               <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
                 Exporter
               </AppText>
             </Pressable>
           </View>
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
-            Rapports d&apos;activité
-          </AppText>
           <AppText style={[typography.subtitle, { marginTop: 4 }]} numberOfLines={2} ellipsizeMode="tail">
             {periodLabel}
           </AppText>

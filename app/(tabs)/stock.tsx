@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, View, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { Alert, View, Pressable, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
 import { card, row } from "../../theme/styles";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
@@ -240,47 +241,34 @@ export default function StockScreen() {
   }, [addedName, addedQty, addedSubtitle]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View
-        style={{
-          paddingTop: insets.top + spacing.screenPaddingX,
-          paddingHorizontal: spacing.screenPaddingX,
-          paddingBottom: 10,
-          backgroundColor: colors.bg,
-        }}
-      >
-        <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
-          Mon Stock
-        </AppText>
-        <AppText style={[typography.subtitle, { marginTop: 4 }]}>
-          Gérez vos produits
-        </AppText>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{
-          paddingHorizontal: spacing.screenPaddingX,
-          paddingBottom: dirty ? insets.bottom + 220 : 32,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View>
-          <Pressable
-            onPress={() => router.push("/ajouter-au-stock")}
-            style={{
-              minHeight: 56,
-              paddingVertical: 14,
-              borderRadius: radii.pill,
-              backgroundColor: colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
-              Ajouter un produit à votre stock
+    <View style={{ flex: 1 }}>
+      <ScreenLayout
+        header={
+          <View style={{ paddingBottom: 10 }}>
+            <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+              Mon Stock
             </AppText>
-          </Pressable>
-        </View>
+            <AppText style={[typography.subtitle, { marginTop: 4 }]}>
+              Gérez vos produits
+            </AppText>
+          </View>
+        }
+      >
+        <Pressable
+          onPress={() => router.push("/ajouter-au-stock")}
+          style={{
+            minHeight: 56,
+            paddingVertical: 14,
+            borderRadius: radii.pill,
+            backgroundColor: colors.primary,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
+            Ajouter un produit à votre stock
+          </AppText>
+        </Pressable>
 
         {loading ? (
           <View style={{ paddingVertical: 28, alignItems: "center" }}>
@@ -322,7 +310,9 @@ export default function StockScreen() {
             ))}
           </View>
         )}
-      </ScrollView>
+
+        {dirty ? <View style={{ height: insets.bottom + 110 }} /> : null}
+      </ScreenLayout>
 
       {dirty ? (
         <View
