@@ -5,11 +5,12 @@ import {
   ArrowLeft,
   CircleCheck,
   CircleDot,
-  ClipboardList,
   MapPin,
   CircleHelp,
   CreditCard,
   CircleX,
+  PackageOpen,
+  Zap,
 } from "lucide-react-native";
 import ScreenLayout from "../../components/ScreenLayout";
 import { card, row } from "../../theme/styles";
@@ -21,12 +22,19 @@ const WARNING_AMBER = "#F59E0B";
 
 type Chip = { label: string; color: string; bg: string };
 
+type DeliveryMode = "pickup" | "stock";
+type DeliveryType = "express" | "normal";
+type DeliveryItem = { name: string; qty: number };
+
 type Delivery = {
   id: string;
   phone: string;
-  customer_name?: string | null;
-  items: string;
-  amount_due: number;
+  mode: DeliveryMode;
+  deliveryType: DeliveryType;
+  pickupAddress?: string | null;
+  items: DeliveryItem[];
+  collectCash: boolean;
+  amountDueXaf?: number | null;
   status?: string | null;
   quartier?: string | null;
   notes?: string | null;
@@ -37,9 +45,12 @@ const MOCK_DELIVERIES: Delivery[] = [
   {
     id: "101",
     phone: "0612345678",
-    customer_name: "Marie",
-    items: "Panier de légumes bio",
-    amount_due: 4000,
+    mode: "pickup",
+    deliveryType: "express",
+    pickupAddress: "Bastos, face à la pharmacie",
+    items: [{ name: "iPhone 15 Pro", qty: 1 }],
+    collectCash: true,
+    amountDueXaf: 50000,
     status: "pending",
     quartier: "Emombo",
     notes: "Appeler avant livraison.",
@@ -48,9 +59,14 @@ const MOCK_DELIVERIES: Delivery[] = [
   {
     id: "102",
     phone: "0698765432",
-    customer_name: "Jean",
-    items: "Chaussures x2",
-    amount_due: 15000,
+    mode: "stock",
+    deliveryType: "normal",
+    items: [
+      { name: "Papier A4 (80g)", qty: 2 },
+      { name: "Classeurs Rigides", qty: 1 },
+    ],
+    collectCash: false,
+    amountDueXaf: null,
     status: "delivered",
     quartier: "Elig-Edzoa",
     notes: "Remettre au gardien.",
@@ -59,9 +75,12 @@ const MOCK_DELIVERIES: Delivery[] = [
   {
     id: "103",
     phone: "0700000000",
-    customer_name: null,
-    items: "Colis divers",
-    amount_due: 2500,
+    mode: "pickup",
+    deliveryType: "normal",
+    pickupAddress: "Messassi, entrée principale",
+    items: [{ name: "Colis divers", qty: 1 }],
+    collectCash: true,
+    amountDueXaf: 2500,
     status: "cancelled",
     quartier: "Essomba",
     notes: null,
@@ -221,12 +240,22 @@ export default function LivraisonDetailScreen() {
           <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
             <ArrowLeft size={22} color={colors.text} />
           </Pressable>
-          <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
-            <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
-              Detail de Livraison
+          <View style={{ flex: 1 }} />
+          <View
+            style={{
+              minHeight: 44,
+              borderRadius: radii.pill,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: statusChip.bg,
+            }}
+          >
+            <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: statusChip.color, letterSpacing: 0.6 }} numberOfLines={1}>
+              {statusChip.label}
             </AppText>
           </View>
-          <View style={{ width: 44 }} />
         </View>
       }
     >
@@ -239,26 +268,45 @@ export default function LivraisonDetailScreen() {
         </View>
       ) : (
         <>
-          {/* Order header */}
-          <View style={[row.spaceBetween, { marginBottom: 18 }]}>
-            <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-              <AppText style={{ fontSize: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                {delivery?.customer_name?.trim() || delivery?.items?.trim() || delivery?.phone || `#${id}`}
-              </AppText>
-            </View>
+          {/* Badges */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 18 }}>
             <View
               style={{
-                minHeight: 48,
+                minHeight: 36,
                 borderRadius: radii.pill,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                backgroundColor: "rgba(41,127,198,0.10)",
+                borderWidth: 1,
+                borderColor: "rgba(41,127,198,0.20)",
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: statusChip.bg,
+                gap: 8,
               }}
             >
-              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: statusChip.color, letterSpacing: 0.6 }} numberOfLines={1}>
-                {statusChip.label}
+              <PackageOpen size={16} color={colors.primary} />
+              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.4 }} numberOfLines={1}>
+                {delivery.mode === "pickup" ? "PRODUIT RAMASSÉ" : "PRODUIT EN STOCK"}
+              </AppText>
+            </View>
+
+            <View
+              style={{
+                minHeight: 36,
+                borderRadius: radii.pill,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                backgroundColor: "rgba(245,158,11,0.14)",
+                borderWidth: 1,
+                borderColor: "rgba(245,158,11,0.22)",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Zap size={16} color={"#B45309"} />
+              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: "#92400E", letterSpacing: 0.4 }} numberOfLines={1}>
+                {delivery.deliveryType === "express" ? "EXPRESS" : "NORMAL"}
               </AppText>
             </View>
           </View>
@@ -373,37 +421,65 @@ export default function LivraisonDetailScreen() {
 
           {/* Summary & details */}
           <View style={{ marginTop: 18, gap: 16 }}>
-            <View style={[card.outlined, { padding: 24 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <ClipboardList size={18} color={colors.primary} />
-                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  Contenu
+            {/* Pickup address (only for pickup mode) */}
+            {delivery.mode === "pickup" ? (
+              <View style={[card.outlined, { padding: 24 }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                  <MapPin size={18} color={colors.primary} />
+                  <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                    Adresse de ramassage
+                  </AppText>
+                </View>
+                <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={3} ellipsizeMode="tail">
+                  {delivery.pickupAddress?.trim() || "—"}
                 </AppText>
               </View>
-              <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={3} ellipsizeMode="tail">
-                {delivery?.items?.trim() || "Colis divers"}
-              </AppText>
-              <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6 }} numberOfLines={4} ellipsizeMode="tail">
-                {delivery?.notes?.trim() || "A manipuler avec précaution, le colis est très fragile"}
-              </AppText>
-            </View>
+            ) : null}
 
+            {/* Dropoff address */}
             <View style={[card.outlined, { padding: 24 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
                 <MapPin size={18} color={colors.primary} />
                 <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  Zone de livraison
+                  Adresse de livraison
                 </AppText>
               </View>
               <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={3} ellipsizeMode="tail">
-                {delivery?.quartier?.trim() || "Tradex Emana, Yaoundé"}
+                {delivery?.quartier?.trim() || "—"}
               </AppText>
-              <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6 }} numberOfLines={2} ellipsizeMode="tail">
-                Rue Al Fourat, Imm 42
-              </AppText>
-              <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 4 }} numberOfLines={3} ellipsizeMode="tail">
-                Note: Sonner à l&apos;interphone B
-              </AppText>
+            </View>
+
+            {/* Articles */}
+            <View style={[card.outlined, { padding: 24 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                <PackageOpen size={18} color={colors.primary} />
+                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                  Articles
+                </AppText>
+              </View>
+              <View style={{ gap: 12 }}>
+                {(Array.isArray(delivery.items) ? delivery.items : []).map((it, idx) => (
+                  <View key={`${it.name}-${idx}`} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+                        {it.name}
+                      </AppText>
+                    </View>
+                    <View style={{ flexShrink: 0 }}>
+                      <View style={{ minHeight: 28, borderRadius: radii.pill, backgroundColor: "rgba(48,144,192,0.18)", paddingHorizontal: 10, paddingVertical: 6 }}>
+                        <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                          x{it.qty}
+                        </AppText>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+              {delivery?.notes?.trim() ? (
+                <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 10 }} numberOfLines={4} ellipsizeMode="tail">
+                  {delivery.notes.trim()}
+                </AppText>
+              ) : null}
             </View>
           </View>
 
@@ -418,10 +494,12 @@ export default function LivraisonDetailScreen() {
             }}
           >
             <AppText variant="dense" style={{ ...typography.label, color: colors.white, opacity: 0.9 }} numberOfLines={2} ellipsizeMode="tail">
-              Montant total à régler
+              Paiement
             </AppText>
-            <AppText style={{ fontSize: 32, fontFamily: fonts.bodyBold, color: colors.white, marginTop: 10 }} numberOfLines={1} ellipsizeMode="tail">
-              {(delivery?.amount_due ?? 4000).toString()} XAF
+            <AppText style={{ fontSize: 22, lineHeight: 28, fontFamily: fonts.bodyBold, color: colors.white, marginTop: 10 }} numberOfLines={2} ellipsizeMode="tail">
+              {delivery.collectCash
+                ? `${(delivery.amountDueXaf ?? 0).toString()} XAF à récupérer`
+                : "Pas d'argent à récupérer"}
             </AppText>
 
             <View style={{ marginTop: 14, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10 }}>

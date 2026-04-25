@@ -7,4 +7,22 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    files: ['**/*.{js,jsx,ts,tsx}'],
+    ignores: ['components/AppText.tsx', 'components/AppTextInput.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['Text', 'TextInput'],
+              message: 'Use AppText/AppTextInput wrappers (Dynamic Type policy).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);

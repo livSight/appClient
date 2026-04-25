@@ -1,0 +1,49 @@
+---
+description: Apple HIG UX, permissions, accessibility, and performance standards
+alwaysApply: true
+---
+
+# Apple HIG + permissions + performance (project standards)
+
+## UI/UX (Apple HIG)
+- Prefer native iOS patterns/components when available (navigation, tab bar, alerts, sheets).
+- Respect **Safe Area** on every screen (especially custom headers/footers).
+- Support **Dynamic Type**: avoid hardcoded text sizes in layout-critical spots; ensure UI works with large font sizes.
+- Maintain readable contrast (target WCAG AA; avoid low-contrast text colors).
+- Use **haptics** for critical actions (e.g. submit/confirm/assign/cancel) where appropriate.
+
+## Dynamic Type enforcement (must-follow)
+- **Do not use** `Text` from `react-native` in app/screens/components. Use `AppText` instead:
+  - `import AppText from "@/components/AppText";`
+  - **Exception**: `react-native` `Text` is allowed only inside `components/AppText.tsx`.
+- **Do not use** `TextInput` from `react-native` in app/screens/components. Use `AppTextInput` instead:
+  - `import AppTextInput from "@/components/AppTextInput";`
+  - **Exception**: `react-native` `TextInput` is allowed only inside `components/AppTextInput.tsx`.
+- **Scaling policy**:
+  - Default: `AppText`/`AppTextInput` must keep `allowFontScaling` enabled (default behavior).
+  - Default cap: `maxFontSizeMultiplier` **2.5** (via wrappers).
+  - Dense UI (tabs, chips, compact pills): use `variant="dense"` (cap **2.0**) intentionally.
+- **No fixed heights around text**:
+  - If a container includes text, do **not** use `height: <number>`.
+  - Use `minHeight` + `paddingVertical` so text can grow at fontScale 2.0+.
+  - Fixed sizes are OK for **purely decorative** elements (icons, avatars, separators, background shapes).
+- **Row layout hardening** (for any `flexDirection: "row"` containing text):
+  - Left/text column must have `flex: 1` and `minWidth: 0`.
+  - Use `numberOfLines` strategically:
+    - Left titles/subtitles: usually `2` (or `3` in detail screens).
+    - Right-side metadata (amount/tag): usually `1` to prevent collisions.
+  - Add `ellipsizeMode="tail"` when truncating.
+
+## Permissions
+- Request permissions **only when needed** (just-in-time), not on app launch.
+- Always show a clear “why we ask” explanation before triggering the OS prompt.
+- Never request more permissions than the current feature needs.
+- If/when GPS tracking is added: require explicit consent (GDPR) before enabling tracking; make it revocable.
+
+## Performance targets (guide rails)
+- Keep initial startup fast (avoid heavy work in `app/_layout.tsx`).
+- Keep animations/transitions smooth (target 60fps; avoid unnecessary re-renders).
+- Realtime requirements apply only when implemented:
+  - Status updates target < 5s end-to-end.
+  - GPS/map updates target < 10s latency.
+

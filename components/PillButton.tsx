@@ -1,6 +1,7 @@
-import { Pressable, Text } from "react-native";
+import { Pressable } from "react-native";
 import { button } from "../theme/styles";
 import { typography } from "../theme/tokens";
+import AppText from "./AppText";
 
 type Variant = "primary" | "white";
 
@@ -23,7 +24,9 @@ export default function PillButton({ label, variant = "primary", onPress, style 
 
   return (
     <Pressable onPress={onPress} style={[button.pill, bgStyle, style]}>
-      <Text style={textStyle}>{label}</Text>
+      <AppText style={textStyle} numberOfLines={1}>
+        {label}
+      </AppText>
     </Pressable>
   );
 }

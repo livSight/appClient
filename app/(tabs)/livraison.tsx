@@ -221,7 +221,7 @@ export default function LivraisonScreen() {
 
       <View style={{ marginBottom: spacing.sectionGap / 2 }}>
         <Pressable
-          onPress={() => router.push("/livraison-zone")}
+          onPress={() => router.push("/ma-demande-livraison")}
           style={{
             minHeight: 56,
             paddingVertical: 14,

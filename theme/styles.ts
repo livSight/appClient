@@ -40,8 +40,9 @@ export const card = StyleSheet.create({
 export const button = StyleSheet.create({
   pill: {
     borderRadius: radii.pill,
-    height: 40,
+    minHeight: 44,
     paddingHorizontal: 24,
+    paddingVertical: 10,
     justifyContent: "center" as const,
     alignSelf: "flex-start" as const,
   },

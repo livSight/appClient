@@ -9,6 +9,10 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
+      fontFamily: {
+        montserrat: ["Montserrat_400Regular"],
+        palanquin: ["Palanquin_700Bold"],
+      },
       colors: {
         app: {
           bg: "#F8F9FA",

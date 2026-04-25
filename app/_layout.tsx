@@ -1,51 +1,35 @@
-import { useEffect, useState } from "react";
-import { Stack, usePathname, useRouter } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import "../global.css";
-import { clearVendorToken, getVendorToken } from "@/lib/auth/token";
-import { setAuthFailureHandler } from "@/lib/auth/session";
+import { usePushNotifications } from "@/lib/push/usePushNotifications";
+import { useFonts } from "expo-font";
+import {
+  Montserrat_400Regular,
+  Montserrat_500Medium,
+  Montserrat_600SemiBold,
+  Montserrat_700Bold,
+} from "@expo-google-fonts/montserrat";
+import {
+  Palanquin_600SemiBold,
+  Palanquin_700Bold,
+} from "@expo-google-fonts/palanquin";
 
 export default function RootLayout() {
-  const router = useRouter();
   const pathname = usePathname();
-  const [checking, setChecking] = useState(true);
+  const checking = false;
 
-  useEffect(() => {
-    setAuthFailureHandler(async () => {
-      await clearVendorToken();
-      router.replace("/login");
-    });
+  const [fontsLoaded] = useFonts({
+    Montserrat_400Regular,
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
+    Montserrat_700Bold,
+    Palanquin_600SemiBold,
+    Palanquin_700Bold,
+  });
 
-    return () => setAuthFailureHandler(null);
-  }, [router]);
+  usePushNotifications(pathname, checking);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await getVendorToken();
-        if (cancelled) return;
-
-        const onLogin = pathname === "/login";
-        if (!token && !onLogin) {
-          router.replace("/login");
-          return;
-        }
-        if (token && onLogin) {
-          router.replace("/(tabs)/livraison");
-          return;
-        }
-      } finally {
-        if (!cancelled) setChecking(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname, router]);
-
-  if (checking) {
+  if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator />

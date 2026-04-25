@@ -1,11 +1,14 @@
 import { View, Pressable } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { X, Check } from "lucide-react-native";
 import ScreenLayout from "../components/ScreenLayout";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import AppText from "../components/AppText";
 
 export default function ConfirmeeScreen() {
+  const { flow } = useLocalSearchParams<{ flow?: string }>();
+  const isExpedition = flow === "expedition";
+
   return (
     <ScreenLayout>
       {/* Top bar (close + centered title) */}
@@ -15,7 +18,7 @@ export default function ConfirmeeScreen() {
         </Pressable>
         <View style={{ flex: 1, minWidth: 0, alignItems: "center" }}>
           <AppText variant="dense" style={{ ...typography.bodyRegular, fontFamily: fonts.bodySemi }} numberOfLines={1}>
-            Livraison
+            {isExpedition ? "Expédition" : "Livraison"}
           </AppText>
         </View>
         <View style={{ width: 44 }} />
@@ -51,7 +54,7 @@ export default function ConfirmeeScreen() {
           Demande envoyée !
         </AppText>
         <AppText style={{ ...typography.subtitle, marginTop: 8 }} numberOfLines={2}>
-          Livraison Enregistrée
+          {isExpedition ? "Expédition enregistrée" : "Livraison Enregistrée"}
         </AppText>
       </View>
 

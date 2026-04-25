@@ -1,20 +1,21 @@
 import { useMemo } from "react";
-import { View, useWindowDimensions, Pressable } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Shirt, UtensilsCrossed, Gem, Package2 } from "lucide-react-native";
+import { ShoppingBasket, Send, Truck, PackageSearch } from "lucide-react-native";
 import { router } from "expo-router";
-import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
+import { colors, radii, spacing, typography } from "../../theme/tokens";
 import ScreenLayout from "../../components/ScreenLayout";
 import SectionHeader from "../../components/SectionHeader";
 import CategoryCard from "../../components/CategoryCard";
-import OrderCard from "../../components/OrderCard";
 import PillButton from "../../components/PillButton";
 import AppText from "../../components/AppText";
+import HomeTopBar from "../../components/HomeTopBar";
+import HomeRecentOrderCard from "../../components/HomeRecentOrderCard";
  
 const MOCK_RECENT = {
   id: "101",
-  title: "Panier de légumes bio",
-  subtitle: "Emombo • Aujourd'hui • 4 000 XAF",
+  title: "Chechia Homme",
+  meta: "Mobile Omnisports • Il y a 2\njours",
 };
 
 export default function AccueilScreen() {
@@ -27,33 +28,16 @@ export default function AccueilScreen() {
     <ScreenLayout
       header={
         <View style={{ paddingBottom: 20 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-              <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
-                Bonjour Alex
-              </AppText>
-              <AppText style={[typography.subtitle, { marginTop: 4 }]}>
-                Que souhaitez-vous vous faire livrer{"\n"}aujourd&apos;hui ?
-              </AppText>
-            </View>
-
-            <Pressable
-              hitSlop={10}
-              onPress={() => router.push("/profile")}
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 9999,
-                backgroundColor: colors.iconBg,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AppText variant="dense" style={{ fontSize: 18, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-                A
-              </AppText>
-            </Pressable>
-          </View>
+          <HomeTopBar
+            locationLabel="Yaounde, Cameroon"
+            onProfilePress={() => router.push("/profile")}
+          />
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+            Bonjour Alex
+          </AppText>
+          <AppText style={[typography.subtitle, { marginTop: 10 }]}>
+            De que service avez vous besoins aujourd’hui?
+          </AppText>
         </View>
       }
     >
@@ -62,36 +46,36 @@ export default function AccueilScreen() {
       <View style={{ marginBottom: spacing.sectionGap }}>
         <View style={{ flexDirection: "row", gap: spacing.gridColGap }}>
           <CategoryCard
-            title="Nourriture"
-            subtitle="Restaurants"
-            Icon={UtensilsCrossed}
+            title="Livraison"
+            subtitle=""
+            Icon={Truck}
             width={cardWidth}
-            onPress={() => router.push("/livraison-zone")}
+            onPress={() => router.push("/ma-demande-livraison")}
           />
           <CategoryCard
-            title="Vêtements"
-            subtitle="Mode & Style"
-            Icon={Shirt}
+            title="Expedition"
+            subtitle=""
+            Icon={Send}
             width={cardWidth}
-            onPress={() => router.push("/livraison-zone")}
+            onPress={() => router.push({ pathname: "/ma-demande-expedition", params: { quartier: "" } })}
           />
         </View>
         <View style={{ height: spacing.gridRowGap }} />
         <View style={{ flexDirection: "row", gap: spacing.gridColGap }}>
           <CategoryCard
-            title="Accessoires"
-            subtitle="Maison"
-            Icon={Gem}
+            title="Course"
+            subtitle=""
+            Icon={ShoppingBasket}
             selected
             width={cardWidth}
-            onPress={() => router.push("/livraison-zone")}
+            onPress={() => router.push("/ma-demande-livraison")}
           />
           <CategoryCard
-            title="Colis divers"
-            subtitle="Autres"
-            Icon={Package2}
+            title="Ramassage"
+            subtitle=""
+            Icon={PackageSearch}
             width={cardWidth}
-            onPress={() => router.push("/livraison-zone")}
+            onPress={() => router.push({ pathname: "/ma-demande-livraison", params: { mode: "pickup", quartier: "" } })}
           />
         </View>
       </View>
@@ -144,7 +128,7 @@ export default function AccueilScreen() {
           label="En profiter"
           variant="white"
           style={{ marginTop: 16 }}
-          onPress={() => router.push("/livraison-zone")}
+          onPress={() => router.push("/ma-demande-livraison")}
         />
       </LinearGradient>
 
@@ -156,9 +140,9 @@ export default function AccueilScreen() {
           onLinkPress={() => router.push("/(tabs)/livraison")}
         />
 
-        <OrderCard
+        <HomeRecentOrderCard
           title={recentUi.title}
-          subtitle={recentUi.subtitle}
+          meta={recentUi.meta}
           onPress={() => router.push(`/livraison-detail/${recentUi.id}`)}
         />
       </View>
