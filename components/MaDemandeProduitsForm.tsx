@@ -43,102 +43,6 @@ function RamassageFieldLabel({ children }: { children: string }) {
   );
 }
 
-function QuartierSelect({
-  label,
-  placeholder,
-  query,
-  setQuery,
-  open,
-  setOpen,
-  items,
-  onSelect,
-}: {
-  label: string;
-  placeholder: string;
-  query: string;
-  setQuery: (next: string) => void;
-  open: boolean;
-  setOpen: (next: boolean) => void;
-  items: readonly string[];
-  onSelect: (value: string) => void;
-}) {
-  return (
-    <View>
-      <RamassageFieldLabel>{label}</RamassageFieldLabel>
-      <View
-        style={{
-          minHeight: 56,
-          borderRadius: INPUT_RADIUS,
-          backgroundColor: INPUT_BG,
-          paddingHorizontal: 16,
-          paddingVertical: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <Search size={18} color={"rgba(60,74,60,0.45)"} />
-        <AppTextInput
-          value={query}
-          onChangeText={(t) => {
-            setQuery(t);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder={placeholder}
-          placeholderTextColor={PH}
-          style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
-        />
-      </View>
-
-      {open ? (
-        <View
-          style={{
-            marginTop: 10,
-            borderRadius: 16,
-            backgroundColor: colors.white,
-            borderWidth: 1,
-            borderColor: "rgba(187,203,184,0.20)",
-            overflow: "hidden",
-          }}
-        >
-          {items.slice(0, 8).map((q) => (
-            <Pressable
-              key={q}
-              onPress={() => {
-                onSelect(q);
-                setQuery(q);
-                setOpen(false);
-              }}
-              style={{
-                minHeight: 46,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                borderBottomWidth: 1,
-                borderBottomColor: "rgba(237,238,239,0.9)",
-                flexDirection: "row",
-                alignItems: "center",
-              }}
-            >
-              <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-                {q}
-              </AppText>
-            </Pressable>
-          ))}
-          {items.length === 0 ? (
-            <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
-              <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                Aucun quartier trouvé.
-              </AppText>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 function PhotoPicker({
   label,
   uri,
@@ -312,12 +216,8 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const [pickupAmount, setPickupAmount] = useState("");
   const [pickupPhone, setPickupPhone] = useState("");
   const [pickupPickupQuartierQuery, setPickupPickupQuartierQuery] = useState("");
-  const [pickupPickupQuartierOpen, setPickupPickupQuartierOpen] = useState(false);
-  const [pickupPickupQuartierSelected, setPickupPickupQuartierSelected] = useState<string | null>(null);
   const [pickupPickupLandmark, setPickupPickupLandmark] = useState("");
   const [pickupDropoffQuartierQuery, setPickupDropoffQuartierQuery] = useState("");
-  const [pickupDropoffQuartierOpen, setPickupDropoffQuartierOpen] = useState(false);
-  const [pickupDropoffQuartierSelected, setPickupDropoffQuartierSelected] = useState<string | null>(null);
   const [pickupDropoffLandmark, setPickupDropoffLandmark] = useState("");
   const [pickupPhotoUri, setPickupPhotoUri] = useState<string | null>(null);
 
@@ -382,18 +282,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     return (YAOUNDE_QUARTIERS as readonly string[]).filter((it) => it.toLowerCase().includes(q));
   }, [livQuartierQuery]);
 
-  const pickupPickupFilteredQuartiers = useMemo(() => {
-    const q = pickupPickupQuartierQuery.trim().toLowerCase();
-    if (!q) return YAOUNDE_QUARTIERS as readonly string[];
-    return (YAOUNDE_QUARTIERS as readonly string[]).filter((it) => it.toLowerCase().includes(q));
-  }, [pickupPickupQuartierQuery]);
-
-  const pickupDropoffFilteredQuartiers = useMemo(() => {
-    const q = pickupDropoffQuartierQuery.trim().toLowerCase();
-    if (!q) return YAOUNDE_QUARTIERS as readonly string[];
-    return (YAOUNDE_QUARTIERS as readonly string[]).filter((it) => it.toLowerCase().includes(q));
-  }, [pickupDropoffQuartierQuery]);
-
   const livNeedsCashAmount = livCollectCash === "yes";
 
   const livAmountDue = useMemo(() => {
@@ -428,11 +316,10 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
       pickupName.trim().length > 0 &&
       parseXaf(pickupQty) > 0 &&
       pickupPhone.trim().length > 0 &&
-      Boolean(pickupPickupQuartierSelected && pickupPickupQuartierSelected.trim().length > 0) &&
+      pickupPickupQuartierQuery.trim().length > 0 &&
       pickupPickupLandmark.trim().length > 0 &&
-      Boolean(pickupDropoffQuartierSelected && pickupDropoffQuartierSelected.trim().length > 0) &&
-      pickupDropoffLandmark.trim().length > 0 &&
-      Boolean(pickupPhotoUri && pickupPhotoUri.trim().length > 0);
+      pickupDropoffQuartierQuery.trim().length > 0 &&
+      pickupDropoffLandmark.trim().length > 0;
     if (!baseOk) return false;
     if (pickupCollectCash === "no") return true;
     return parseXaf(pickupAmount) > 0;
@@ -455,11 +342,10 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     pickupName,
     pickupQty,
     pickupPhone,
-    pickupPickupQuartierSelected,
+    pickupPickupQuartierQuery,
     pickupPickupLandmark,
-    pickupDropoffQuartierSelected,
+    pickupDropoffQuartierQuery,
     pickupDropoffLandmark,
-    pickupPhotoUri,
     pickupCollectCash,
     pickupAmount,
   ]);
@@ -619,11 +505,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               }
 
               if (mode === "pickup") {
-                const pickupQuartier = (pickupPickupQuartierSelected ?? pickupPickupQuartierQuery).trim();
+                const pickupQuartier = pickupPickupQuartierQuery.trim();
                 const pickupLandmark = pickupPickupLandmark.trim();
                 const pickupAddress = [pickupQuartier, pickupLandmark].filter(Boolean).join(" — ");
 
-                const dropoffQuartier = (pickupDropoffQuartierSelected ?? pickupDropoffQuartierQuery).trim();
+                const dropoffQuartier = pickupDropoffQuartierQuery.trim();
                 const dropoffLandmark = pickupDropoffLandmark.trim();
                 const deliveryAddress = [dropoffQuartier, dropoffLandmark].filter(Boolean).join(" — ");
 
@@ -831,64 +717,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   </View>
                 ) : null}
 
-              <View style={{ marginTop: 14 }}>
-                <RamassageFieldLabel>Photo de l&apos;article (optionnel)</RamassageFieldLabel>
-                {livPhotoUri ? (
-                  <View style={{ borderRadius: 16, backgroundColor: colors.white, overflow: "hidden", borderWidth: 1, borderColor: "rgba(187,203,184,0.20)" }}>
-                    <Image source={{ uri: livPhotoUri }} style={{ width: "100%", height: 180 }} contentFit="cover" />
-                    <Pressable
-                      onPress={() => setLivPhotoUri(null)}
-                      hitSlop={10}
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        width: 36,
-                        height: 36,
-                        borderRadius: radii.pill,
-                        backgroundColor: "rgba(15,23,42,0.65)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <X size={18} color={colors.white} />
-                    </Pressable>
-                  </View>
-                ) : (
-                  <Pressable
-                    onPress={async () => {
-                      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                      if (!perm.granted) return;
-                      const res = await ImagePicker.launchImageLibraryAsync({
-                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                        quality: 0.8,
-                      });
-                      if (res.canceled) return;
-                      const uri = res.assets?.[0]?.uri;
-                      if (typeof uri === "string" && uri.length > 0) setLivPhotoUri(uri);
-                    }}
-                    style={{
-                      minHeight: 88,
-                      borderRadius: 16,
-                      borderWidth: 2,
-                      borderStyle: "dashed",
-                      borderColor: "rgba(187,203,184,0.35)",
-                      backgroundColor: colors.white,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingVertical: 18,
-                      paddingHorizontal: 16,
-                      gap: 10,
-                    }}
-                  >
-                    <Camera size={22} color={"rgba(60,74,60,0.55)"} />
-                    <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
-                      Ajouter une photo
-                    </AppText>
-                  </Pressable>
-                )}
-              </View>
-
                 {livStockOpen ? (
                   <View
                     style={{
@@ -1089,7 +917,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               </View>
 
               <FormInput
-                label="Repère (optionnel)"
+                label="Détail (optionnel)"
                 value={livDeliveryLandmark}
                 onChangeText={setLivDeliveryLandmark}
                 placeholder="Ex: Face à la pharmacie, portail rouge"
@@ -1159,6 +987,64 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   </View>
                 ) : null}
               </View>
+
+              <View style={{ marginTop: 14 }}>
+                <RamassageFieldLabel>Photo de l&apos;article (optionnel)</RamassageFieldLabel>
+                {livPhotoUri ? (
+                  <View style={{ borderRadius: 16, backgroundColor: colors.white, overflow: "hidden", borderWidth: 1, borderColor: "rgba(187,203,184,0.20)" }}>
+                    <Image source={{ uri: livPhotoUri }} style={{ width: "100%", height: 180 }} contentFit="cover" />
+                    <Pressable
+                      onPress={() => setLivPhotoUri(null)}
+                      hitSlop={10}
+                      style={{
+                        position: "absolute",
+                        top: 10,
+                        right: 10,
+                        width: 36,
+                        height: 36,
+                        borderRadius: radii.pill,
+                        backgroundColor: "rgba(15,23,42,0.65)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <X size={18} color={colors.white} />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={async () => {
+                      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                      if (!perm.granted) return;
+                      const res = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        quality: 0.8,
+                      });
+                      if (res.canceled) return;
+                      const uri = res.assets?.[0]?.uri;
+                      if (typeof uri === "string" && uri.length > 0) setLivPhotoUri(uri);
+                    }}
+                    style={{
+                      minHeight: 88,
+                      borderRadius: 16,
+                      borderWidth: 2,
+                      borderStyle: "dashed",
+                      borderColor: "rgba(187,203,184,0.35)",
+                      backgroundColor: colors.white,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingVertical: 18,
+                      paddingHorizontal: 16,
+                      gap: 10,
+                    }}
+                  >
+                    <Camera size={22} color={"rgba(60,74,60,0.55)"} />
+                    <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
+                      Ajouter une photo
+                    </AppText>
+                  </Pressable>
+                )}
+              </View>
             </View>
         </>
         )
@@ -1172,41 +1058,27 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
         </View>
       ) : (
         <View style={{ marginTop: 22, gap: 24 }}>
-          <QuartierSelect
-            label="Adresse de ramassage"
+          <FormInput
+            label="Quartier de ramassage"
+            value={pickupPickupQuartierQuery}
+            onChangeText={setPickupPickupQuartierQuery}
             placeholder="Quartier de ramassage..."
-            query={pickupPickupQuartierQuery}
-            setQuery={(t) => {
-              setPickupPickupQuartierQuery(t);
-              setPickupPickupQuartierSelected(null);
-            }}
-            open={pickupPickupQuartierOpen}
-            setOpen={setPickupPickupQuartierOpen}
-            items={pickupPickupFilteredQuartiers}
-            onSelect={(q) => setPickupPickupQuartierSelected(q)}
           />
           <FormInput
-            label="Repère"
+            label="Détail"
             value={pickupPickupLandmark}
             onChangeText={setPickupPickupLandmark}
             placeholder="Ex: Bastos, face à la pharmacie"
           />
 
-          <QuartierSelect
-            label="Adresse de livraison"
+          <FormInput
+            label="Quartier de livraison"
+            value={pickupDropoffQuartierQuery}
+            onChangeText={setPickupDropoffQuartierQuery}
             placeholder="Quartier de livraison..."
-            query={pickupDropoffQuartierQuery}
-            setQuery={(t) => {
-              setPickupDropoffQuartierQuery(t);
-              setPickupDropoffQuartierSelected(null);
-            }}
-            open={pickupDropoffQuartierOpen}
-            setOpen={setPickupDropoffQuartierOpen}
-            items={pickupDropoffFilteredQuartiers}
-            onSelect={(q) => setPickupDropoffQuartierSelected(q)}
           />
           <FormInput
-            label="Repère"
+            label="Détail"
             value={pickupDropoffLandmark}
             onChangeText={setPickupDropoffLandmark}
             placeholder="Ex: Emombo, derrière la station"
@@ -1263,8 +1135,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             onChangeText={setPickupName}
             placeholder="Ex: iPhone 15 Pro, chaussures Nike..."
           />
-
-          <PhotoPicker label="Photo du colis" uri={pickupPhotoUri} onChangeUri={setPickupPhotoUri} required />
 
           <FormInput label="Quantité" leadingIcon={Hash} keyboardType="number-pad" value={pickupQty} onChangeText={(t) => setPickupQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
 
@@ -1336,6 +1206,8 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           </View>
 
           <FormInput label="Téléphone" keyboardType="phone-pad" value={pickupPhone} onChangeText={setPickupPhone} placeholder="6XXXXXXX" />
+
+          <PhotoPicker label="Photo du colis" uri={pickupPhotoUri} onChangeUri={setPickupPhotoUri} />
         </View>
       )}
 
