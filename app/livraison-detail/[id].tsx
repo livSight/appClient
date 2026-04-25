@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, View, Pressable, ScrollView } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { DialogBold } from "@solar-icons/react-native";
+import * as Linking from "expo-linking";
+import { FontAwesome } from "@expo/vector-icons";
 import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
 import { card } from "../../theme/styles";
@@ -78,6 +80,23 @@ const MOCK_DELIVERIES: Delivery[] = [
     created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
   },
 ];
+
+function formatFcfa(n: number): string {
+  const v = Math.max(0, Math.round(n));
+  return v.toLocaleString("fr-FR").replace(/\s/g, " ");
+}
+
+function toE164Cameroon(phoneRaw: string): string | null {
+  const digits = phoneRaw.replace(/[^\d+]/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("+")) return digits;
+  const onlyDigits = digits.replace(/[^\d]/g, "");
+  if (onlyDigits.length === 9 && (onlyDigits.startsWith("6") || onlyDigits.startsWith("7"))) {
+    return `+237${onlyDigits}`;
+  }
+  if (onlyDigits.length >= 10) return `+${onlyDigits}`;
+  return null;
+}
 
 function normalizeStatus(status?: string | null): string {
   return (status ?? "").trim().toLowerCase();
@@ -223,6 +242,43 @@ export default function LivraisonDetailScreen() {
 
   const statusChip = useMemo(() => mapBackendStatusToChip(delivery?.status), [delivery?.status]);
   const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
+  const createdLabel = useMemo(() => {
+    const iso = delivery?.created_at;
+    if (!iso) return "Effectuée —";
+    try {
+      return `Effectuée le ${new Date(iso).toLocaleDateString("fr-FR", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })}`;
+    } catch {
+      return "Effectuée —";
+    }
+  }, [delivery?.created_at]);
+
+  const txDetails = useMemo(() => {
+    if (!delivery) return null;
+    const deliveryFeeXaf = 1500;
+    const expressFeeXaf = delivery.deliveryType === "express" ? 1000 : 0;
+    const itemCostXafBase = typeof delivery.amountDueXaf === "number" ? delivery.amountDueXaf : 0;
+    const itemCostXaf = itemCostXafBase > 0 ? itemCostXafBase : 10000;
+    const totalXaf = itemCostXaf + deliveryFeeXaf + expressFeeXaf;
+    const paymentMethod = delivery.collectCash ? "Paiement en espèce" : "Mobile Money";
+    const serviceType = `Livraison ${delivery.deliveryType === "express" ? "Express" : "Normal"}`;
+    const expressLine = delivery.deliveryType === "express" ? `Oui | ${formatFcfa(expressFeeXaf)} F` : "Non";
+    const stocked = delivery.mode === "stock" ? "Oui" : "Non";
+    return {
+      totalXaf,
+      paymentMethod,
+      serviceType,
+      zone: delivery.quartier?.trim() || "—",
+      deliveryFeeXaf,
+      itemCostXaf,
+      expressLine,
+      stocked,
+    };
+  }, [delivery]);
 
   return (
     <ScreenLayout
@@ -259,6 +315,16 @@ export default function LivraisonDetailScreen() {
         </View>
       ) : (
         <>
+          {/* Transaction header */}
+          <View style={{ marginBottom: 35 }}>
+            <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 34 }} numberOfLines={3} ellipsizeMode="tail">
+              Transaction #TR-{delivery.id}
+            </AppText>
+            <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={2} ellipsizeMode="tail">
+              {createdLabel}
+            </AppText>
+          </View>
+
           {/* Badges */}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 18 }}>
             <View
@@ -302,109 +368,153 @@ export default function LivraisonDetailScreen() {
             </View>
           </View>
 
-          {/* Status filters — tap to navigate to list filtered by that status */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ gap: 12, paddingBottom: 6, marginBottom: 12 }}
-          >
-            {(["EN COURS", "LIVRÉ", "AU BUREAU", "PROBLÈME", "ANNULÉ"] as StatusFilter[]).map((label) => (
-              <FilterChip
-                key={label}
-                label={label}
-                active={statusChip.label === label}
-                onPress={() =>
-                  router.push({
-                    pathname: "/(tabs)/livraison",
-                    params: { filter: chipToListFilter[label] },
-                  })
-                }
-              />
-            ))}
-          </ScrollView>
-
           {/* Status card */}
           <View style={[card.base, { padding: 24 }]}>
-            <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-              <View style={{ alignItems: "center", marginRight: 14 }}>
-                {(() => {
-                  const s1 = iconForStep(timeline.step1);
-                  const s2 = iconForStep(timeline.step2);
-                  const s3 = iconForStep(timeline.step3);
-                  const Line = ({ active }: { active: boolean }) => (
-                    <View
-                      style={{
-                        width: 2,
-                        height: 28,
-                        backgroundColor: active ? "#D1D5DB" : "#E5E7EB",
-                        marginVertical: 8,
-                      }}
-                    />
-                  );
-                  return (
-                    <>
-                      <SolarIcon name={s1.iconName} size={18} color={s1.color} />
-                      <Line active={timeline.step2 !== "upcoming"} />
-                      <SolarIcon name={s2.iconName} size={18} color={s2.color} />
-                      <Line active={timeline.step3 !== "upcoming"} />
-                      <SolarIcon name={s3.iconName} size={18} color={s3.color} />
-                    </>
-                  );
-                })()}
+            {(() => {
+              const s1 = iconForStep(timeline.step1);
+              const s2 = iconForStep(timeline.step2);
+              const s3 = iconForStep(timeline.step3);
+
+              const steps = [
+                {
+                  key: "confirmed",
+                  iconName: s1.iconName,
+                  iconColor: s1.color,
+                  title: "Commande confirmée",
+                  subtitle: null as string | null,
+                  helper: null as string | null,
+                  titleColor: colors.text,
+                  connectorActive: timeline.step2 !== "upcoming",
+                },
+                {
+                  key: "in_progress",
+                  iconName: s2.iconName,
+                  iconColor: s2.color,
+                  title: "En cours de livraison",
+                  subtitle: "Le livreur est en route.",
+                  helper:
+                    timeline.step2 === "warning" || timeline.step2 === "cancelled"
+                      ? (timeline.step2Helper ?? null)
+                      : null,
+                  titleColor:
+                    timeline.step2 === "warning"
+                      ? WARNING_AMBER
+                      : timeline.step2 === "cancelled"
+                        ? "#D32F2F"
+                        : colors.primary,
+                  helperColor: timeline.step2 === "warning" ? WARNING_AMBER : "#D32F2F",
+                  connectorActive: timeline.step3 !== "upcoming",
+                },
+                {
+                  key: "delivered",
+                  iconName: s3.iconName,
+                  iconColor: s3.color,
+                  title: "Colis livré",
+                  subtitle: null as string | null,
+                  helper: null as string | null,
+                  titleColor: timeline.step3 === "active" ? "#2E7D32" : "#94A3B8",
+                  connectorActive: false,
+                },
+              ];
+
+              return (
+                <View style={{ gap: 14 }}>
+                  {steps.map((step, idx) => {
+                    const isLast = idx === steps.length - 1;
+                    return (
+                      <View key={step.key} style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                        <View style={{ alignItems: "center", width: 18, marginRight: 14 }}>
+                          <SolarIcon name={step.iconName} size={18} color={step.iconColor} />
+                          {!isLast ? (
+                            <View
+                              style={{
+                                width: 2,
+                                flex: 1,
+                                minHeight: 18,
+                                marginTop: 8,
+                                backgroundColor: step.connectorActive ? "#D1D5DB" : "#E5E7EB",
+                              }}
+                            />
+                          ) : null}
+                        </View>
+
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: step.titleColor }} numberOfLines={2} ellipsizeMode="tail">
+                            {step.title}
+                          </AppText>
+
+                          {step.subtitle ? (
+                            <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}>
+                              {step.subtitle}
+                            </AppText>
+                          ) : null}
+
+                          {"helper" in step && step.helper ? (
+                            <AppText
+                              variant="dense"
+                              style={{
+                                ...typography.subtitle,
+                                fontSize: 12,
+                                lineHeight: 16,
+                                marginTop: 6,
+                                color: "helperColor" in step ? (step as any).helperColor : typography.subtitle.color,
+                              }}
+                            >
+                              {step.helper}
+                            </AppText>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })()}
+          </View>
+
+          {/* Client */}
+          <View style={{ marginTop: 16 }}>
+            <View style={[card.base, { padding: 24 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+                <SolarIcon name="solar:user-outline" size={24} color={colors.primary} />
+                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                  Client
+                </AppText>
               </View>
 
-              <View style={{ flex: 1, gap: 14 }}>
-                <View>
-                  <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                    Commande confirmée
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
+                    {delivery.phone}
                   </AppText>
-                  <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }} numberOfLines={2} ellipsizeMode="tail">
-                    {delivery?.created_at ? new Date(delivery.created_at).toLocaleString("fr-FR") : "Aujourd'hui, 14:20"}
+                  <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }} numberOfLines={1} ellipsizeMode="tail">
+                    Contact client
                   </AppText>
                 </View>
-                <View>
-                  <AppText
-                    style={{
-                      fontSize: 14,
-                      fontFamily: fonts.bodyBold,
-                      color:
-                        timeline.step2 === "warning"
-                          ? WARNING_AMBER
-                          : timeline.step2 === "cancelled"
-                            ? "#D32F2F"
-                            : colors.primary,
+
+                <View style={{ flexDirection: "row", gap: 10, flexShrink: 0 }}>
+                  <Pressable
+                    onPress={() => {
+                      const e164 = toE164Cameroon(delivery.phone);
+                      void Linking.openURL(`tel:${e164 ?? delivery.phone}`);
                     }}
-                    numberOfLines={2}
-                    ellipsizeMode="tail"
+                    hitSlop={10}
+                    style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
                   >
-                    En cours de livraison
-                  </AppText>
-                  <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}>
-                    Le livreur est en route.
-                  </AppText>
-                  {timeline.step2 === "warning" && timeline.step2Helper ? (
-                    <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6, color: WARNING_AMBER }}>
-                      {timeline.step2Helper}
-                    </AppText>
-                  ) : null}
-                  {timeline.step2 === "cancelled" && timeline.step2Helper ? (
-                    <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 6, color: "#D32F2F" }}>
-                      {timeline.step2Helper}
-                    </AppText>
-                  ) : null}
-                </View>
-                <View>
-                  <AppText
-                    style={{
-                      fontSize: 14,
-                      fontFamily: fonts.bodyBold,
-                      color: timeline.step3 === "active" ? "#2E7D32" : "#94A3B8",
+                    <SolarIcon name="solar:phone-outline" size={22} color={colors.text} />
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      const e164 = toE164Cameroon(delivery.phone);
+                      const phone = (e164 ?? delivery.phone).replace(/[^\d]/g, "");
+                      void Linking.openURL(`https://wa.me/${phone}`);
                     }}
-                    numberOfLines={1}
+                    hitSlop={10}
+                    style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
                   >
-                    Colis livré
-                  </AppText>
+                    <FontAwesome name="whatsapp" size={24} color={"#25D366"} />
+                  </Pressable>
                 </View>
               </View>
             </View>
@@ -435,6 +545,93 @@ export default function LivraisonDetailScreen() {
 
           {/* Summary & details */}
           <View style={{ marginTop: 18, gap: 16 }}>
+            {/* Transaction details */}
+            {txDetails ? (
+              <View style={[card.base, { padding: 24 }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+                    <AppText variant="dense" style={{ ...typography.label, color: "rgba(60,74,60,0.65)" }} numberOfLines={1}>
+                      MONTANT TOTAL
+                    </AppText>
+                    <AppText style={{ fontSize: 34, lineHeight: 40, fontFamily: fonts.bodyBold, color: colors.text, marginTop: 8 }} numberOfLines={1}>
+                      {formatFcfa(txDetails.totalXaf)}{" "}
+                      <AppText style={{ fontSize: 18, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                        FCFA
+                      </AppText>
+                    </AppText>
+                  </View>
+                  <View
+                    style={{
+                      minHeight: 36,
+                      borderRadius: radii.pill,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      backgroundColor: "rgba(48,144,192,0.12)",
+                      borderWidth: 1,
+                      borderColor: "rgba(48,144,192,0.18)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
+                      {statusChip.label}
+                    </AppText>
+                  </View>
+                </View>
+
+                <View style={{ marginTop: 18, gap: 12 }}>
+                  {[
+                    { k: "Méthode de paiement", v: txDetails.paymentMethod },
+                    { k: "Type de service", v: txDetails.serviceType },
+                    { k: "Zone de livraison", v: txDetails.zone },
+                    { k: "Frais de livraison", v: `${formatFcfa(txDetails.deliveryFeeXaf)} FCFA` },
+                    { k: "Coût de l’article", v: `${formatFcfa(txDetails.itemCostXaf)} FCFA` },
+                    { k: "Express", v: txDetails.expressLine },
+                    { k: "Produit stocké", v: txDetails.stocked },
+                  ].map((line) => (
+                    <View key={line.k} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }} numberOfLines={2} ellipsizeMode="tail">
+                          {line.k}
+                        </AppText>
+                      </View>
+                      <View style={{ flexShrink: 0, maxWidth: 180 }}>
+                        <AppText style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: colors.text, textAlign: "right" }} numberOfLines={2} ellipsizeMode="tail">
+                          {line.v}
+                        </AppText>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+
+                {delivery.collectCash ? (
+                  <View style={{ marginTop: 16, alignSelf: "flex-start" }}>
+                    <View
+                      style={{
+                        minHeight: 36,
+                        borderRadius: radii.pill,
+                        backgroundColor: "rgba(48,144,192,0.12)",
+                        borderWidth: 1,
+                        borderColor: "rgba(48,144,192,0.18)",
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        gap: 8,
+                      }}
+                    >
+                      <SolarIcon name="solar:card-outline" size={22} color={colors.primary} />
+                      <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                        Paiement à la livraison
+                      </AppText>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
             {/* Pickup address (only for pickup mode) */}
             {delivery.mode === "pickup" ? (
               <View style={[card.base, { padding: 24 }]}>
@@ -497,46 +694,26 @@ export default function LivraisonDetailScreen() {
             </View>
           </View>
 
-          {/* Amount & payment */}
-          <View
+          <Pressable
+            onPress={() => Alert.alert("Reçu PDF", "Télécharger le reçu (UI-only).")}
             style={{
-              marginTop: 18,
-              borderRadius: radii.card,
-              backgroundColor: colors.primary,
-              padding: 24,
-              overflow: "hidden",
+              marginTop: 16,
+              minHeight: 56,
+              borderRadius: radii.pill,
+              backgroundColor: "#E5E7EB",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 10,
+              paddingVertical: 14,
             }}
+            hitSlop={10}
           >
-            <AppText variant="dense" style={{ ...typography.label, color: colors.white, opacity: 0.9 }} numberOfLines={2} ellipsizeMode="tail">
-              Paiement
+            <SolarIcon name="solar:download-outline" size={22} color={colors.text} />
+            <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
+              Reçu PDF
             </AppText>
-            <AppText style={{ fontSize: 22, lineHeight: 28, fontFamily: fonts.bodyBold, color: colors.white, marginTop: 10 }} numberOfLines={2} ellipsizeMode="tail">
-              {delivery.collectCash
-                ? `${(delivery.amountDueXaf ?? 0).toString()} XAF à récupérer`
-                : "Pas d'argent à récupérer"}
-            </AppText>
-
-            <View style={{ marginTop: 14, alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View
-                style={{
-                  minHeight: 36,
-                  borderRadius: radii.pill,
-                  backgroundColor: "rgba(255,255,255,0.2)",
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexDirection: "row",
-                  gap: 8,
-                }}
-              >
-                <SolarIcon name="solar:card-outline" size={24} color={colors.white} />
-                <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
-                  Paiement à la livraison
-                </AppText>
-              </View>
-            </View>
-          </View>
+          </Pressable>
 
           <Pressable
             onPress={() => {

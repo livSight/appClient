@@ -1,14 +1,12 @@
 import { useEffect } from "react";
 import { View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import ScreenLayout from "@/components/ScreenLayout";
 import AppText from "@/components/AppText";
 import LottieView from "lottie-react-native";
-import { colors, fonts, typography } from "@/theme/tokens";
+import { fonts, typography } from "@/theme/tokens";
 
 export default function AnnulationConfirmeeScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-
   useEffect(() => {
     const t = setTimeout(() => {
       router.replace("/(tabs)/livraison");
