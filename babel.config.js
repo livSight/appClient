@@ -57,6 +57,7 @@ module.exports = function (api) {
               "solar:add-square-bold",
               "solar:dialog-bold",
               "solar:tag-outline",
+              "solar:videocamera-outline",
             ],
           },
         ],

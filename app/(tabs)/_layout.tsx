@@ -36,6 +36,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="inbox"
+        options={{
+          title: "Inbox",
+          tabBarIcon: ({ color, size }) => <SolarIcon name="solar:chat-round-dots-bold" color={color} size={size ?? 24} />,
+        }}
+      />
+      <Tabs.Screen
         name="rapports"
         options={{
           title: "Rapports",
