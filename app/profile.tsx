@@ -1,4 +1,4 @@
-import { View, Pressable } from "react-native";
+import { Alert, View, Pressable } from "react-native";
 import { router } from "expo-router";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
@@ -169,6 +169,26 @@ export default function ProfileScreen() {
             showChevron
           />
         </View>
+
+        <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
+          <SettingRow
+            iconName="solar:trash-bin-trash-outline"
+            iconColor={"#BA1A1A"}
+            title="Supprimer le compte"
+            titleColor={"#BA1A1A"}
+            onPress={() => {
+              Alert.alert(
+                "Supprimer le compte",
+                "Cette action est irréversible. Toutes vos données seront supprimées.",
+                [
+                  { text: "Annuler", style: "cancel" },
+                  { text: "Supprimer", style: "destructive", onPress: () => {} },
+                ]
+              );
+            }}
+            showChevron={false}
+          />
+        </View>
       </View>
 
       <View style={{ marginTop: 22, paddingVertical: 10 }}>
@@ -186,7 +206,7 @@ export default function ProfileScreen() {
           numberOfLines={2}
           ellipsizeMode="tail"
         >
-          Version 2.4.0 • L&apos;Atelier 2024
+          LivSight v1.0.0 • © 2026 Ericdt17
         </AppText>
       </View>
     </ScreenLayout>

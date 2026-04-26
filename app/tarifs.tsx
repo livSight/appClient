@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Alert, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import AppText from "@/components/AppText";
 import ScreenLayout from "@/components/ScreenLayout";
@@ -28,58 +28,49 @@ function formatFcfa(n: number): string {
 
 function ZoneCard({ zone, onPress }: { zone: Zone; onPress?: () => void }) {
   return (
-    <View style={[card.base, { padding: 24 }]}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <View
-          style={{
-            minHeight: 23,
-            borderRadius: radii.pill,
-            backgroundColor: "rgba(14,165,233,0.10)",
-            paddingHorizontal: 12,
-            paddingVertical: 4,
-            alignSelf: "flex-start",
-          }}
-        >
-          <AppText variant="dense" style={{ fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 1 }} numberOfLines={1}>
-            {zone.zoneLabel}
-          </AppText>
-        </View>
-        <SolarIcon name="solar:question-circle-outline" size={18} color={"rgba(60,74,60,0.65)"} />
+    <View style={[card.base, { padding: 16 }]}>
+      <View
+        style={{
+          minHeight: 22,
+          borderRadius: radii.pill,
+          backgroundColor: "rgba(14,165,233,0.10)",
+          paddingHorizontal: 10,
+          paddingVertical: 3,
+          alignSelf: "flex-start",
+        }}
+      >
+        <AppText variant="dense" style={{ fontSize: 10, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 1 }} numberOfLines={1}>
+          {zone.zoneLabel}
+        </AppText>
       </View>
 
-      <View style={{ marginTop: 16 }}>
-        <AppText style={{ fontSize: 30, lineHeight: 36, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+      <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <AppText style={{ fontSize: 22, lineHeight: 28, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
           {formatFcfa(zone.priceXaf)} FCFA
         </AppText>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 6, flexWrap: "wrap" }}>
-          <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 14, lineHeight: 20 }} numberOfLines={1}>
-            {zone.distanceLabel}
-          </AppText>
-          <View style={{ width: 4, height: 4, borderRadius: 9999, backgroundColor: "#C0C7D2" }} />
-          <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 14, lineHeight: 20 }} numberOfLines={1}>
-            {zone.etaLabel}
-          </AppText>
-        </View>
+        <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 13, lineHeight: 18 }} numberOfLines={1}>
+          {zone.distanceLabel}
+        </AppText>
       </View>
 
       <Pressable
         onPress={onPress}
         hitSlop={10}
         style={{
-          marginTop: 18,
-          paddingTop: 16,
+          marginTop: 12,
+          paddingTop: 12,
           borderTopWidth: 1,
           borderTopColor: "rgba(192,199,210,0.10)",
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          minHeight: 33,
+          minHeight: 28,
         }}
       >
         <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.3 }} numberOfLines={1}>
           VOIR QUARTIERS
         </AppText>
-        <SolarIcon name="solar:alt-arrow-right-outline" size={20} color={"rgba(60,74,60,0.55)"} />
+        <SolarIcon name="solar:alt-arrow-right-outline" size={18} color={"rgba(60,74,60,0.55)"} />
       </Pressable>
     </View>
   );
@@ -214,19 +205,16 @@ export default function TarifsScreen() {
           </Pressable>
           <View style={{ flex: 1, alignItems: "center" }}>
             <AppText style={{ ...typography.sectionTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={1}>
-              Tarifs
+              Nos Tarifs
             </AppText>
           </View>
           <View style={{ width: 44, height: 44 }} />
         </View>
       }
     >
-      {/* Hero */}
-      <View style={{ marginTop: 6 }}>
-        <AppText style={{ ...typography.screenTitle, fontSize: 36, lineHeight: 40 }} numberOfLines={2} ellipsizeMode="tail">
-          Gestion des Tarifs
-        </AppText>
-        <AppText style={{ ...typography.subtitle, marginTop: 8 }} numberOfLines={2} ellipsizeMode="tail">
+      {/* Subtitle */}
+      <View style={{ marginBottom: 18 }}>
+        <AppText style={{ ...typography.subtitle }} numberOfLines={2} ellipsizeMode="tail">
           Répartition par zones géographiques.
         </AppText>
       </View>
@@ -249,18 +237,15 @@ export default function TarifsScreen() {
           </View>
         </View>
 
-        <View style={[card.base, { backgroundColor: colors.primary, padding: 24 }]}>
+        <View style={[card.base, { backgroundColor: colors.primary, padding: 16 }]}>
           <View style={{ alignItems: "center", justifyContent: "center" }}>
-            <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
-              <SolarIcon name="solar:add-square-outline" size={18} color={colors.white} />
-            </View>
-            <AppText variant="dense" style={{ marginTop: 14, fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyBold, color: colors.white, opacity: 0.9, letterSpacing: 1.4 }} numberOfLines={1}>
+            <AppText variant="dense" style={{ fontSize: 12, lineHeight: 18, fontFamily: fonts.bodyBold, color: colors.white, opacity: 0.9, letterSpacing: 1.4 }} numberOfLines={1}>
               LIVRAISON EXPRESS
             </AppText>
-            <AppText style={{ marginTop: 6, fontSize: 24, lineHeight: 32, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
+            <AppText style={{ marginTop: 4, fontSize: 20, lineHeight: 28, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
               +{formatFcfa(1000)} FCFA
             </AppText>
-            <AppText variant="dense" style={{ marginTop: 4, fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: colors.white, opacity: 0.8 }} numberOfLines={1}>
+            <AppText variant="dense" style={{ marginTop: 2, fontSize: 10, lineHeight: 14, fontFamily: fonts.bodyBold, color: colors.white, opacity: 0.8 }} numberOfLines={1}>
               SUR LA ZONE
             </AppText>
           </View>
@@ -273,7 +258,10 @@ export default function TarifsScreen() {
           <ZoneCard
             key={z.zoneLabel}
             zone={z}
-            onPress={() => Alert.alert("Quartiers", `Voir les quartiers de ${z.zoneLabel} (UI-only).`)}
+            onPress={() => {
+              const id = z.zoneLabel.replace(/[^\d]/g, "") || "1";
+              router.push(`/tarifs-zone/${id}`);
+            }}
           />
         ))}
       </View>
@@ -297,16 +285,13 @@ export default function TarifsScreen() {
       {/* Information card */}
       <View style={{ marginTop: 24 }}>
         <View style={[card.base, { padding: 24 }]}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 16 }}>
-            <SolarIcon name="solar:check-circle-bold" size={24} color={colors.primary} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <AppText style={{ fontSize: 16, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                Information sur la tarification
-              </AppText>
-              <AppText style={{ ...typography.subtitle, fontSize: 14, lineHeight: 22.75, marginTop: 6 }} numberOfLines={6} ellipsizeMode="tail">
-                Les tarifs affichés sont basés sur une livraison standard. Des frais supplémentaires peuvent s&apos;appliquer.
-              </AppText>
-            </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <AppText style={{ fontSize: 16, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+              Information sur la tarification
+            </AppText>
+            <AppText style={{ ...typography.subtitle, fontSize: 14, lineHeight: 22.75, marginTop: 6 }} numberOfLines={6} ellipsizeMode="tail">
+              Les tarifs affichés sont basés sur une livraison standard. Des frais supplémentaires peuvent s&apos;appliquer.
+            </AppText>
           </View>
         </View>
       </View>
