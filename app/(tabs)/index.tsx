@@ -58,7 +58,7 @@ export default function AccueilScreen() {
 
       {/* Category Grid */}
       <View style={{ marginBottom: spacing.sectionGap }}>
-        <SectionHeader title="De quoi avez-vous besoin ?" style={{ marginBottom: 16 }} />
+        <SectionHeader title="De quels services avez-vous besoin aujourd'hui ?" style={{ marginBottom: 16 }} />
         <CategoryGrid items={CATEGORIES} />
       </View>
 
