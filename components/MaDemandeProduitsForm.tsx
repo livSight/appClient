@@ -461,15 +461,16 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
       scrollViewRef={scrollRef}
       header={
         <View style={{ paddingBottom: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", minHeight: 44 }}>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginRight: 10 }}>
-              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
+          <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8 }}>
+            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
+              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
             </Pressable>
-            <View style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-              <AppText style={{ ...typography.screenTitle, fontSize: 26, lineHeight: 30 }} numberOfLines={2} ellipsizeMode="tail">
+            <View style={{ flex: 1, alignItems: "center" }}>
+              <AppText style={{ ...typography.sectionTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={1} ellipsizeMode="tail">
                 {screenTitle}
               </AppText>
             </View>
+            <View style={{ width: 44, height: 44 }} />
           </View>
 
           <AppText
