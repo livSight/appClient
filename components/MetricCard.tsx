@@ -17,9 +17,36 @@ type Props = {
   suffix?: string;
   delta?: string;
   iconName: string;
+  compact?: boolean;
 };
 
-export default function MetricCard({ title, value, suffix, delta, iconName }: Props) {
+export default function MetricCard({ title, value, suffix, delta, iconName, compact }: Props) {
+  if (compact) {
+    return (
+      <View style={[card.base, { padding: 16, minHeight: 110, justifyContent: "center" }]}>
+        <SolarIcon name={iconName} size={24} color={colors.primary} />
+        <AppText
+          variant="dense"
+          style={{ ...typography.subtitle, fontSize: 11, lineHeight: 15, marginTop: 6 }}
+          numberOfLines={2}
+          ellipsizeMode="tail"
+        >
+          {title}
+        </AppText>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 8, minWidth: 0 }}>
+          <AppText style={{ fontSize: 20, fontFamily: fonts.bodyBold, color: colors.text, flexShrink: 1 }} numberOfLines={1} ellipsizeMode="tail">
+            {value}
+          </AppText>
+          {suffix ? (
+            <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 10, marginLeft: 4, marginBottom: 3, flexShrink: 0 }} numberOfLines={1}>
+              {suffix}
+            </AppText>
+          ) : null}
+        </View>
+        </View>
+    );
+  }
+
   return (
     <View style={[card.base, { padding: 20, minHeight: 120, justifyContent: "center" }]}>
       <View style={{ ...row.spaceBetween }}>
@@ -63,23 +90,6 @@ export default function MetricCard({ title, value, suffix, delta, iconName }: Pr
         ) : null}
       </View>
 
-      {delta ? (() => {
-        const direction = parseDelta(delta);
-        const fg = direction === "positive" ? "#16A34A" : direction === "negative" ? "#DC2626" : colors.muted;
-        const arrow = direction === "positive" ? "↑" : direction === "negative" ? "↓" : "";
-        return (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6 }}>
-            {arrow ? (
-              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: fg, lineHeight: 16 }} numberOfLines={1}>
-                {arrow}
-              </AppText>
-            ) : null}
-            <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: fg, lineHeight: 16 }} numberOfLines={1}>
-              {delta}
-            </AppText>
-          </View>
-        );
-      })() : null}
     </View>
   );
 }

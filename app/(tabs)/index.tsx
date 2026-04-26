@@ -44,9 +44,6 @@ export default function AccueilScreen() {
           <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
             Bonjour Alex
           </AppText>
-          <AppText style={[typography.subtitle, { marginTop: 10 }]}>
-            De quels services avez-vous besoin aujourd’hui ?
-          </AppText>
         </View>
       }
     >
@@ -61,6 +58,7 @@ export default function AccueilScreen() {
 
       {/* Category Grid */}
       <View style={{ marginBottom: spacing.sectionGap }}>
+        <SectionHeader title="De quoi avez-vous besoin ?" style={{ marginBottom: 16 }} />
         <CategoryGrid items={CATEGORIES} />
       </View>
 

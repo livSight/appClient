@@ -1,10 +1,9 @@
 import { useMemo, useState } from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, useWindowDimensions } from "react-native";
 import ScreenLayout from "../../components/ScreenLayout";
 import MetricCard from "../../components/MetricCard";
 import SolarIcon from "../../components/SolarIcon";
-import { row } from "../../theme/styles";
-import { colors, fonts, radii, typography } from "../../theme/tokens";
+import { colors, fonts, radii, shadows, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
 
 type Range = "Journalier" | "Hebdo" | "Mensuel";
@@ -208,6 +207,55 @@ const MOCK_PREVIOUS: MockDelivery[] = [
   { id: "202", items: "Panier de fruits", amount_due: 5000, amount_received: 5000, fees_withdrawn: 250, status: "delivered", created_at: new Date(Date.now() - 9 * 86400000).toISOString() },
 ];
 
+type StatusChip = {
+  label: string;
+  count: number;
+  iconName: string;
+  color: string;
+};
+
+function StatusChipRow({ chips }: { chips: StatusChip[] }) {
+  const { width } = useWindowDimensions();
+  const totalGap = spacing.gridColGap * (chips.length - 1);
+  const cardWidth = (width - spacing.screenPaddingX * 2 - totalGap) / chips.length;
+
+  return (
+    <View style={{ flexDirection: "row", gap: spacing.gridColGap }}>
+      {chips.map((chip) => (
+        <View
+          key={chip.label}
+          style={{
+            width: cardWidth,
+            backgroundColor: colors.cardBg,
+            borderRadius: radii.card,
+            paddingVertical: 14,
+            paddingHorizontal: 4,
+            alignItems: "center",
+            ...shadows.card,
+          }}
+        >
+          <SolarIcon name={chip.iconName} size={22} color={chip.color} />
+          <AppText
+            style={{ marginTop: 6, fontSize: 18, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.text }}
+            numberOfLines={1}
+          >
+            {String(chip.count)}
+          </AppText>
+          <AppText
+            variant="dense"
+            style={{ marginTop: 2, fontSize: 10, lineHeight: 14, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.6)", textAlign: "center" }}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {chip.label}
+          </AppText>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function RapportsScreen() {
   const [range, setRange] = useState<Range>("Journalier");
   // UI-only: keep range toggle for UI, but use mock data.
@@ -295,75 +343,113 @@ export default function RapportsScreen() {
       }
     >
 
-      {/* Chiffres */}
-      <View style={{ marginTop: 18, gap: 16 }}>
-        <MetricCard
-          title="Livraisons"
-          value={computed.deliveriesCount}
-          delta={computed.deliveriesDelta}
-          iconName="solar:box-bold-duotone"
-        />
-        <MetricCard
-          title="Total commandes"
-          value={computed.totalCmd}
-          suffix={computed.totalSuffix}
-          delta={computed.totalCmdDelta}
-          iconName="solar:notes-outline"
-        />
-        <MetricCard
-          title="Total encaissé"
-          value={computed.totalEncaissed}
-          suffix={computed.totalSuffix}
-          delta={computed.totalEncaissedDelta}
-          iconName="solar:wallet-bold-duotone"
-        />
-        <MetricCard
-          title="Total reçu"
-          value={computed.totalReceived}
-          suffix={computed.totalSuffix}
-          delta={computed.totalReceivedDelta}
-          iconName="solar:card-outline"
-        />
-        <MetricCard
-          title="Reste à percevoir"
-          value={computed.resteAPercevoir}
-          suffix={computed.totalSuffix}
-          delta={computed.resteAPercevoirDelta}
-          iconName="solar:clock-circle-outline"
-        />
-        <MetricCard
-          title="Total tarifs (retirés)"
-          value={computed.feesWithdrawn}
-          suffix={computed.totalSuffix}
-          delta={computed.feesWithdrawnDelta}
-          iconName="solar:hashtag-outline"
-        />
-        <MetricCard
-          title="Produits en stock"
-          value={computed.stockProductsCount}
-          delta={computed.stockProductsCountDelta}
-          iconName="solar:box-bold-duotone"
-        />
-        <MetricCard
-          title="Quantité stock (total)"
-          value={computed.stockQtyTotal}
-          delta={computed.stockQtyTotalDelta}
-          iconName="solar:box-bold"
+      {/* Transactions enregistrées */}
+      <View style={{ marginTop: 18 }}>
+        <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20, marginBottom: 12 }} numberOfLines={1}>
+          Transactions enregistrées
+        </AppText>
+        <StatusChipRow
+          chips={[
+            { label: "Livraison", count: 2, iconName: "solar:delivery-bold-duotone", color: colors.primary },
+            { label: "Expédition", count: 1, iconName: "solar:rocket-bold-duotone", color: colors.primary },
+            { label: "Course", count: 0, iconName: "solar:routing-bold-duotone", color: colors.primary },
+            { label: "Ramassage", count: 0, iconName: "solar:hand-shake-bold", color: colors.primary },
+          ]}
         />
       </View>
 
+      {/* Statuts */}
       <View style={{ marginTop: 18 }}>
-        <View style={{ ...row.spaceBetween, marginBottom: 12 }}>
-          <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20 }} numberOfLines={1}>
-            Statuts
-          </AppText>
-        </View>
+        <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20, marginBottom: 12 }} numberOfLines={1}>
+          Statuts
+        </AppText>
+        <StatusChipRow
+          chips={[
+            { label: "En cours", count: computed.buckets.enCours, iconName: "solar:clock-circle-outline", color: colors.primary },
+            { label: "Livré", count: computed.buckets.delivered, iconName: "solar:check-circle-bold", color: "#16A34A" },
+            { label: "Injoignable", count: computed.buckets.injoignable, iconName: "solar:phone-outline", color: "#B45309" },
+            { label: "Annulé", count: computed.buckets.annule, iconName: "solar:close-circle-bold", color: "#DC2626" },
+          ]}
+        />
+      </View>
 
-        <View style={{ gap: 16 }}>
-          <MetricCard title="En cours" value={String(computed.buckets.enCours)} iconName="solar:clock-circle-outline" />
-          <MetricCard title="Livré" value={String(computed.buckets.delivered)} iconName="solar:check-circle-bold" />
-          <MetricCard title="Injoignable" value={String(computed.buckets.injoignable)} iconName="solar:phone-outline" />
-          <MetricCard title="Annulé" value={String(computed.buckets.annule)} iconName="solar:close-circle-bold" />
+      {/* Comptabilité */}
+      <View style={{ marginTop: 18 }}>
+        <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20, marginBottom: 12 }} numberOfLines={1}>
+          Comptabilité
+        </AppText>
+      </View>
+      <View style={{ gap: 16 }}>
+        <View style={{ flexDirection: "row", gap: 16 }}>
+          <View style={{ flex: 1 }}>
+            <MetricCard
+              title="Total encaissé"
+              value={computed.totalEncaissed}
+              suffix={computed.totalSuffix}
+              delta={computed.totalEncaissedDelta}
+              iconName="solar:wallet-bold-duotone"
+              compact
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <MetricCard
+              title="Frais de livraison"
+              value={computed.feesWithdrawn}
+              suffix={computed.totalSuffix}
+              delta={computed.feesWithdrawnDelta}
+              iconName="solar:hashtag-outline"
+              compact
+            />
+          </View>
+        </View>
+        <View style={{ flexDirection: "row", gap: 16 }}>
+          <View style={{ flex: 1 }}>
+            <MetricCard
+              title="Total commandes"
+              value={computed.totalCmd}
+              suffix={computed.totalSuffix}
+              delta={computed.totalCmdDelta}
+              iconName="solar:notes-outline"
+              compact
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <MetricCard
+              title="Solde"
+              value={computed.resteAPercevoir}
+              suffix={computed.totalSuffix}
+              delta={computed.resteAPercevoirDelta}
+              iconName="solar:banknote-outline"
+              compact
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Stock en magasin */}
+      <View style={{ marginTop: 18 }}>
+        <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20, marginBottom: 12 }} numberOfLines={1}>
+          Stock en magasin
+        </AppText>
+        <View style={{ flexDirection: "row", gap: 16 }}>
+          <View style={{ flex: 1 }}>
+            <MetricCard
+              title="Produits en stock"
+              value={computed.stockProductsCount}
+              delta={computed.stockProductsCountDelta}
+              iconName="solar:box-bold-duotone"
+              compact
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <MetricCard
+              title="Quantité stock (total)"
+              value={computed.stockQtyTotal}
+              delta={computed.stockQtyTotalDelta}
+              iconName="solar:box-bold"
+              compact
+            />
+          </View>
         </View>
       </View>
     </ScreenLayout>

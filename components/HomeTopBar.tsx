@@ -49,7 +49,6 @@ export default function HomeTopBar({ locationLabel, agencyStatus, onProfilePress
             {locationLabel}
           </AppText>
         </View>
-        {agencyStatus ? <StatusBadge status={agencyStatus} /> : null}
       </View>
 
       <Pressable
