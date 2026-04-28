@@ -1,45 +1,57 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
 import LivraisonCard, { type LivraisonOrder } from "../../components/LivraisonCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
+import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
 
 type Status = "Tout" | "En cours" | "Livré" | "Annulé";
 
-const MOCK_ORDERS: LivraisonOrder[] = [
-  {
-    id: "101",
-    ref: "#AD-3012",
-    title: "Panier de légumes bio",
-    quartier: "Bastos",
-    dateLabel: "Aujourd'hui, 12:45",
-    status: "En cours",
-    amountLabel: "4 000 FCFA",
-    paymentLabel: "ESPÈCES",
-  },
-  {
-    id: "102",
-    ref: "#AD-3008",
-    title: "Chaussures x2",
-    quartier: "Emombo",
-    dateLabel: "01 avr. 2026, 10:10",
-    status: "Livré",
-    amountLabel: "15 000 FCFA",
-    paymentLabel: "MOBILE MONEY",
-  },
-  {
-    id: "103",
-    ref: "#AD-2991",
-    title: "Colis divers",
-    quartier: "Mvan",
-    dateLabel: "28 mars 2026, 18:20",
-    status: "Annulé",
-    amountLabel: "2 500 FCFA",
-    paymentLabel: "ESPÈCES",
-  },
-];
+function formatDateLabel(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return "—";
+  }
+}
+
+function mapTxnStatusToUi(status?: string): Status {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "delivered") return "Livré";
+  if (s === "failed" || s === "cancelled") return "Annulé";
+  return "En cours";
+}
+
+function moneyLabel(amount?: number): string {
+  const n = Number.isFinite(Number(amount)) ? Math.max(0, Math.round(Number(amount))) : 0;
+  return `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA`;
+}
+
+function mapTransactionToOrder(tx: Transaction): LivraisonOrder {
+  const id = String(tx.id ?? "");
+  const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
+  const titleBase = String(tx.package_name ?? "Colis");
+  const title = qty > 1 && !titleBase.includes("x") ? `${titleBase} x${qty}` : titleBase;
+  const destStreet = typeof tx.destination?.street === "string" ? tx.destination.street : String(tx.destination_street ?? "");
+  const quartier = destStreet.split("—")[0]?.trim() || destStreet.trim() || "—";
+  const statusUi = mapTxnStatusToUi(tx.status);
+  const amount = Number(tx.amount ?? 0);
+
+  return {
+    id,
+    ref: tx.transactionReference ? `#${tx.transactionReference}` : id ? `#TR-${id}` : "#—",
+    title,
+    quartier,
+    dateLabel: formatDateLabel(tx.created_at),
+    status: statusUi === "En cours" ? "En cours" : statusUi === "Livré" ? "Livré" : "Annulé",
+    amountLabel: moneyLabel(amount),
+    paymentLabel: amount > 0 ? "ESPÈCES" : "—",
+  };
+}
 
 function Chip({ label, active }: { label: Status; active?: boolean }) {
   return (
@@ -77,10 +89,38 @@ export default function LivraisonScreen() {
     if (filter === "Annulé") return "Annulé";
     return "Tout";
   });
+
+  const [txns, setTxns] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await listTransactionsForDevUser();
+        if (!mounted) return;
+        setTxns(data);
+      } catch (e: any) {
+        if (!mounted) return;
+        setError(String(e?.message ?? e ?? "Erreur"));
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const allOrders = useMemo(() => txns.map(mapTransactionToOrder).filter((o) => o.id.length > 0), [txns]);
   const orders = useMemo(() => {
-    if (active === "Tout") return MOCK_ORDERS;
-    return MOCK_ORDERS.filter((o) => o.status === active);
-  }, [active]);
+    if (active === "Tout") return allOrders;
+    return allOrders.filter((o) => o.status === active);
+  }, [active, allOrders]);
 
   return (
     <ScreenLayout
@@ -127,6 +167,52 @@ export default function LivraisonScreen() {
           </AppText>
         </Pressable>
       </View>
+
+      {loading ? (
+        <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
+          <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
+            Chargement…
+          </AppText>
+        </View>
+      ) : error ? (
+        <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
+          <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
+            Impossible de charger vos livraisons
+          </AppText>
+          <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
+            {error}
+          </AppText>
+          <Pressable
+            onPress={() => {
+              setLoading(true);
+              setError(null);
+              void (async () => {
+                try {
+                  const data = await listTransactionsForDevUser();
+                  setTxns(data);
+                } catch (e: any) {
+                  setError(String(e?.message ?? e ?? "Erreur"));
+                } finally {
+                  setLoading(false);
+                }
+              })();
+            }}
+            style={{
+              marginTop: 14,
+              minHeight: 56,
+              paddingVertical: 14,
+              borderRadius: radii.pill,
+              backgroundColor: colors.primary,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText style={typography.buttonTextInverse} numberOfLines={1}>
+              Réessayer
+            </AppText>
+          </Pressable>
+        </View>
+      ) : null}
 
       {orders.length === 0 ? (
         <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>

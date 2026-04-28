@@ -17,6 +17,7 @@ import {
   stringifyExpeditionClient,
 } from "@/lib/expeditionClient";
 import { hapticSuccess } from "@/lib/haptics";
+import { listStockItems, type StockItem } from "@/lib/api/stock";
 
 export type MaDemandeProduitsFlow = "livraison" | "expedition";
 
@@ -50,11 +51,25 @@ type InventoryItem = {
   stockAvailable: number;
 };
 
-const MOCK_INVENTORY: InventoryItem[] = [
-  { id: "paper-a4", name: "Papier A4 (80g)", stockLabel: "STOCK: 45 RAMES", stockAvailable: 45 },
-  { id: "markers", name: "Set Marqueurs (x12)", stockLabel: "STOCK: 12 SETS", stockAvailable: 12 },
-  { id: "folders", name: "Classeurs Rigides", stockLabel: "STOCK: 28 UNITÉS", stockAvailable: 28 },
-];
+function asId(value: unknown): string {
+  if (typeof value === "string" && value.length) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
+}
+
+function toInventory(items: StockItem[]): InventoryItem[] {
+  return items
+    .map((it) => {
+      const id = asId(it?.id);
+      const name = String(it?.name ?? "");
+      const subtitle = String(it?.subtitle ?? "");
+      const qty = Number.isFinite(Number(it?.qty)) ? Math.max(0, Math.floor(Number(it.qty))) : 0;
+      if (!id || !name) return null;
+      const stockLabel = [subtitle, `STOCK: ${qty}`].filter(Boolean).join(" • ");
+      return { id, name, stockLabel, stockAvailable: qty } satisfies InventoryItem;
+    })
+    .filter(Boolean) as InventoryItem[];
+}
 
 const YAOUNDE_QUARTIERS = [
   "Bastos",
@@ -189,6 +204,9 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const editSectionKey = typeof editSection === "string" ? editSection : "";
 
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [pickupName, setPickupName] = useState(() => (typeof pickupNameParam === "string" ? pickupNameParam : ""));
   const [pickupQty, setPickupQty] = useState(() => (typeof pickupQtyParam === "string" && pickupQtyParam.length ? pickupQtyParam : "1"));
   const [pickupExpress, setPickupExpress] = useState<"yes" | "no">(() => (pickupExpressParam === "yes" ? "yes" : "no"));
@@ -237,6 +255,29 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     setExpStockSearch((prev) => (prev.trim().length ? prev : expSelectedFromParams.name));
   }, [expSelectedFromParams?.name, isExpedition]);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setInventoryLoading(true);
+        setInventoryError(null);
+        const items = await listStockItems();
+        if (!mounted) return;
+        setInventory(toInventory(items));
+      } catch (e: any) {
+        if (!mounted) return;
+        setInventoryError(String(e?.message ?? e ?? "Erreur de chargement"));
+        setInventory([]);
+      } finally {
+        if (!mounted) return;
+        setInventoryLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const [livStockSearch, setLivStockSearch] = useState("");
   const [livStockOpen, setLivStockOpen] = useState(false);
   const [livSelectedStockItemId, setLivSelectedStockItemId] = useState<string | null>(() =>
@@ -283,25 +324,25 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
   const expFilteredStock = useMemo(() => {
     const q = expStockSearch.trim().toLowerCase();
-    if (!q) return MOCK_INVENTORY;
-    return MOCK_INVENTORY.filter((it) => it.name.toLowerCase().includes(q));
-  }, [expStockSearch]);
+    if (!q) return inventory;
+    return inventory.filter((it) => it.name.toLowerCase().includes(q));
+  }, [expStockSearch, inventory]);
 
   const expSelectedStockItem = useMemo(() => {
     if (!expSelectedStockItemId) return null;
-    return MOCK_INVENTORY.find((it) => it.id === expSelectedStockItemId) ?? null;
-  }, [expSelectedStockItemId]);
+    return inventory.find((it) => it.id === expSelectedStockItemId) ?? null;
+  }, [expSelectedStockItemId, inventory]);
 
   const livFilteredStock = useMemo(() => {
     const q = livStockSearch.trim().toLowerCase();
-    if (!q) return MOCK_INVENTORY;
-    return MOCK_INVENTORY.filter((it) => it.name.toLowerCase().includes(q));
-  }, [livStockSearch]);
+    if (!q) return inventory;
+    return inventory.filter((it) => it.name.toLowerCase().includes(q));
+  }, [livStockSearch, inventory]);
 
   const livSelectedStockItem = useMemo(() => {
     if (!livSelectedStockItemId) return null;
-    return MOCK_INVENTORY.find((it) => it.id === livSelectedStockItemId) ?? null;
-  }, [livSelectedStockItemId]);
+    return inventory.find((it) => it.id === livSelectedStockItemId) ?? null;
+  }, [livSelectedStockItemId, inventory]);
 
   const livStockAvailable = livSelectedStockItem?.stockAvailable ?? 0;
   const livOutOfStock = Boolean(livSelectedStockItem) && livStockAvailable <= 0;
@@ -590,6 +631,19 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     overflow: "hidden",
                   }}
                 >
+                  {inventoryLoading ? (
+                    <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+                      <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
+                        Chargement du stock…
+                      </AppText>
+                    </View>
+                  ) : inventoryError ? (
+                    <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+                      <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "#B91C1C" }} numberOfLines={3}>
+                        {inventoryError}
+                      </AppText>
+                    </View>
+                  ) : null}
                   {expFilteredStock.slice(0, 6).map((it) => (
                     <Pressable
                       key={it.id}
@@ -625,7 +679,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   {expFilteredStock.length === 0 ? (
                     <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
                       <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                        Aucun colis trouvé.
+                        {inventoryLoading ? "Chargement du stock…" : inventoryError ? "Impossible de charger le stock." : "Aucun colis trouvé."}
                       </AppText>
                     </View>
                   ) : null}
@@ -719,6 +773,19 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       overflow: "hidden",
                     }}
                   >
+                    {inventoryLoading ? (
+                      <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+                        <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
+                          Chargement du stock…
+                        </AppText>
+                      </View>
+                    ) : inventoryError ? (
+                      <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
+                        <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "#B91C1C" }} numberOfLines={3}>
+                          {inventoryError}
+                        </AppText>
+                      </View>
+                    ) : null}
                     {livFilteredStock.slice(0, 6).map((it) => (
                       <Pressable
                         key={it.id}
@@ -755,7 +822,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     {livFilteredStock.length === 0 ? (
                       <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
                         <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                          Aucun colis trouvé.
+                          {inventoryLoading ? "Chargement du stock…" : inventoryError ? "Impossible de charger le stock." : "Aucun colis trouvé."}
                         </AppText>
                       </View>
                     ) : null}

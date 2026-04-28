@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, View, Pressable, ScrollView } from "react-native";
+import { Alert, View, Pressable } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import * as Linking from "expo-linking";
 import { FontAwesome } from "@expo/vector-icons";
 import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
+import LivraisonDetailHeader from "../../components/LivraisonDetailHeader";
 import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../../components/AppText";
+import { getTransactionById, type Transaction } from "@/lib/api/deliveries";
 
 const WARNING_AMBER = "#F59E0B";
 
@@ -20,6 +22,7 @@ type DeliveryItem = { name: string; qty: number };
 
 type Delivery = {
   id: string;
+  reference?: string | null;
   phone: string;
   mode: DeliveryMode;
   deliveryType: DeliveryType;
@@ -28,57 +31,53 @@ type Delivery = {
   collectCash: boolean;
   amountDueXaf?: number | null;
   status?: string | null;
-  quartier?: string | null;
+  deliveryAddress?: string | null;
   notes?: string | null;
   created_at?: string;
 };
 
-const MOCK_DELIVERIES: Delivery[] = [
-  {
-    id: "101",
-    phone: "0612345678",
-    mode: "pickup",
-    deliveryType: "express",
-    pickupAddress: "Bastos, face à la pharmacie",
-    items: [{ name: "iPhone 15 Pro", qty: 1 }],
-    collectCash: true,
-    amountDueXaf: 50000,
-    status: "pending",
-    quartier: "Emombo",
-    notes: "Appeler avant livraison.",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "102",
-    phone: "0698765432",
-    mode: "stock",
+function mapTransactionToDelivery(tx: Transaction): Delivery {
+  const id = String(tx.id ?? "");
+  const reference = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : null;
+  const phone = typeof tx.receiver?.phone === "string" && tx.receiver.phone.trim().length ? tx.receiver.phone.trim() : String(tx.receiver_phone ?? "");
+  const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
+  const packageName = String(tx.package_name ?? "Colis");
+  const mode: DeliveryMode = String(tx.type ?? "").toLowerCase() === "pickup" ? "pickup" : "stock";
+  const pickupAddress =
+    mode === "pickup"
+      ? (typeof tx.departure?.street === "string" && tx.departure.street.trim().length
+          ? tx.departure.street.trim()
+          : typeof tx.departure_street === "string"
+            ? tx.departure_street
+            : null)
+      : null;
+  const destinationStreet =
+    typeof tx.destination?.street === "string" && tx.destination.street.trim().length
+      ? tx.destination.street.trim()
+      : typeof tx.destination_street === "string"
+        ? tx.destination_street.trim()
+        : "";
+  const deliveryAddress = destinationStreet.length ? destinationStreet : null;
+  const notes = typeof tx.description === "string" ? tx.description : null;
+  const amount = Number(tx.amount ?? 0);
+  const collectCash = amount > 0;
+
+  return {
+    id,
+    reference,
+    phone,
+    mode,
     deliveryType: "normal",
-    items: [
-      { name: "Papier A4 (80g)", qty: 2 },
-      { name: "Classeurs Rigides", qty: 1 },
-    ],
-    collectCash: false,
-    amountDueXaf: null,
-    status: "delivered",
-    quartier: "Elig-Edzoa",
-    notes: "Remettre au gardien.",
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "103",
-    phone: "0700000000",
-    mode: "pickup",
-    deliveryType: "normal",
-    pickupAddress: "Messassi, entrée principale",
-    items: [{ name: "Colis divers", qty: 1 }],
-    collectCash: true,
-    amountDueXaf: 2500,
-    status: "cancelled",
-    quartier: "Essomba",
-    notes: null,
-    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-  },
-];
+    pickupAddress,
+    items: [{ name: packageName, qty }],
+    collectCash,
+    amountDueXaf: Number.isFinite(amount) ? Math.max(0, Math.round(amount)) : null,
+    status: typeof tx.status === "string" ? tx.status : null,
+    deliveryAddress,
+    notes,
+    created_at: typeof tx.created_at === "string" ? tx.created_at : undefined,
+  };
+}
 
 function formatFcfa(n: number): string {
   const v = Math.max(0, Math.round(n));
@@ -229,18 +228,45 @@ function FilterChip({
 export default function LivraisonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [delivery, setDelivery] = useState<Delivery | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     if (!id) {
       setDelivery(null);
+      setLoadError(null);
       return;
     }
-    const found = MOCK_DELIVERIES.find((d) => d.id === String(id)) ?? null;
-    setDelivery(found);
+
+    (async () => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const tx = await getTransactionById(String(id));
+        if (!mounted) return;
+        setDelivery(mapTransactionToDelivery(tx));
+      } catch (e: any) {
+        if (!mounted) return;
+        setDelivery(null);
+        setLoadError(String(e?.message ?? e ?? "Impossible de charger la livraison."));
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
   const statusChip = useMemo(() => mapBackendStatusToChip(delivery?.status), [delivery?.status]);
   const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
+  const referenceTitle = useMemo(() => {
+    if (!delivery) return null;
+    return delivery.reference ? delivery.reference : `TR-${delivery.id}`;
+  }, [delivery]);
   const createdLabel = useMemo(() => {
     const iso = delivery?.created_at;
     if (!iso) return "Effectuée —";
@@ -271,7 +297,7 @@ export default function LivraisonDetailScreen() {
       totalXaf,
       paymentMethod,
       serviceType,
-      zone: delivery.quartier?.trim() || "—",
+      zone: delivery.deliveryAddress?.split("—")[0]?.trim() || "—",
       deliveryFeeXaf,
       itemCostXaf,
       expressLine,
@@ -282,48 +308,43 @@ export default function LivraisonDetailScreen() {
   return (
     <ScreenLayout
       header={
-        <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8, marginBottom: 12 }}>
-          <Pressable onPress={() => router.back()} style={{ width: 44, height: 44, justifyContent: "center" }}>
-            <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
-          </Pressable>
-          <View style={{ flex: 1 }} />
-          <View
-            style={{
-              minHeight: 44,
-              borderRadius: radii.pill,
-              paddingHorizontal: 16,
-              paddingVertical: 10,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: statusChip.bg,
-            }}
-          >
-            <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: statusChip.color, letterSpacing: 0.6 }} numberOfLines={1}>
-              {statusChip.label}
-            </AppText>
-          </View>
-        </View>
+        <LivraisonDetailHeader
+          referenceLabel={referenceTitle}
+        />
       }
     >
 
       {!delivery ? (
         <View style={{ paddingVertical: 16 }}>
           <AppText style={{ color: "#D32F2F", fontFamily: fonts.bodySemi, marginBottom: 12 }}>
-            Livraison introuvable (mock)
+            {loading ? "Chargement…" : loadError ? loadError : "Livraison introuvable"}
           </AppText>
+          {!loading && loadError ? (
+            <Pressable
+              onPress={() => {
+                if (!id) return;
+                void hapticLight();
+                router.replace({ pathname: "/livraison-detail/[id]", params: { id: String(id) } });
+              }}
+              style={{
+                minHeight: 48,
+                borderRadius: radii.pill,
+                backgroundColor: colors.primary,
+                alignItems: "center",
+                justifyContent: "center",
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                alignSelf: "flex-start",
+              }}
+            >
+              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.white, letterSpacing: 0.6 }} numberOfLines={1}>
+                Réessayer
+              </AppText>
+            </Pressable>
+          ) : null}
         </View>
       ) : (
         <>
-          {/* Transaction header */}
-          <View style={{ marginBottom: 35 }}>
-            <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 34 }} numberOfLines={3} ellipsizeMode="tail">
-              Transaction #TR-{delivery.id}
-            </AppText>
-            <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={2} ellipsizeMode="tail">
-              {createdLabel}
-            </AppText>
-          </View>
-
           {/* Badges */}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 18 }}>
             <View
@@ -363,6 +384,23 @@ export default function LivraisonDetailScreen() {
               <SolarIcon name="solar:lightning-bold-duotone" size={24} color={"#B45309"} />
               <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: "#92400E", letterSpacing: 0.4 }} numberOfLines={1}>
                 {delivery.deliveryType === "express" ? "EXPRESS" : "NORMAL"}
+              </AppText>
+            </View>
+
+            <View
+              style={{
+                minHeight: 36,
+                borderRadius: radii.pill,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                backgroundColor: statusChip.bg,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: statusChip.color, letterSpacing: 0.4 }} numberOfLines={1}>
+                {statusChip.label}
               </AppText>
             </View>
           </View>
@@ -544,7 +582,7 @@ export default function LivraisonDetailScreen() {
 
           {/* Summary & details */}
           <View style={{ marginTop: 18, gap: 16 }}>
-            {/* Transaction details */}
+            {/* Détails */}
             {txDetails ? (
               <View style={[card.base, { padding: 24 }]}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -559,24 +597,6 @@ export default function LivraisonDetailScreen() {
                       </AppText>
                     </AppText>
                   </View>
-                  <View
-                    style={{
-                      minHeight: 36,
-                      borderRadius: radii.pill,
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      backgroundColor: "rgba(14,165,233,0.12)",
-                      borderWidth: 1,
-                      borderColor: "rgba(14,165,233,0.18)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
-                      {statusChip.label}
-                    </AppText>
-                  </View>
                 </View>
 
                 <View style={{ marginTop: 18, gap: 12 }}>
@@ -588,6 +608,7 @@ export default function LivraisonDetailScreen() {
                     { k: "Coût de l’article", v: `${formatFcfa(txDetails.itemCostXaf)} FCFA` },
                     { k: "Express", v: txDetails.expressLine },
                     { k: "Produit stocké", v: txDetails.stocked },
+                    { k: "Date", v: createdLabel },
                   ].map((line) => (
                     <View key={line.k} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
                       <View style={{ flex: 1, minWidth: 0 }}>
@@ -655,7 +676,7 @@ export default function LivraisonDetailScreen() {
                 </AppText>
               </View>
               <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={3} ellipsizeMode="tail">
-                {delivery?.quartier?.trim() || "—"}
+                {delivery?.deliveryAddress?.trim() || "—"}
               </AppText>
             </View>
 

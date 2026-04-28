@@ -1,11 +1,12 @@
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
+import { getTransactionById, type Transaction } from "@/lib/api/deliveries";
 
 type TxInfo = {
   ref: string;
@@ -17,51 +18,39 @@ type TxInfo = {
   amountLabel?: string;
 };
 
-const MOCK_TX: Record<string, TxInfo> = {
-  "1": {
-    ref: "#AD-3012",
-    status: "EN COURS",
-    statusColor: colors.primary,
-    statusBg: "#E9F4FB",
-    type: "RAMASSAGE",
-    location: "Bastos",
-    amountLabel: "2 500 FCFA",
-  },
-  "2": {
-    ref: "#AD-3008",
-    status: "EN COURS",
-    statusColor: colors.primary,
-    statusBg: "#E9F4FB",
-    type: "EN STOCK",
-    location: "Emombo",
-  },
-  "3": {
-    ref: "#EX-1041",
-    status: "EN COURS",
-    statusColor: colors.primary,
-    statusBg: "#E9F4FB",
-    type: "EXPÉDITION",
-    location: "Yaoundé → Douala",
-    amountLabel: "5 000 FCFA",
-  },
-  "4": {
-    ref: "#AD-2991",
-    status: "LIVRÉ",
-    statusColor: "#2E7D32",
-    statusBg: "#EAF7EE",
-    type: "EN STOCK",
-    location: "Mvan",
-    amountLabel: "15 000 FCFA",
-  },
-  "5": {
-    ref: "#EX-1038",
-    status: "LIVRÉ",
-    statusColor: "#2E7D32",
-    statusBg: "#EAF7EE",
-    type: "EXPÉDITION",
-    location: "Yaoundé → Bafoussam",
-  },
-};
+function mapBackendStatusToBanner(status?: string | null) {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "delivered") return { status: "LIVRÉ", statusColor: "#2E7D32", statusBg: "#EAF7EE" };
+  if (s === "failed" || s === "cancelled") return { status: "ANNULÉ", statusColor: "#D32F2F", statusBg: "#FCECEC" };
+  return { status: "EN COURS", statusColor: colors.primary, statusBg: "#E9F4FB" };
+}
+
+function formatAmountLabel(amount?: number | null) {
+  const n = Number.isFinite(Number(amount)) ? Math.max(0, Math.round(Number(amount))) : 0;
+  return n > 0 ? `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA` : undefined;
+}
+
+function mapTransactionToTxInfo(tx: Transaction): TxInfo {
+  const ref = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : `TR-${String(tx.id ?? "")}`;
+  const { status, statusColor, statusBg } = mapBackendStatusToBanner(typeof tx.status === "string" ? tx.status : null);
+  const typeRaw = String(tx.type ?? tx.mode ?? "").toLowerCase();
+  const typeLabel = typeRaw === "pickup" ? "RAMASSAGE" : typeRaw === "expedition" ? "EXPÉDITION" : "EN STOCK";
+
+  const location =
+    typeRaw === "expedition"
+      ? `${tx.departure?.city?.trim() || "—"} → ${tx.destination?.city?.trim() || "—"}`
+      : tx.destination?.street?.trim() || "—";
+
+  return {
+    ref,
+    status,
+    statusColor,
+    statusBg,
+    type: typeLabel,
+    location,
+    amountLabel: formatAmountLabel((tx as any).amount),
+  };
+}
 
 function TransactionBanner({ tx, onPress }: { tx: TxInfo; onPress?: () => void }) {
   return (
@@ -203,7 +192,28 @@ function Bubble({ msg }: { msg: Message }) {
 export default function InboxChatScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [draft, setDraft] = useState("");
-  const tx = MOCK_TX[String(id ?? "")] ?? null;
+  const [tx, setTx] = useState<TxInfo | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!id) {
+      setTx(null);
+      return;
+    }
+    (async () => {
+      try {
+        const data = await getTransactionById(String(id));
+        if (!mounted) return;
+        setTx(mapTransactionToTxInfo(data));
+      } catch {
+        if (!mounted) return;
+        setTx(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
 
   const messages = useMemo<Message[]>(
     () => [
@@ -282,93 +292,93 @@ export default function InboxChatScreen() {
   return (
     <ScreenLayout
       header={
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 36, height: 44, justifyContent: "center" }}>
-            <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
-          </Pressable>
+        <View>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
+            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 36, height: 44, justifyContent: "center" }}>
+              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
+            </Pressable>
 
-          <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
-            {/* Avatar with online dot */}
-            <View style={{ width: 42, height: 42, flexShrink: 0 }}>
-              <View
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 9999,
-                  backgroundColor: colors.primary,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <AppText
-                  variant="dense"
-                  style={{ fontSize: 14, lineHeight: 18, fontFamily: fonts.bodyBold, color: colors.white, letterSpacing: 0.5 }}
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+              {/* Avatar with online dot */}
+              <View style={{ width: 42, height: 42, flexShrink: 0 }}>
+                <View
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 9999,
+                    backgroundColor: colors.primary,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  AL
+                  <AppText
+                    variant="dense"
+                    style={{ fontSize: 14, lineHeight: 18, fontFamily: fonts.bodyBold, color: colors.white, letterSpacing: 0.5 }}
+                  >
+                    AL
+                  </AppText>
+                </View>
+                <View
+                  style={{
+                    position: "absolute",
+                    right: 1,
+                    bottom: 1,
+                    width: 11,
+                    height: 11,
+                    borderRadius: 9999,
+                    backgroundColor: "#22C55E",
+                    borderWidth: 2,
+                    borderColor: colors.white,
+                  }}
+                />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
+                  Agent Livsight
+                </AppText>
+                <AppText variant="dense" style={{ fontSize: 11, lineHeight: 15, fontFamily: fonts.bodySemi, color: "#22C55E" }} numberOfLines={1}>
+                  En ligne
                 </AppText>
               </View>
-              <View
-                style={{
-                  position: "absolute",
-                  right: 1,
-                  bottom: 1,
-                  width: 11,
-                  height: 11,
-                  borderRadius: 9999,
-                  backgroundColor: "#22C55E",
-                  borderWidth: 2,
-                  borderColor: colors.white,
-                }}
-              />
             </View>
 
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-                Agent Livsight
-              </AppText>
-              <AppText variant="dense" style={{ fontSize: 11, lineHeight: 15, fontFamily: fonts.bodySemi, color: "#22C55E" }} numberOfLines={1}>
-                En ligne
-              </AppText>
+            {/* Action buttons: video + phone */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Pressable
+                onPress={() => {}}
+                hitSlop={10}
+                style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
+              >
+                <SolarIcon name="solar:videocamera-outline" size={22} color={colors.primary} />
+              </Pressable>
+              <Pressable
+                onPress={() => {}}
+                hitSlop={10}
+                style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
+              >
+                <SolarIcon name="solar:phone-outline" size={20} color={colors.primary} />
+              </Pressable>
             </View>
           </View>
 
-          {/* Action buttons: video + phone */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Pressable
-              onPress={() => {}}
-              hitSlop={10}
-              style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
-            >
-              <SolarIcon name="solar:videocamera-outline" size={22} color={colors.primary} />
-            </Pressable>
-            <Pressable
-              onPress={() => {}}
-              hitSlop={10}
-              style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
-            >
-              <SolarIcon name="solar:phone-outline" size={20} color={colors.primary} />
-            </Pressable>
-          </View>
+          {tx ? (
+            <TransactionBanner
+              tx={tx}
+              onPress={() => {
+                if (tx.type === "EXPÉDITION") {
+                  router.push(`/ma-demande-expedition`);
+                } else {
+                  router.push(`/livraison-detail/${id}`);
+                }
+              }}
+            />
+          ) : null}
         </View>
       }
       footer={footerNode}
     >
-      {tx ? (
-        <TransactionBanner
-          tx={tx}
-          onPress={() => {
-            if (tx.type === "EXPÉDITION") {
-              router.push(`/ma-demande-expedition`);
-            } else {
-              router.push(`/livraison-detail/${id}`);
-            }
-          }}
-        />
-      ) : null}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 18, paddingBottom: 24, gap: 24 }}
-      >
+      <View style={{ paddingTop: 18, paddingBottom: 24, gap: 24 }}>
         <View style={{ alignItems: "center" }}>
           <View style={{ minHeight: 24, borderRadius: radii.pill, backgroundColor: "#F3F4F5", paddingHorizontal: 16, paddingVertical: 4 }}>
             <AppText variant="dense" style={{ fontSize: 11, lineHeight: 16.5, fontFamily: fonts.bodyBold, color: "#3C4A3C", letterSpacing: 1.1, textTransform: "uppercase" }} numberOfLines={1}>
@@ -380,7 +390,7 @@ export default function InboxChatScreen() {
         {messages.map((m) => (
           <Bubble key={m.id} msg={m} />
         ))}
-      </ScrollView>
+      </View>
     </ScreenLayout>
   );
 }

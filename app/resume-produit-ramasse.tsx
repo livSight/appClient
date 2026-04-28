@@ -122,8 +122,18 @@ export default function ResumeProduitRamasseScreen() {
 
   const phoneDisplay = useMemo(() => {
     const digits = phone.replace(/[^\d]/g, "");
-    if (digits.length !== 9) return "—";
-    return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
+    if (!digits.length) return "—";
+
+    let local9 = digits;
+    if (digits.length === 10 && digits.startsWith("0")) local9 = digits.slice(1);
+    if (digits.length === 12 && digits.startsWith("237")) local9 = digits.slice(3);
+    if (digits.length > 9) local9 = digits.slice(-9);
+
+    if (local9.length === 9) {
+      return `${local9.slice(0, 3)} ${local9.slice(3, 5)} ${local9.slice(5, 7)} ${local9.slice(7, 9)}`;
+    }
+
+    return phone.trim().length ? phone.trim() : digits;
   }, [phone]);
 
   const pickupAddressV2 = useMemo(() => {
@@ -215,10 +225,11 @@ export default function ResumeProduitRamasseScreen() {
               try {
                 const pickupStreet = pickupAddressV2.trim();
                 const dropoffStreet = dropoffAddressV2.trim();
+                const descriptionToSend = pickupStreet ? `Ramassage: ${pickupStreet}` : "Aucune description donnée";
 
-                await createTransaction({
+                const created = await createTransaction({
                   package_name: itemName.trim().length ? itemName.trim() : "Colis",
-                  description: pickupStreet ? `Ramassage: ${pickupStreet}` : "",
+                  description: descriptionToSend,
                   weight: "",
                   type: "pickup",
                   quantity: qty > 0 ? qty : 1,
@@ -235,7 +246,11 @@ export default function ResumeProduitRamasseScreen() {
                   destination_region: "Centre",
                   destination_street: dropoffStreet || "—",
                 });
-                router.push("/confirmee");
+                const createdId = created?.id ?? created?.data?.id;
+                router.push({
+                  pathname: "/confirmee",
+                  params: { id: createdId ? String(createdId) : "" },
+                });
               } catch (e: any) {
                 Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer la livraison."));
               }
@@ -290,9 +305,6 @@ export default function ResumeProduitRamasseScreen() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
                   {dropoffAddressV2}
-                </AppText>
-                <AppText variant="dense" style={{ marginTop: 2, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={2}>
-                  Yaoundé, Cameroun
                 </AppText>
               </View>
             </View>

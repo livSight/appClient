@@ -9,6 +9,8 @@ import { card, row } from "../../theme/styles";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import AppText from "../../components/AppText";
+import { deleteStockItem, listStockItems, updateStockItemPut } from "@/lib/api/stock";
+import StockProductCard, { type StockProductCardItem } from "@/components/StockProductCard";
 
 type StockItem = {
   id: string;
@@ -26,119 +28,21 @@ function toSnapshot(items: StockItem[]) {
   );
 }
 
-const MOCK_ITEMS: StockItem[] = [
-  { id: "s1", name: "Farine de blé", subtitle: "Sac 25kg", qty: 4 },
-  { id: "s2", name: "Riz", subtitle: "5kg", qty: 2, low: true },
-  { id: "s3", name: "Huile", subtitle: "1L", qty: 10 },
-];
-
-function QtyPill({
-  value,
-  low,
-  onDec,
-  onInc,
-}: {
-  value: number;
-  low?: boolean;
-  onDec: () => void;
-  onInc: () => void;
-}) {
-  return (
-    <View
-      style={{
-        minHeight: 56,
-        minWidth: 140,
-        borderRadius: radii.pill,
-        backgroundColor: "#F3F4F5",
-        paddingHorizontal: 4,
-        paddingVertical: 4,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}
-    >
-      <Pressable
-        onPress={onDec}
-        hitSlop={8}
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: radii.pill,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <SolarIcon name="solar:minus-square-outline" size={24} color={colors.primary} />
-      </Pressable>
-
-      <View style={{ flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center" }}>
-        <AppText
-          variant="dense"
-          style={{ fontSize: 16, lineHeight: 20, fontFamily: fonts.bodyBold, color: low ? "#BA1A1A" : colors.text }}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {value}
-        </AppText>
-      </View>
-
-      <Pressable
-        onPress={onInc}
-        hitSlop={8}
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: radii.pill,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <SolarIcon name="solar:add-square-outline" size={24} color={colors.primary} />
-      </Pressable>
-    </View>
-  );
+function asId(value: unknown): string {
+  if (typeof value === "string" && value.length) return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
 }
 
-function ProductCard({
-  item,
-  onDec,
-  onInc,
-  onRemove,
-}: {
-  item: StockItem;
-  onDec: () => void;
-  onInc: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <View style={[card.base, { paddingHorizontal: 32, paddingVertical: 24, minHeight: 160 }]}>
-      <View style={{ ...row.spaceBetween, alignItems: "center" }}>
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-          <AppText style={{ fontSize: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-            {item.name}
-          </AppText>
-          <AppText
-            style={{ ...typography.subtitle, fontSize: 14, lineHeight: 20, marginTop: 4 }}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-          >
-            {item.subtitle}
-          </AppText>
-          <View style={{ marginTop: 16 }}>
-            <QtyPill value={item.qty} low={item.low} onDec={onDec} onInc={onInc} />
-          </View>
-        </View>
-
-        <Pressable
-          onPress={onRemove}
-          hitSlop={10}
-          style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
-        >
-          <SolarIcon name="solar:trash-bin-trash-outline" size={24} color={"rgba(25,28,29,0.35)"} />
-        </Pressable>
-      </View>
-    </View>
-  );
+function normalizeServerItems(items: any[]): StockItem[] {
+  return items
+    .map((it) => ({
+      id: asId(it?.id),
+      name: String(it?.name ?? ""),
+      subtitle: String(it?.subtitle ?? ""),
+      qty: Number.isFinite(Number(it?.qty)) ? Number(it.qty) : 0,
+    }))
+    .filter((it) => it.id && it.name);
 }
 
 export default function StockScreen() {
@@ -164,9 +68,10 @@ export default function StockScreen() {
     setLoading(true);
     setError(null);
     try {
-      // UI-only: load from mock items.
-      setItems(MOCK_ITEMS.map((it) => ({ ...it, low: it.qty <= 2 })));
-      initialSnapshotRef.current = toSnapshot(MOCK_ITEMS);
+      const serverItems = await listStockItems();
+      const next = normalizeServerItems(serverItems).map((it) => ({ ...it, low: it.qty <= 2 }));
+      setItems(next);
+      initialSnapshotRef.current = toSnapshot(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
@@ -206,7 +111,16 @@ export default function StockScreen() {
         style: "destructive",
         onPress: async () => {
           await hapticSuccess();
-          setItems((prev) => prev.filter((it) => it.id !== id));
+          try {
+            await deleteStockItem(id);
+            setItems((prev) => {
+              const next = prev.filter((it) => it.id !== id);
+              initialSnapshotRef.current = toSnapshot(next);
+              return next;
+            });
+          } catch (e: any) {
+            Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de supprimer le produit."));
+          }
         },
       },
     ]);
@@ -218,7 +132,15 @@ export default function StockScreen() {
     setError(null);
 
     try {
-      // UI-only: treat current state as saved locally.
+      // Persist changes to API (PUT full resource).
+      const ops = items.map((it) =>
+        updateStockItemPut(it.id, {
+          name: it.name,
+          subtitle: it.subtitle,
+          qty: it.qty,
+        }),
+      );
+      await Promise.all(ops);
       initialSnapshotRef.current = toSnapshot(items);
       await hapticSuccess();
     } catch (e) {
@@ -228,16 +150,10 @@ export default function StockScreen() {
     }
   }
 
-  // Accept new item from /ajouter-au-stock (UI-only navigation contract).
+  // Accept new item from /ajouter-au-stock. Backend already created it → just refresh.
   useEffect(() => {
     if (!addedName) return;
-    const qty = Math.max(1, Number(addedQty ?? "1") || 1);
-    const newItem: StockItem = { id: `tmp:${Date.now()}`, name: addedName, subtitle: addedSubtitle ?? "", qty };
-    const baseItems = MOCK_ITEMS.map((it) => ({ ...it, low: it.qty <= 2 }));
-    const allItems = [newItem, ...baseItems];
-    initialSnapshotRef.current = toSnapshot(allItems); // snapshot inclut le nouvel item → dirty = false
-    setItems(allItems);
-    setLoading(false);
+    void load();
   }, [addedName, addedQty, addedSubtitle]);
 
   return (
@@ -300,12 +216,9 @@ export default function StockScreen() {
         ) : (
           <View style={{ marginTop: 32, gap: 32 }}>
             {items.map((it) => (
-              <ProductCard
+              <StockProductCard
                 key={it.id}
-                item={{ ...it, low: it.qty <= 2 }}
-                onDec={() => dec(it.id)}
-                onInc={() => inc(it.id)}
-                onRemove={() => remove(it.id)}
+                item={{ ...it, low: it.qty <= 2 } satisfies StockProductCardItem}
               />
             ))}
           </View>

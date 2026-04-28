@@ -7,8 +7,9 @@ import { colors, fonts, radii, typography } from "../theme/tokens";
 import AppText from "../components/AppText";
 
 export default function ConfirmeeScreen() {
-  const { flow } = useLocalSearchParams<{ flow?: string }>();
+  const { flow, id } = useLocalSearchParams<{ flow?: string; id?: string }>();
   const isExpedition = flow === "expedition";
+  const canOpenDetail = typeof id === "string" && id.trim().length > 0;
 
   return (
     <ScreenLayout>
@@ -43,7 +44,13 @@ export default function ConfirmeeScreen() {
 
       <View style={{ marginTop: 40, gap: 16 }}>
         <Pressable
-          onPress={() => router.replace("/(tabs)/livraison")}
+          onPress={() => {
+            if (canOpenDetail) {
+              router.replace({ pathname: "/livraison-detail/[id]", params: { id: String(id) } });
+              return;
+            }
+            router.replace("/(tabs)/livraison");
+          }}
           style={{
             minHeight: 64,
             borderRadius: radii.pill,
@@ -55,7 +62,7 @@ export default function ConfirmeeScreen() {
           }}
         >
           <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
-            Suivre la commande
+            Voir le détail
           </AppText>
         </Pressable>
 
@@ -73,7 +80,7 @@ export default function ConfirmeeScreen() {
           }}
         >
           <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
-            Faire une autre demande
+            Retour aux livraisons
           </AppText>
         </Pressable>
       </View>

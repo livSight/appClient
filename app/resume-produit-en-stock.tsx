@@ -72,8 +72,23 @@ function Card({ children }: { children: React.ReactNode }) {
 
 function formatCmPhone(input: string): string {
   const digits = input.replace(/[^\d]/g, "");
-  if (digits.length !== 9) return "—";
-  return `${digits.slice(0, 3)} ${digits.slice(3, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
+  if (!digits.length) return "—";
+
+  // Accept common Cameroon inputs:
+  // - 9 digits: 6XXXXXXXX / 7XXXXXXXX
+  // - 10 digits with leading 0: 06XXXXXXXX → keep last 9
+  // - E.164 with country code: 2376XXXXXXXX → keep last 9
+  let local9 = digits;
+  if (digits.length === 10 && digits.startsWith("0")) local9 = digits.slice(1);
+  if (digits.length === 12 && digits.startsWith("237")) local9 = digits.slice(3);
+  if (digits.length > 9) local9 = digits.slice(-9);
+
+  if (local9.length === 9) {
+    return `${local9.slice(0, 3)} ${local9.slice(3, 5)} ${local9.slice(5, 7)} ${local9.slice(7, 9)}`;
+  }
+
+  // Fallback: show user input (trimmed) instead of hiding it
+  return input.trim().length ? input.trim() : digits;
 }
 
 export default function ResumeProduitEnStockScreen() {
@@ -187,15 +202,17 @@ export default function ResumeProduitEnStockScreen() {
               const first = items[0];
               const itemsLine = first ? `${first.name} x${first.qty}` : "";
               const quartierLine = (deliveryQuartier || deliveryAddress || quartier || "").trim();
+              const destinationStreet = [quartierLine, deliveryLandmark.trim()].filter(Boolean).join(" — ") || quartierLine || "—";
               const amountDueNumber =
                 collectCash === "yes" && Number.isFinite(amountDue) ? Math.max(0, Math.round(amountDue)) : 0;
               const amountDueFallback = Math.max(0, Math.round(totalXaf));
               const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
+              const descriptionToSend = notes.trim().length ? notes.trim() : "Aucune description donnée";
 
               try {
-                await createTransaction({
+                const created = await createTransaction({
                   package_name: itemsLine,
-                  description: notes.trim().length ? notes.trim() : "",
+                  description: descriptionToSend,
                   weight: "",
                   type: "livraison",
                   quantity: first?.qty ?? 1,
@@ -210,9 +227,13 @@ export default function ResumeProduitEnStockScreen() {
                   departure_street: "Agence | Ongola Express",
                   destination_city: "Yaoundé",
                   destination_region: "Centre",
-                  destination_street: [quartierLine, deliveryLandmark.trim()].filter(Boolean).join(" — ") || quartierLine || "—",
+                  destination_street: destinationStreet,
                 });
-                router.push("/confirmee");
+                const createdId = created?.id ?? created?.data?.id;
+                router.push({
+                  pathname: "/confirmee",
+                  params: { id: createdId ? String(createdId) : "" },
+                });
               } catch (e: any) {
                 Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer la livraison."));
               }
@@ -295,7 +316,9 @@ export default function ResumeProduitEnStockScreen() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                  Agence | Ongola Express
+                  {forExpedition
+                    ? (expeditionClient?.address?.trim() || "Colis en stock")
+                    : "Colis sélectionné dans votre catalogue"}
                 </AppText>
               </View>
             </View>

@@ -3,11 +3,13 @@ import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
+import CenteredScreenHeader from "../components/CenteredScreenHeader";
 import LottieView from "lottie-react-native";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import AppText from "../components/AppText";
 import AppTextInput from "../components/AppTextInput";
+import { createStockItem } from "@/lib/api/stock";
 
 function Label({ children }: { children: string }) {
   return (
@@ -109,6 +111,7 @@ export default function AjouterAuStockScreen() {
     setError(null);
     try {
       await hapticSuccess();
+      await createStockItem({ name: name.trim(), subtitle: description.trim(), qty });
       router.replace({
         pathname: "/confirmation-ajout-stock",
         params: {
@@ -126,17 +129,12 @@ export default function AjouterAuStockScreen() {
 
   return (
     <ScreenLayout>
-      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, marginBottom: 12 }}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
-          <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
-        </Pressable>
-      </View>
-      <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36 }} numberOfLines={3}>
-        Ajouter un nouveau{"\n"}produit
-      </AppText>
-      <AppText style={{ ...typography.subtitle, marginTop: 10 }}>
-        Complétez les détails pour gérer le stock de cet article
-      </AppText>
+      <CenteredScreenHeader
+        title="Ajouter un produit"
+        subtitle="Complétez les détails pour gérer le stock de cet article"
+        showBack
+        onBackPress={() => router.back()}
+      />
 
       <View style={{ marginTop: 28 }}>
         <Label>Nom du produit</Label>

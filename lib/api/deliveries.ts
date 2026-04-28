@@ -68,3 +68,82 @@ export async function createTransaction(input: Omit<CreateTransactionInput, "use
   return data;
 }
 
+export type Transaction = Partial<CreateTransactionInput> & {
+  id?: string | number;
+  created_at?: string;
+  updated_at?: string;
+  transactionReference?: string;
+  receiver?: { phone?: string };
+  departure?: { city?: string; region?: string; street?: string };
+  destination?: { city?: string; region?: string; street?: string };
+  description?: string;
+  mode?: string;
+  express?: boolean;
+  collect_cash?: boolean;
+};
+
+function normalizeListResponse(data: any): Transaction[] {
+  if (Array.isArray(data)) return data as Transaction[];
+  const inner = data?.data;
+  if (Array.isArray(inner)) return inner as Transaction[];
+  return [];
+}
+
+export async function listTransactionsForDevUser() {
+  const url = `${API_BASE_URL}/api/transactions`;
+  logger.info("listTransactions", "GET /api/transactions", { url, user_id: DEV_USER_ID });
+
+  const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+  const rawText = await res.text().catch(() => "");
+  let data: any = null;
+  if (rawText.length) {
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = rawText;
+    }
+  }
+
+  if (!res.ok) {
+    logger.info("listTransactions", "GET /api/transactions failed", { status: res.status, body: data ?? rawText });
+    const msg =
+      (data as ApiError | null)?.message ||
+      (data && typeof data === "string" ? data : null) ||
+      `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  const all = normalizeListResponse(data);
+  // Backend ignores ?user_id; filter client-side for dev.
+  return all.filter((t) => String((t as any).user_id ?? "") === String(DEV_USER_ID));
+}
+
+export async function getTransactionById(id: string | number) {
+  const safeId = encodeURIComponent(String(id));
+  const url = `${API_BASE_URL}/api/transactions/${safeId}`;
+  logger.info("getTransaction", "GET /api/transactions/:id", { url, id });
+
+  const res = await fetch(url, { method: "GET", headers: { accept: "application/json" } });
+  const rawText = await res.text().catch(() => "");
+  let data: any = null;
+  if (rawText.length) {
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = rawText;
+    }
+  }
+
+  if (!res.ok) {
+    logger.info("getTransaction", "GET /api/transactions/:id failed", { status: res.status, body: data ?? rawText });
+    const msg =
+      (data as ApiError | null)?.message ||
+      (data && typeof data === "string" ? data : null) ||
+      `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  // API might return {data:{...}} or the object directly
+  return (data?.data ?? data) as Transaction;
+}
+
