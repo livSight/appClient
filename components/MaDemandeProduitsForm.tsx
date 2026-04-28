@@ -8,6 +8,7 @@ import ExpressToggleCard from "./ExpressToggleCard";
 import FormInput from "./FormInput";
 import FormButton from "./FormButton";
 import SolarIcon from "./SolarIcon";
+import CenteredScreenHeader from "./CenteredScreenHeader";
 import { card } from "../theme/styles";
 import { colors, fonts, radii, shadows, typography } from "../theme/tokens";
 import {
@@ -16,8 +17,6 @@ import {
   stringifyExpeditionClient,
 } from "@/lib/expeditionClient";
 import { hapticSuccess } from "@/lib/haptics";
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 
 export type MaDemandeProduitsFlow = "livraison" | "expedition";
 
@@ -41,78 +40,6 @@ function RamassageFieldLabel({ children }: { children: string }) {
     >
       {children}
     </AppText>
-  );
-}
-
-function PhotoPicker({
-  label,
-  uri,
-  onChangeUri,
-  required,
-}: {
-  label: string;
-  uri: string | null;
-  onChangeUri: (next: string | null) => void;
-  required?: boolean;
-}) {
-  return (
-    <View style={{ marginTop: 14 }}>
-      <RamassageFieldLabel>{required ? label : `${label} (optionnel)`}</RamassageFieldLabel>
-      {uri ? (
-        <View style={{ borderRadius: 16, backgroundColor: colors.white, overflow: "hidden", borderWidth: 1, borderColor: "rgba(187,203,184,0.20)" }}>
-          <Image source={{ uri }} style={{ width: "100%", height: 180 }} contentFit="cover" />
-          <Pressable
-            onPress={() => onChangeUri(null)}
-            hitSlop={10}
-            style={{
-              position: "absolute",
-              top: 10,
-              right: 10,
-              width: 36,
-              height: 36,
-              borderRadius: radii.pill,
-              backgroundColor: "rgba(15,23,42,0.65)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <SolarIcon name="solar:close-circle-bold" size={18} color={colors.white} />
-          </Pressable>
-        </View>
-      ) : (
-        <Pressable
-          onPress={async () => {
-            const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!perm.granted) return;
-            const res = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ImagePicker.MediaTypeOptions.Images,
-              quality: 0.8,
-            });
-            if (res.canceled) return;
-            const nextUri = res.assets?.[0]?.uri;
-            if (typeof nextUri === "string" && nextUri.length > 0) onChangeUri(nextUri);
-          }}
-          style={{
-            minHeight: 88,
-            borderRadius: 16,
-            borderWidth: 2,
-            borderStyle: "dashed",
-            borderColor: "rgba(187,203,184,0.35)",
-            backgroundColor: colors.white,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: 18,
-            paddingHorizontal: 16,
-            gap: 10,
-          }}
-        >
-          <SolarIcon name="solar:camera-outline" size={22} color={"rgba(60,74,60,0.55)"} />
-          <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
-            Ajouter une photo
-          </AppText>
-        </Pressable>
-      )}
-    </View>
   );
 }
 
@@ -255,7 +182,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     pickupPickupLandmark?: string;
     pickupDropoffQuartier?: string;
     pickupDropoffLandmark?: string;
-    pickupPhotoUri?: string;
   }>();
 
   const quartier = typeof quartierParam === "string" ? quartierParam : "";
@@ -273,7 +199,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const [pickupPickupLandmark, setPickupPickupLandmark] = useState(() => (typeof pickupPickupLandmarkParam === "string" ? pickupPickupLandmarkParam : ""));
   const [pickupDropoffQuartierQuery, setPickupDropoffQuartierQuery] = useState(() => (typeof pickupDropoffQuartierParam === "string" ? pickupDropoffQuartierParam : ""));
   const [pickupDropoffLandmark, setPickupDropoffLandmark] = useState(() => (typeof pickupDropoffLandmarkParam === "string" ? pickupDropoffLandmarkParam : ""));
-  const [pickupPhotoUri, setPickupPhotoUri] = useState<string | null>(() => (typeof pickupPhotoUriParam === "string" && pickupPhotoUriParam.length ? pickupPhotoUriParam : null));
 
   const [expVille, setExpVille] = useState(() => (typeof quartierParam === "string" ? quartierParam.trim() : ""));
   const [expAgence, setExpAgence] = useState("");
@@ -327,7 +252,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     typeof deliveryQuartierParam === "string" && deliveryQuartierParam.length ? deliveryQuartierParam : null
   );
   const [livDeliveryLandmark, setLivDeliveryLandmark] = useState(() => (typeof deliveryLandmarkParam === "string" ? deliveryLandmarkParam : ""));
-  const [livPhotoUri, setLivPhotoUri] = useState<string | null>(null);
   const [livNotes, setLivNotes] = useState(() => (typeof livNotesParam === "string" ? livNotesParam : ""));
   const [livExpress, setLivExpress] = useState<"yes" | "no">(() => (livExpressParam === "yes" ? "yes" : "no"));
   const [livCollectCash, setLivCollectCash] = useState<"yes" | "no">(() => (livCollectCashParam === "yes" ? "yes" : "no"));
@@ -460,36 +384,12 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     <ScreenLayout
       scrollViewRef={scrollRef}
       header={
-        <View style={{ paddingBottom: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8 }}>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
-              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
-            </Pressable>
-            <View style={{ flex: 1, alignItems: "center" }}>
-              <AppText style={{ ...typography.sectionTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={1} ellipsizeMode="tail">
-                {screenTitle}
-              </AppText>
-            </View>
-            <View style={{ width: 44, height: 44 }} />
-          </View>
-
-          <AppText
-            variant="dense"
-            style={{
-              marginTop: 14,
-              fontSize: 10,
-              lineHeight: 15,
-              fontFamily: fonts.bodyBold,
-              color: "rgba(60,74,60,0.7)",
-              letterSpacing: 1,
-              textTransform: "uppercase",
-              textAlign: "center",
-            }}
-            numberOfLines={2}
-            ellipsizeMode="tail"
-          >
-            {isExpedition ? "SOURCE DU COLIS (STOCK OU RAMASSAGE)" : "CHOISIR OÙ RÉCUPÉRER LE COLIS À LIVRER"}
-          </AppText>
+        <View>
+          <CenteredScreenHeader
+            title={screenTitle}
+            subtitle={isExpedition ? "SOURCE DU COLIS (STOCK OU RAMASSAGE)" : "CHOISIR OÙ RÉCUPÉRER LE COLIS À LIVRER"}
+            showBack
+          />
 
           <View onLayout={setSectionLayout("mode")} />
           <View style={{ marginTop: 14, flexDirection: "row", gap: 16 }}>
@@ -617,7 +517,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     pickupPickupLandmark: pickupLandmark,
                     pickupDropoffQuartier: dropoffQuartier,
                     pickupDropoffLandmark: dropoffLandmark,
-                    pickupPhotoUri,
                   },
                 });
               }
@@ -1084,64 +983,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   </View>
                 ) : null}
               </View>
-
-              <View style={{ marginTop: 14 }}>
-                <RamassageFieldLabel>Photo de l&apos;article (optionnel)</RamassageFieldLabel>
-                {livPhotoUri ? (
-                  <View style={{ borderRadius: 16, backgroundColor: colors.white, overflow: "hidden", borderWidth: 1, borderColor: "rgba(187,203,184,0.20)" }}>
-                    <Image source={{ uri: livPhotoUri }} style={{ width: "100%", height: 180 }} contentFit="cover" />
-                    <Pressable
-                      onPress={() => setLivPhotoUri(null)}
-                      hitSlop={10}
-                      style={{
-                        position: "absolute",
-                        top: 10,
-                        right: 10,
-                        width: 36,
-                        height: 36,
-                        borderRadius: radii.pill,
-                        backgroundColor: "rgba(15,23,42,0.65)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <SolarIcon name="solar:close-circle-bold" size={18} color={colors.white} />
-                    </Pressable>
-                  </View>
-                ) : (
-                  <Pressable
-                    onPress={async () => {
-                      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                      if (!perm.granted) return;
-                      const res = await ImagePicker.launchImageLibraryAsync({
-                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                        quality: 0.8,
-                      });
-                      if (res.canceled) return;
-                      const uri = res.assets?.[0]?.uri;
-                      if (typeof uri === "string" && uri.length > 0) setLivPhotoUri(uri);
-                    }}
-                    style={{
-                      minHeight: 88,
-                      borderRadius: 16,
-                      borderWidth: 2,
-                      borderStyle: "dashed",
-                      borderColor: "rgba(187,203,184,0.35)",
-                      backgroundColor: colors.white,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingVertical: 18,
-                      paddingHorizontal: 16,
-                      gap: 10,
-                    }}
-                  >
-                    <SolarIcon name="solar:camera-outline" size={22} color={"rgba(60,74,60,0.55)"} />
-                    <AppText variant="dense" style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.75)" }} numberOfLines={2}>
-                      Ajouter une photo
-                    </AppText>
-                  </Pressable>
-                )}
-              </View>
             </View>
         </>
         )
@@ -1302,9 +1143,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           </View>
 
           <FormInput label="Téléphone" keyboardType="phone-pad" value={pickupPhone} onChangeText={setPickupPhone} placeholder="6XXXXXXX" />
-
-          <View onLayout={setSectionLayout("photo")} />
-          <PhotoPicker label="Photo du colis" uri={pickupPhotoUri} onChangeUri={setPickupPhotoUri} />
         </View>
       )}
 

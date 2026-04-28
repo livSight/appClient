@@ -1,14 +1,16 @@
 import { useMemo } from "react";
-import { View, Pressable } from "react-native";
+import { Alert, View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
 import FormButton from "../components/FormButton";
 import SolarIcon from "../components/SolarIcon";
+import CenteredScreenHeader from "../components/CenteredScreenHeader";
 import { card } from "../theme/styles";
-import { colors, fonts, radii } from "../theme/tokens";
+import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
+import { createTransaction } from "@/lib/api/deliveries";
 
 type SelectedItem = { id: string; name: string; qty: number };
 
@@ -158,33 +160,11 @@ export default function ResumeProduitEnStockScreen() {
   return (
     <ScreenLayout
       header={
-        <View style={{ paddingBottom: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", minHeight: 44 }}>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginRight: 10 }}>
-              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
-            </Pressable>
-            <View style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-              <AppText style={{ fontFamily: fonts.titleBold, fontSize: 26, lineHeight: 30, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                {forExpedition ? "Résumé expédition (stock)" : "Résumé produit en stock"}
-              </AppText>
-            </View>
-          </View>
-          <AppText
-            variant="dense"
-            style={{
-              marginTop: 14,
-              fontSize: 10,
-              lineHeight: 15,
-              fontFamily: fonts.bodyBold,
-              color: "rgba(60,74,60,0.7)",
-              letterSpacing: 1,
-              textTransform: "uppercase",
-            }}
-            numberOfLines={2}
-          >
-            Vérifiez les informations avant de confirmer
-          </AppText>
-        </View>
+        <CenteredScreenHeader
+          title={forExpedition ? "Résumé expédition (stock)" : "Résumé produit en stock"}
+          subtitle="Vérifiez les informations avant de confirmer"
+          showBack
+        />
       }
       footer={
         <View
@@ -199,7 +179,43 @@ export default function ResumeProduitEnStockScreen() {
             label="Confirmer la commande"
             onPress={async () => {
               await hapticSuccess();
-              router.push("/confirmee");
+              if (forExpedition) {
+                router.push("/confirmee");
+                return;
+              }
+
+              const first = items[0];
+              const itemsLine = first ? `${first.name} x${first.qty}` : "";
+              const quartierLine = (deliveryQuartier || deliveryAddress || quartier || "").trim();
+              const amountDueNumber =
+                collectCash === "yes" && Number.isFinite(amountDue) ? Math.max(0, Math.round(amountDue)) : 0;
+              const amountDueFallback = Math.max(0, Math.round(totalXaf));
+              const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
+
+              try {
+                await createTransaction({
+                  package_name: itemsLine,
+                  description: notes.trim().length ? notes.trim() : "",
+                  weight: "",
+                  type: "livraison",
+                  quantity: first?.qty ?? 1,
+                  receiver_phone: phone.trim(),
+                  driver_id: 0,
+                  agent_id: 0,
+                  status: "pending",
+                  transactionReference: "",
+                  amount: amountDueToSend,
+                  departure_city: "Yaoundé",
+                  departure_region: "Centre",
+                  departure_street: "Agence | Ongola Express",
+                  destination_city: "Yaoundé",
+                  destination_region: "Centre",
+                  destination_street: [quartierLine, deliveryLandmark.trim()].filter(Boolean).join(" — ") || quartierLine || "—",
+                });
+                router.push("/confirmee");
+              } catch (e: any) {
+                Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer la livraison."));
+              }
             }}
           />
         </View>

@@ -1,14 +1,16 @@
 import { useMemo } from "react";
-import { View, Pressable } from "react-native";
+import { Alert, View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../components/ScreenLayout";
 import AppText from "../components/AppText";
 import FormButton from "../components/FormButton";
 import SolarIcon from "../components/SolarIcon";
+import CenteredScreenHeader from "../components/CenteredScreenHeader";
 import { card } from "../theme/styles";
-import { colors, fonts } from "../theme/tokens";
+import { colors, fonts, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
+import { createTransaction } from "@/lib/api/deliveries";
 
 type Params = {
   quartier?: string; // legacy
@@ -19,7 +21,6 @@ type Params = {
   pickupPickupLandmark?: string;
   pickupDropoffQuartier?: string;
   pickupDropoffLandmark?: string;
-  pickupPhotoUri?: string;
   pickupExpress?: "yes" | "no";
   pickupName?: string;
   pickupQty?: string;
@@ -103,7 +104,6 @@ export default function ResumeProduitRamasseScreen() {
   const pickupPickupLandmark = typeof params.pickupPickupLandmark === "string" ? params.pickupPickupLandmark : "";
   const pickupDropoffQuartier = typeof params.pickupDropoffQuartier === "string" ? params.pickupDropoffQuartier : "";
   const pickupDropoffLandmark = typeof params.pickupDropoffLandmark === "string" ? params.pickupDropoffLandmark : "";
-  const pickupPhotoUri = typeof params.pickupPhotoUri === "string" ? params.pickupPhotoUri : "";
   const express = params.pickupExpress === "yes" ? "yes" : "no";
   const itemName = typeof params.pickupName === "string" ? params.pickupName : "";
   const qty = parseIntSafe(typeof params.pickupQty === "string" ? params.pickupQty : "");
@@ -163,7 +163,6 @@ export default function ResumeProduitRamasseScreen() {
               pickupPickupLandmark,
               pickupDropoffQuartier,
               pickupDropoffLandmark,
-              pickupPhotoUri,
               service: typeof params.service === "string" ? params.service : "",
             }
           : {
@@ -177,7 +176,6 @@ export default function ResumeProduitRamasseScreen() {
               pickupPickupLandmark,
               pickupDropoffQuartier,
               pickupDropoffLandmark,
-              pickupPhotoUri,
             }),
       },
     });
@@ -186,33 +184,11 @@ export default function ResumeProduitRamasseScreen() {
   return (
     <ScreenLayout
       header={
-        <View style={{ paddingBottom: 10 }}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", minHeight: 44 }}>
-            <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center", marginRight: 10 }}>
-              <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.text} />
-            </Pressable>
-            <View style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
-              <AppText style={{ fontFamily: fonts.titleBold, fontSize: 26, lineHeight: 30, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                {forExpedition ? "Résumé expédition (ramassage)" : "Résumé produit ramassé"}
-              </AppText>
-            </View>
-          </View>
-          <AppText
-            variant="dense"
-            style={{
-              marginTop: 14,
-              fontSize: 10,
-              lineHeight: 15,
-              fontFamily: fonts.bodyBold,
-              color: "rgba(60,74,60,0.7)",
-              letterSpacing: 1,
-              textTransform: "uppercase",
-            }}
-            numberOfLines={2}
-          >
-            Vérifiez les informations avant de confirmer
-          </AppText>
-        </View>
+        <CenteredScreenHeader
+          title={forExpedition ? "Résumé expédition (ramassage)" : "Résumé produit ramassé"}
+          subtitle="Vérifiez les informations avant de confirmer"
+          showBack
+        />
       }
       footer={
         <View
@@ -227,7 +203,42 @@ export default function ResumeProduitRamasseScreen() {
             label="Confirmer la commande"
             onPress={async () => {
               await hapticSuccess();
-              router.push("/confirmee");
+              if (forExpedition) {
+                router.push("/confirmee");
+                return;
+              }
+
+              const amountDueNumber = collectCash === "yes" ? Math.max(0, Math.round(amount)) : 0;
+              const amountDueFallback = Math.max(0, Math.round(totalXaf));
+              const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
+
+              try {
+                const pickupStreet = pickupAddressV2.trim();
+                const dropoffStreet = dropoffAddressV2.trim();
+
+                await createTransaction({
+                  package_name: itemName.trim().length ? itemName.trim() : "Colis",
+                  description: pickupStreet ? `Ramassage: ${pickupStreet}` : "",
+                  weight: "",
+                  type: "pickup",
+                  quantity: qty > 0 ? qty : 1,
+                  receiver_phone: phone.trim(),
+                  driver_id: 0,
+                  agent_id: 0,
+                  status: "pickup",
+                  transactionReference: "",
+                  amount: amountDueToSend,
+                  departure_city: "Yaoundé",
+                  departure_region: "Centre",
+                  departure_street: pickupStreet || "—",
+                  destination_city: "Yaoundé",
+                  destination_region: "Centre",
+                  destination_street: dropoffStreet || "—",
+                });
+                router.push("/confirmee");
+              } catch (e: any) {
+                Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer la livraison."));
+              }
             }}
           />
         </View>
@@ -358,22 +369,6 @@ export default function ResumeProduitRamasseScreen() {
                 </AppText>
                 <AppText variant="dense" style={{ marginTop: 2, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.7)" }} numberOfLines={1}>
                   {qty > 0 ? `Quantité: x${qty}` : "Quantité: —"}
-                </AppText>
-              </View>
-            </View>
-          </Card>
-        </View>
-
-        <View>
-          <SectionRow label="PHOTO DU COLIS" onEdit={() => goEdit("photo")} />
-          <Card>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
-                <SolarIcon name="solar:camera-outline" size={24} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                  {pickupPhotoUri.trim().length ? "Photo ajoutée" : "—"}
                 </AppText>
               </View>
             </View>
