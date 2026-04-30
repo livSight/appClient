@@ -467,6 +467,8 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   pathname: "/resume-produit-en-stock",
                   params: {
                     quartier: expVille.trim(),
+                    expAgence: expAgence.trim(),
+                    expPickupAddress: expPickupAddress.trim(),
                     selectedItems: itemsOne,
                     phone: expTelephoneDestinataire.trim(),
                     notes: "",

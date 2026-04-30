@@ -6,6 +6,7 @@ import { FontAwesome } from "@expo/vector-icons";
 import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
 import LivraisonDetailHeader from "../../components/LivraisonDetailHeader";
+import TransactionDetailCardLivaison from "../../components/TransactionDetailCardLivaison";
 import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
@@ -19,11 +20,13 @@ type Chip = { label: string; color: string; bg: string };
 type DeliveryMode = "pickup" | "stock";
 type DeliveryType = "express" | "normal";
 type DeliveryItem = { name: string; qty: number };
+type ServiceKind = "expedition" | "livraison";
 
 type Delivery = {
   id: string;
   reference?: string | null;
   phone: string;
+  service: ServiceKind;
   mode: DeliveryMode;
   deliveryType: DeliveryType;
   pickupAddress?: string | null;
@@ -42,7 +45,10 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
   const phone = typeof tx.receiver?.phone === "string" && tx.receiver.phone.trim().length ? tx.receiver.phone.trim() : String(tx.receiver_phone ?? "");
   const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
   const packageName = String(tx.package_name ?? "Colis");
-  const mode: DeliveryMode = String(tx.type ?? "").toLowerCase() === "pickup" ? "pickup" : "stock";
+  const modeRaw = String((tx as any).mode ?? "").trim().toLowerCase();
+  const typeRaw = String((tx as any).type ?? "").trim().toLowerCase();
+  const service: ServiceKind = typeRaw === "expedition" ? "expedition" : "livraison";
+  const mode: DeliveryMode = modeRaw === "pickup" || typeRaw === "pickup" ? "pickup" : "stock";
   const pickupAddress =
     mode === "pickup"
       ? (typeof tx.departure?.street === "string" && tx.departure.street.trim().length
@@ -60,14 +66,16 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
   const deliveryAddress = destinationStreet.length ? destinationStreet : null;
   const notes = typeof tx.description === "string" ? tx.description : null;
   const amount = Number(tx.amount ?? 0);
-  const collectCash = amount > 0;
+  const collectCash = typeof (tx as any).collect_cash === "boolean" ? Boolean((tx as any).collect_cash) : amount > 0;
+  const deliveryType: DeliveryType = Boolean((tx as any).express) ? "express" : "normal";
 
   return {
     id,
     reference,
     phone,
+    service,
     mode,
-    deliveryType: "normal",
+    deliveryType,
     pickupAddress,
     items: [{ name: packageName, qty }],
     collectCash,
@@ -284,22 +292,17 @@ export default function LivraisonDetailScreen() {
 
   const txDetails = useMemo(() => {
     if (!delivery) return null;
-    const deliveryFeeXaf = 1500;
-    const expressFeeXaf = delivery.deliveryType === "express" ? 1000 : 0;
-    const itemCostXafBase = typeof delivery.amountDueXaf === "number" ? delivery.amountDueXaf : 0;
-    const itemCostXaf = itemCostXafBase > 0 ? itemCostXafBase : 10000;
-    const totalXaf = itemCostXaf + deliveryFeeXaf + expressFeeXaf;
+    const totalXaf = typeof delivery.amountDueXaf === "number" ? delivery.amountDueXaf : 0;
     const paymentMethod = delivery.collectCash ? "Paiement en espèce" : "Mobile Money";
-    const serviceType = `Livraison ${delivery.deliveryType === "express" ? "Express" : "Normal"}`;
-    const expressLine = delivery.deliveryType === "express" ? `Oui | ${formatFcfa(expressFeeXaf)} F` : "Non";
+    const serviceType = delivery.service === "expedition" ? "Expédition" : "Livraison";
+    const expressLine = delivery.deliveryType === "express" ? "Oui" : "Non";
     const stocked = delivery.mode === "stock" ? "Oui" : "Non";
     return {
+      amountHeaderLabel: delivery.collectCash ? "MONTANT À COLLECTER" : "MONTANT TOTAL",
       totalXaf,
       paymentMethod,
       serviceType,
       zone: delivery.deliveryAddress?.split("—")[0]?.trim() || "—",
-      deliveryFeeXaf,
-      itemCostXaf,
       expressLine,
       stocked,
     };
@@ -584,72 +587,20 @@ export default function LivraisonDetailScreen() {
           <View style={{ marginTop: 18, gap: 16 }}>
             {/* Détails */}
             {txDetails ? (
-              <View style={[card.base, { padding: 24 }]}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-                    <AppText variant="dense" style={{ ...typography.label, color: "rgba(60,74,60,0.65)" }} numberOfLines={1}>
-                      MONTANT TOTAL
-                    </AppText>
-                    <AppText style={{ fontSize: 34, lineHeight: 40, fontFamily: fonts.bodyBold, color: colors.text, marginTop: 8 }} numberOfLines={1}>
-                      {formatFcfa(txDetails.totalXaf)}{" "}
-                      <AppText style={{ fontSize: 18, lineHeight: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                        FCFA
-                      </AppText>
-                    </AppText>
-                  </View>
-                </View>
-
-                <View style={{ marginTop: 18, gap: 12 }}>
-                  {[
-                    { k: "Méthode de paiement", v: txDetails.paymentMethod },
-                    { k: "Type de service", v: txDetails.serviceType },
-                    { k: "Zone de livraison", v: txDetails.zone },
-                    { k: "Frais de livraison", v: `${formatFcfa(txDetails.deliveryFeeXaf)} FCFA` },
-                    { k: "Coût de l’article", v: `${formatFcfa(txDetails.itemCostXaf)} FCFA` },
-                    { k: "Express", v: txDetails.expressLine },
-                    { k: "Produit stocké", v: txDetails.stocked },
-                    { k: "Date", v: createdLabel },
-                  ].map((line) => (
-                    <View key={line.k} style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16 }} numberOfLines={2} ellipsizeMode="tail">
-                          {line.k}
-                        </AppText>
-                      </View>
-                      <View style={{ flexShrink: 0, maxWidth: 180 }}>
-                        <AppText style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodySemi, color: colors.text, textAlign: "right" }} numberOfLines={2} ellipsizeMode="tail">
-                          {line.v}
-                        </AppText>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-
-                {delivery.collectCash ? (
-                  <View style={{ marginTop: 16, alignSelf: "flex-start" }}>
-                    <View
-                      style={{
-                        minHeight: 36,
-                        borderRadius: radii.pill,
-                        backgroundColor: "rgba(14,165,233,0.12)",
-                        borderWidth: 1,
-                        borderColor: "rgba(14,165,233,0.18)",
-                        paddingHorizontal: 14,
-                        paddingVertical: 8,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexDirection: "row",
-                        gap: 8,
-                      }}
-                    >
-                      <SolarIcon name="solar:card-outline" size={22} color={colors.primary} />
-                      <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-                        Paiement à la livraison
-                      </AppText>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
+              <TransactionDetailCardLivaison
+                amountHeaderLabel={txDetails.amountHeaderLabel}
+                amountXaf={txDetails.totalXaf}
+                lines={[
+                  { k: "Nom du produit", v: delivery.items?.[0]?.name?.trim() || "—" },
+                  { k: "Méthode de paiement", v: txDetails.paymentMethod },
+                  { k: "Type de service", v: txDetails.serviceType },
+                  { k: "Zone de livraison", v: txDetails.zone },
+                  { k: "Express", v: txDetails.expressLine },
+                  { k: "Produit stocké", v: txDetails.stocked },
+                  { k: "Date", v: createdLabel },
+                ]}
+                showCollectCashBadge={delivery.collectCash}
+              />
             ) : null}
 
             {/* Pickup address (only for pickup mode) */}
@@ -666,52 +617,6 @@ export default function LivraisonDetailScreen() {
                 </AppText>
               </View>
             ) : null}
-
-            {/* Dropoff address */}
-            <View style={[card.base, { padding: 24 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <SolarIcon name="solar:map-point-outline" size={24} color={colors.primary} />
-                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  Adresse de livraison
-                </AppText>
-              </View>
-              <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={3} ellipsizeMode="tail">
-                {delivery?.deliveryAddress?.trim() || "—"}
-              </AppText>
-            </View>
-
-            {/* Articles */}
-            <View style={[card.base, { padding: 24 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <SolarIcon name="solar:bag-outline" size={24} color={colors.primary} />
-                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  Articles
-                </AppText>
-              </View>
-              <View style={{ gap: 12 }}>
-                {(Array.isArray(delivery.items) ? delivery.items : []).map((it, idx) => (
-                  <View key={`${it.name}-${idx}`} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-                        {it.name}
-                      </AppText>
-                    </View>
-                    <View style={{ flexShrink: 0 }}>
-                      <View style={{ minHeight: 28, borderRadius: radii.pill, backgroundColor: "rgba(14,165,233,0.18)", paddingHorizontal: 10, paddingVertical: 6 }}>
-                        <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-                          x{it.qty}
-                        </AppText>
-                      </View>
-                    </View>
-                  </View>
-                ))}
-              </View>
-              {delivery?.notes?.trim() ? (
-                <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 10 }} numberOfLines={4} ellipsizeMode="tail">
-                  {delivery.notes.trim()}
-                </AppText>
-              ) : null}
-            </View>
           </View>
 
           <Pressable

@@ -31,7 +31,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="livraison"
         options={{
-          title: "Livraison",
+          title: "Courses",
           tabBarIcon: ({ color, size }) => <SolarIcon name="solar:box-outline" color={color} size={size ?? 24} />,
         }}
       />

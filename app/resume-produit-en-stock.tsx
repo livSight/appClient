@@ -19,6 +19,8 @@ type Params = {
   deliveryAddress?: string;
   deliveryQuartier?: string;
   deliveryLandmark?: string;
+  expAgence?: string;
+  expPickupAddress?: string;
   selectedItems?: string; // JSON string of SelectedItem[]
   phone?: string;
   notes?: string;
@@ -97,6 +99,8 @@ export default function ResumeProduitEnStockScreen() {
   const deliveryAddress = typeof params.deliveryAddress === "string" ? params.deliveryAddress : "";
   const deliveryQuartier = typeof params.deliveryQuartier === "string" ? params.deliveryQuartier : "";
   const deliveryLandmark = typeof params.deliveryLandmark === "string" ? params.deliveryLandmark : "";
+  const expAgence = typeof params.expAgence === "string" ? params.expAgence : "";
+  const expPickupAddress = typeof params.expPickupAddress === "string" ? params.expPickupAddress : "";
   const selectedItemsRaw = typeof params.selectedItems === "string" ? params.selectedItems : "[]";
   const phone = typeof params.phone === "string" ? params.phone : "";
   const notes = typeof params.notes === "string" ? params.notes : "";
@@ -195,7 +199,47 @@ export default function ResumeProduitEnStockScreen() {
             onPress={async () => {
               await hapticSuccess();
               if (forExpedition) {
-                router.push("/confirmee");
+                const first = items[0];
+                const itemsLine = first ? `${first.name} x${first.qty}` : "";
+                const descriptionToSend = "Aucune description donnée";
+                const departureStreet = [expAgence.trim(), expPickupAddress.trim()].filter(Boolean).join(" — ") || expeditionClient?.address?.trim() || "—";
+                const quartierLine = (deliveryQuartier || deliveryAddress || quartier || "").trim();
+                const destinationStreet =
+                  [quartierLine, deliveryLandmark.trim()].filter(Boolean).join(" — ") || quartierLine || "—";
+                const city = quartier.trim() || "Yaoundé";
+
+                try {
+                  const created = await createTransaction({
+                    package_name: itemsLine,
+                    description: descriptionToSend,
+                    weight: null,
+                    type: "expedition",
+                    mode: "stock",
+                    express: false,
+                    collect_cash: false,
+                    quantity: first?.qty ?? 1,
+                    receiver_phone: phone.trim(),
+                    receiver_name: expeditionClient?.clientName?.trim() || undefined,
+                    driver_id: 0,
+                    agent_id: 0,
+                    status: "pending",
+                    transactionReference: "",
+                    amount: 0,
+                    departure_city: city,
+                    departure_region: "Centre",
+                    departure_street: departureStreet,
+                    destination_city: city,
+                    destination_region: "Centre",
+                    destination_street: destinationStreet,
+                  });
+                  const createdId = created?.id ?? created?.data?.id;
+                  router.push({
+                    pathname: "/confirmee",
+                    params: { id: createdId ? String(createdId) : "", flow: "expedition" },
+                  });
+                } catch (e: any) {
+                  Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer l'expédition."));
+                }
                 return;
               }
 

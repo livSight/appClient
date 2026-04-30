@@ -214,7 +214,42 @@ export default function ResumeProduitRamasseScreen() {
             onPress={async () => {
               await hapticSuccess();
               if (forExpedition) {
-                router.push("/confirmee");
+                const pickupStreet = pickupAddressV2.trim();
+                const destinationStreet = dropoffAddressV2.trim() || "—";
+                const descriptionToSend = pickupStreet ? `Ramassage: ${pickupStreet}` : "Aucune description donnée";
+
+                try {
+                  const created = await createTransaction({
+                    package_name: itemName.trim().length ? itemName.trim() : "Colis",
+                    description: descriptionToSend,
+                    weight: null,
+                    type: "expedition",
+                    mode: "pickup",
+                    express: express === "yes",
+                    collect_cash: collectCash === "yes",
+                    quantity: qty > 0 ? qty : 1,
+                    receiver_phone: phone.trim(),
+                    receiver_name: expeditionClient?.clientName?.trim() || undefined,
+                    driver_id: 0,
+                    agent_id: 0,
+                    status: "pending",
+                    transactionReference: "",
+                    amount: collectCash === "yes" ? Math.max(0, Math.round(amount)) : 0,
+                    departure_city: "Yaoundé",
+                    departure_region: "Centre",
+                    departure_street: pickupStreet || "—",
+                    destination_city: "Yaoundé",
+                    destination_region: "Centre",
+                    destination_street: destinationStreet,
+                  });
+                  const createdId = created?.id ?? created?.data?.id;
+                  router.push({
+                    pathname: "/confirmee",
+                    params: { id: createdId ? String(createdId) : "", flow: "expedition" },
+                  });
+                } catch (e: any) {
+                  Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer l'expédition."));
+                }
                 return;
               }
 
@@ -230,7 +265,7 @@ export default function ResumeProduitRamasseScreen() {
                 const created = await createTransaction({
                   package_name: itemName.trim().length ? itemName.trim() : "Colis",
                   description: descriptionToSend,
-                  weight: "",
+                  weight: null,
                   type: "pickup",
                   quantity: qty > 0 ? qty : 1,
                   receiver_phone: phone.trim(),

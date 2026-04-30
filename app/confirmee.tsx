@@ -46,7 +46,10 @@ export default function ConfirmeeScreen() {
         <Pressable
           onPress={() => {
             if (canOpenDetail) {
-              router.replace({ pathname: "/livraison-detail/[id]", params: { id: String(id) } });
+              router.replace({
+                pathname: isExpedition ? "/expedition-detail/[id]" : "/livraison-detail/[id]",
+                params: { id: String(id) },
+              });
               return;
             }
             router.replace("/(tabs)/livraison");

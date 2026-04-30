@@ -7,7 +7,7 @@ import SectionHeader from "../../components/SectionHeader";
 import PillButton from "../../components/PillButton";
 import AppText from "../../components/AppText";
 import HomeTopBar from "../../components/HomeTopBar";
-import LivraisonCard, { type LivraisonOrder } from "../../components/LivraisonCard";
+import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import PromoBanner from "../../components/PromoBanner";
 import CategoryGrid, { type CategoryItem } from "../../components/CategoryGrid";
 import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
@@ -31,8 +31,8 @@ function formatDateLabel(iso?: string): string {
 
 function mapTxnStatusToUi(status?: string): "En cours" | "Livré" | "Annulé" {
   const s = String(status ?? "").trim().toLowerCase();
-  if (s === "delivered") return "Livré";
-  if (s === "failed" || s === "cancelled") return "Annulé";
+  if (["delivered", "completed", "complete", "done", "success"].includes(s)) return "Livré";
+  if (["cancelled", "canceled", "failed", "rejected", "expired", "aborted"].includes(s)) return "Annulé";
   return "En cours";
 }
 
@@ -41,7 +41,26 @@ function moneyLabel(amount?: number): string {
   return `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA`;
 }
 
-function mapTransactionToOrder(tx: Transaction): LivraisonOrder {
+function txnTypeLabel(type?: string): string {
+  const t = String(type ?? "").trim().toLowerCase();
+  if (t === "expedition") return "Expédition";
+  if (t === "delivery" || t === "livraison") return "Livraison";
+  // Backwards-compat: backend may still send type="pickup" for ramassage flows.
+  // Ramassage is a mode; keep the visible "type" as Livraison.
+  if (t === "pickup") return "Livraison";
+  return t.length ? t : "";
+}
+
+function txnModeLabel(tx: Transaction): string {
+  const mode = String((tx as any).mode ?? "").trim().toLowerCase();
+  if (mode === "pickup") return "Ramassage";
+  if (mode === "stock") return "Stock";
+  const t = String((tx as any).type ?? "").trim().toLowerCase();
+  if (t === "pickup") return "Ramassage";
+  return "";
+}
+
+function mapTransactionToOrder(tx: Transaction): TransactionCardItem {
   const id = String(tx.id ?? "");
   const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
   const titleBase = String(tx.package_name ?? "Colis");
@@ -59,6 +78,8 @@ function mapTransactionToOrder(tx: Transaction): LivraisonOrder {
     status: mapTxnStatusToUi(tx.status),
     amountLabel: moneyLabel(amount),
     paymentLabel: amount > 0 ? "ESPÈCES" : "—",
+    typeLabel: txnTypeLabel((tx as any).type),
+    modeLabel: txnModeLabel(tx),
   };
 }
 
@@ -175,7 +196,7 @@ export default function AccueilScreen() {
             </Pressable>
           </View>
         ) : hasRecent && recentUi ? (
-          <LivraisonCard order={recentUi} />
+          <TransactionCard item={recentUi} />
         ) : (
           <View style={{ borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
             <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>

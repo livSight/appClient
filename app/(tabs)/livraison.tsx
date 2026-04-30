@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
-import LivraisonCard, { type LivraisonOrder } from "../../components/LivraisonCard";
+import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
 import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
@@ -21,8 +21,28 @@ function formatDateLabel(iso?: string): string {
 
 function mapTxnStatusToUi(status?: string): Status {
   const s = String(status ?? "").trim().toLowerCase();
-  if (s === "delivered") return "Livré";
-  if (s === "failed" || s === "cancelled") return "Annulé";
+  // Backend statuses can evolve; we map them into the 3 UI buckets.
+  // EN COURS: pending / pickup / in_progress / assigned / accepted / processing / created
+  // LIVRÉ: delivered / completed / done
+  // ANNULÉ: cancelled / failed / rejected / expired
+  if (["delivered", "completed", "complete", "done", "success"].includes(s)) return "Livré";
+  if (["cancelled", "canceled", "failed", "rejected", "expired", "aborted"].includes(s)) return "Annulé";
+  if (
+    [
+      "pending",
+      "pickup",
+      "in_progress",
+      "inprogress",
+      "assigned",
+      "accepted",
+      "processing",
+      "created",
+      "new",
+      "started",
+      "",
+    ].includes(s)
+  )
+    return "En cours";
   return "En cours";
 }
 
@@ -31,7 +51,27 @@ function moneyLabel(amount?: number): string {
   return `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA`;
 }
 
-function mapTransactionToOrder(tx: Transaction): LivraisonOrder {
+function txnTypeLabel(type?: string): string {
+  const t = String(type ?? "").trim().toLowerCase();
+  if (t === "expedition") return "Expédition";
+  if (t === "delivery" || t === "livraison") return "Livraison";
+  // Backwards-compat: backend may still send type="pickup" for ramassage flows.
+  // Ramassage is a mode; keep the visible "type" as Livraison.
+  if (t === "pickup") return "Livraison";
+  return t.length ? t : "";
+}
+
+function txnModeLabel(tx: Transaction): string {
+  const mode = String((tx as any).mode ?? "").trim().toLowerCase();
+  if (mode === "pickup") return "Ramassage";
+  if (mode === "stock") return "Stock";
+  // Backwards-compat if backend encodes pickup in "type"
+  const t = String((tx as any).type ?? "").trim().toLowerCase();
+  if (t === "pickup") return "Ramassage";
+  return "";
+}
+
+function mapTransactionToOrder(tx: Transaction): TransactionCardItem {
   const id = String(tx.id ?? "");
   const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
   const titleBase = String(tx.package_name ?? "Colis");
@@ -50,6 +90,8 @@ function mapTransactionToOrder(tx: Transaction): LivraisonOrder {
     status: statusUi === "En cours" ? "En cours" : statusUi === "Livré" ? "Livré" : "Annulé",
     amountLabel: moneyLabel(amount),
     paymentLabel: amount > 0 ? "ESPÈCES" : "—",
+    typeLabel: txnTypeLabel((tx as any).type),
+    modeLabel: txnModeLabel(tx),
   };
 }
 
@@ -127,10 +169,10 @@ export default function LivraisonScreen() {
       header={
         <View style={{ paddingBottom: 10 }}>
           <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
-            Mes Livraisons
+            Mes Courses
           </AppText>
           <AppText style={[typography.subtitle, { marginTop: 4 }]}>
-            Consultez toutes vos livraisons
+            Consultez toutes vos courses
           </AppText>
         </View>
       }
@@ -250,7 +292,7 @@ export default function LivraisonScreen() {
       ) : (
         <View style={{ gap: 24, paddingBottom: 8 }}>
           {orders.map((o) => (
-            <LivraisonCard key={o.id} order={o} />
+            <TransactionCard key={o.id} item={o} />
           ))}
         </View>
       )}

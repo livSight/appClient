@@ -5,7 +5,6 @@ import { colors, fonts, radii, typography } from "../theme/tokens";
 
 type ConversationLivraison = {
   type: "livraison";
-  deliveryMode: "EN STOCK" | "RAMASSAGE";
   quartier: string;
   amountXaf?: number | null;
 };
@@ -78,7 +77,7 @@ export default function ConversationCard({
       <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
         {item.type === "livraison" ? (
           <>
-            <TypeBadge label={item.deliveryMode} />
+            <TypeBadge label="LIVRAISON" />
             <AppText
               style={{ fontSize: 15, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text, flex: 1 }}
               numberOfLines={1}

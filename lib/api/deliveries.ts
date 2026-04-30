@@ -4,10 +4,15 @@ import { logger } from "@/lib/logger";
 export type CreateTransactionInput = {
   package_name: string;
   description: string;
-  weight: string;
+  weight?: string | null;
   type: string;
+  mode?: string;
+  express?: boolean;
+  collect_cash?: boolean;
   quantity: number;
   receiver_phone: string;
+  receiver_name?: string;
+  receiver_gender?: string;
   user_id: number;
   updatedBy: number;
   driver_id: number;
