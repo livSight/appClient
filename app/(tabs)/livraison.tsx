@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
@@ -257,38 +258,40 @@ export default function LivraisonScreen() {
       ) : null}
 
       {orders.length === 0 ? (
-        <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
-          <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
-            {active === "En cours"
+        <EmptyStateCard
+          label={
+            active === "En cours"
+              ? "EN COURS"
+              : active === "Livré"
+                ? "LIVRÉ"
+                : active === "Annulé"
+                  ? "ANNULÉ"
+                  : "BIENVENUE"
+          }
+          iconName="solar:delivery-bold-duotone"
+          title={
+            active === "En cours"
               ? "Aucune livraison en cours"
               : active === "Livré"
                 ? "Aucune livraison livrée pour le moment"
                 : active === "Annulé"
                   ? "Aucune livraison annulée"
-                  : "Vous n'avez pas encore de livraison"}
-          </AppText>
-          <AppText style={{ ...typography.subtitle, marginTop: 6 }}>
-            {active === "Tout" ? "Créez votre première livraison en 30 secondes." : ""}
-          </AppText>
-          {active === "En cours" || active === "Tout" ? (
-            <Pressable
-              onPress={() => router.push("/ma-demande-livraison")}
-              style={{
-                marginTop: 14,
-                minHeight: 56,
-                paddingVertical: 14,
-                borderRadius: radii.pill,
-                backgroundColor: colors.primary,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
-                {active === "Tout" ? "Créer votre première livraison" : "Demander une livraison"}
-              </AppText>
-            </Pressable>
-          ) : null}
-        </View>
+                  : "Vous n’avez pas encore de livraison"
+          }
+          subtitle={active === "Tout" ? "Créez votre première livraison ou expédition en 30 secondes." : undefined}
+          ctas={
+            active === "Tout" || active === "En cours"
+              ? [
+                  { label: "Livraison", onPress: () => router.push("/ma-demande-livraison") },
+                  {
+                    label: "Expédition",
+                    variant: "white",
+                    onPress: () => router.push({ pathname: "/ma-demande-expedition", params: { quartier: "" } }),
+                  },
+                ]
+              : []
+          }
+        />
       ) : (
         <View style={{ gap: 24, paddingBottom: 8 }}>
           {orders.map((o) => (

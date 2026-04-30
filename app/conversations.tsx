@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
 import ConversationCard, { type ConversationItem } from "@/components/ConversationCard";
-import EmptyConversationsCard from "@/components/EmptyConversationsCard";
+import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, spacing, typography } from "@/theme/tokens";
@@ -178,7 +178,28 @@ export default function ConversationsScreen() {
             </Pressable>
           </View>
         ) : filtered.length === 0 ? (
-          <EmptyConversationsCard query={query} />
+          <EmptyStateCard
+            label={query.trim().length > 0 ? "RECHERCHE" : "BIENVENUE"}
+            iconName="solar:chat-round-dots-bold"
+            title={query.trim().length > 0 ? "Aucun résultat" : "Aucune conversation pour l’instant"}
+            subtitle={
+              query.trim().length > 0
+                ? "Essayez avec une autre référence ou un autre mot-clé."
+                : "Créez une livraison ou une expédition pour commencer à échanger avec votre coursier."
+            }
+            ctas={
+              query.trim().length > 0
+                ? []
+                : [
+                    { label: "Livraison", onPress: () => router.push("/ma-demande-livraison") },
+                    {
+                      label: "Expédition",
+                      variant: "white",
+                      onPress: () => router.push({ pathname: "/ma-demande-expedition", params: { quartier: "" } }),
+                    },
+                  ]
+            }
+          />
         ) : (
           filtered.map((c) => (
             <ConversationCard
