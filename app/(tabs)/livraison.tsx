@@ -178,38 +178,42 @@ export default function LivraisonScreen() {
         </View>
       }
     >
-      <View style={{ flexDirection: "row", gap: 12, marginBottom: spacing.sectionGap / 2 }}>
-        <Pressable onPress={() => setActive("Tout")}>
-          <Chip label="Tout" active={active === "Tout"} />
-        </Pressable>
-        <Pressable onPress={() => setActive("En cours")}>
-          <Chip label="En cours" active={active === "En cours"} />
-        </Pressable>
-        <Pressable onPress={() => setActive("Livré")}>
-          <Chip label="Livré" active={active === "Livré"} />
-        </Pressable>
-        <Pressable onPress={() => setActive("Annulé")}>
-          <Chip label="Annulé" active={active === "Annulé"} />
-        </Pressable>
-      </View>
+      {allOrders.length > 0 ? (
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: spacing.sectionGap / 2 }}>
+          <Pressable onPress={() => setActive("Tout")}>
+            <Chip label="Tout" active={active === "Tout"} />
+          </Pressable>
+          <Pressable onPress={() => setActive("En cours")}>
+            <Chip label="En cours" active={active === "En cours"} />
+          </Pressable>
+          <Pressable onPress={() => setActive("Livré")}>
+            <Chip label="Livré" active={active === "Livré"} />
+          </Pressable>
+          <Pressable onPress={() => setActive("Annulé")}>
+            <Chip label="Annulé" active={active === "Annulé"} />
+          </Pressable>
+        </View>
+      ) : null}
 
-      <View style={{ marginBottom: spacing.sectionGap / 2 }}>
-        <Pressable
-          onPress={() => router.push("/ma-demande-livraison")}
-          style={{
-            minHeight: 56,
-            paddingVertical: 14,
-            borderRadius: radii.pill,
-            backgroundColor: colors.primary,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
-            Demander une nouvelle livraison
-          </AppText>
-        </Pressable>
-      </View>
+      {orders.length > 0 ? (
+        <View style={{ marginBottom: spacing.sectionGap / 2 }}>
+          <Pressable
+            onPress={() => router.push("/ma-demande-livraison")}
+            style={{
+              minHeight: 56,
+              paddingVertical: 14,
+              borderRadius: radii.pill,
+              backgroundColor: colors.primary,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
+              Demander une nouvelle livraison
+            </AppText>
+          </Pressable>
+        </View>
+      ) : null}
 
       {loading ? (
         <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>

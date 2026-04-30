@@ -9,42 +9,58 @@ export type CategoryItem = {
   onPress?: () => void;
 };
 
+type Variant = "row" | "grid";
+
 type Props = {
   items: CategoryItem[];
+  variant?: Variant;
 };
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.cardBg,
     borderRadius: radii.card,
-    paddingVertical: 14,
-    paddingHorizontal: 4,
     alignItems: "center",
+    justifyContent: "center",
     ...shadows.card,
   },
 });
 
-export default function CategoryGrid({ items }: Props) {
+export default function CategoryGrid({ items, variant = "row" }: Props) {
   const { width } = useWindowDimensions();
-  const totalGap = spacing.gridColGap * (items.length - 1);
-  const cardWidth = (width - spacing.screenPaddingX * 2 - totalGap) / items.length;
+  const isGrid = variant === "grid";
+  const itemsPerRow = isGrid ? 2 : items.length;
+  const totalGap = spacing.gridColGap * (itemsPerRow - 1);
+  const cardWidth = (width - spacing.screenPaddingX * 2 - totalGap) / itemsPerRow;
+
+  const iconSize = isGrid ? 44 : 28;
+  const paddingVertical = isGrid ? 32 : 14;
+  const labelFontSize = isGrid ? 16 : 11;
+  const labelLineHeight = isGrid ? 22 : 14;
+  const labelMarginTop = isGrid ? 14 : 6;
 
   return (
-    <View style={{ flexDirection: "row", gap: spacing.gridColGap }}>
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: isGrid ? "wrap" : "nowrap",
+        gap: spacing.gridColGap,
+      }}
+    >
       {items.map((item) => (
         <Pressable
           key={item.title}
           onPress={item.onPress}
-          style={[styles.card, { width: cardWidth }]}
+          style={[styles.card, { width: cardWidth, paddingVertical, paddingHorizontal: 4 }]}
         >
-          <SolarIcon name={item.iconName} size={28} color={colors.primary} />
+          <SolarIcon name={item.iconName} size={iconSize} color={colors.primary} />
           <AppText
             style={{
               ...typography.cardTitle,
-              fontSize: 11,
-              lineHeight: 14,
-              fontFamily: fonts.bodySemi,
-              marginTop: 6,
+              fontSize: labelFontSize,
+              lineHeight: labelLineHeight,
+              fontFamily: fonts.bodyBold,
+              marginTop: labelMarginTop,
               textAlign: "center",
             }}
             numberOfLines={1}

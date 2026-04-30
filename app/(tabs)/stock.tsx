@@ -3,6 +3,7 @@ import { Alert, View, Pressable, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
 import { card, row } from "../../theme/styles";
@@ -170,21 +171,23 @@ export default function StockScreen() {
           </View>
         }
       >
-        <Pressable
-          onPress={() => router.push("/ajouter-au-stock")}
-          style={{
-            minHeight: 56,
-            paddingVertical: 14,
-            borderRadius: radii.pill,
-            backgroundColor: colors.primary,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
-            Ajouter un produit à votre stock
-          </AppText>
-        </Pressable>
+        {!loading && !error && items.length > 0 ? (
+          <Pressable
+            onPress={() => router.push("/ajouter-au-stock")}
+            style={{
+              minHeight: 56,
+              paddingVertical: 14,
+              borderRadius: radii.pill,
+              backgroundColor: colors.primary,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <AppText style={typography.buttonTextInverse} numberOfLines={2} ellipsizeMode="tail">
+              Ajouter un produit à votre stock
+            </AppText>
+          </Pressable>
+        ) : null}
 
         {loading ? (
           <View style={{ paddingVertical: 28, alignItems: "center" }}>
@@ -213,6 +216,16 @@ export default function StockScreen() {
               </AppText>
             </Pressable>
           </View>
+        ) : items.length === 0 ? (
+          <EmptyStateCard
+            label="BIENVENUE"
+            iconName="solar:box-bold-duotone"
+            title="Votre stock est vide"
+            subtitle="Ajoutez vos produits pour les retrouver lors d’une livraison ou d’une expédition."
+            ctas={[
+              { label: "Ajouter un produit", onPress: () => router.push("/ajouter-au-stock") },
+            ]}
+          />
         ) : (
           <View style={{ marginTop: 32, gap: 32 }}>
             {items.map((it) => (

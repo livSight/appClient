@@ -4,7 +4,6 @@ import { router } from "expo-router";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import ScreenLayout from "../../components/ScreenLayout";
 import SectionHeader from "../../components/SectionHeader";
-import PillButton from "../../components/PillButton";
 import AppText from "../../components/AppText";
 import HomeTopBar from "../../components/HomeTopBar";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
@@ -146,76 +145,61 @@ export default function AccueilScreen() {
       {/* Category Grid */}
       <View style={{ marginBottom: spacing.sectionGap }}>
         <SectionHeader title="De quels services avez-vous besoin aujourd'hui ?" style={{ marginBottom: 16 }} />
-        <CategoryGrid items={CATEGORIES} />
+        <CategoryGrid items={CATEGORIES} variant={hasRecent ? "row" : "grid"} />
       </View>
 
       {/* Recent Deliveries */}
-      <View style={{ marginBottom: spacing.sectionGap }}>
-        <SectionHeader
-          title="Dernière commande"
-          linkLabel="Voir tout"
-          onLinkPress={() => router.push("/(tabs)/livraison")}
-          style={{ marginBottom: 16 }}
-        />
+      {loading || error || hasRecent ? (
+        <View style={{ marginBottom: spacing.sectionGap }}>
+          <SectionHeader
+            title="Dernière commande"
+            linkLabel="Voir tout"
+            onLinkPress={() => router.push("/(tabs)/livraison")}
+            style={{ marginBottom: 16 }}
+          />
 
-        {loading ? (
-          <View style={{ borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
-            <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
-              Chargement…
-            </AppText>
-          </View>
-        ) : error ? (
-          <View style={{ borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
-            <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
-              Impossible de charger vos commandes
-            </AppText>
-            <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
-              {error}
-            </AppText>
-            <Pressable
-              onPress={() => {
-                setLoading(true);
-                setError(null);
-                void (async () => {
-                  try {
-                    const data = await listTransactionsForDevUser();
-                    setTxns(data);
-                  } catch (e: any) {
-                    setError(String(e?.message ?? e ?? "Erreur"));
-                  } finally {
-                    setLoading(false);
-                  }
-                })();
-              }}
-              style={{ marginTop: 14, alignSelf: "flex-start" }}
-              hitSlop={10}
-            >
-              <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-                Réessayer
+          {loading ? (
+            <View style={{ borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
+              <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
+                Chargement…
               </AppText>
-            </Pressable>
-          </View>
-        ) : hasRecent && recentUi ? (
-          <TransactionCard item={recentUi} />
-        ) : (
-          <View style={{ borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
-            <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
-              Aucune commande en cours
-            </AppText>
-            <AppText style={{ ...typography.subtitle, marginTop: 6 }}>
-              Créez votre première livraison en 30 secondes.
-            </AppText>
-            <View style={{ marginTop: 14, flexDirection: "row", gap: 12, alignItems: "center" }}>
-              <PillButton label="Créer une livraison" onPress={() => router.push("/ma-demande-livraison")} />
-              <PillButton
-                label="Créer une expédition"
-                variant="white"
-                onPress={() => router.push({ pathname: "/ma-demande-expedition", params: { quartier: "" } })}
-              />
             </View>
-          </View>
-        )}
-      </View>
+          ) : error ? (
+            <View style={{ borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
+              <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
+                Impossible de charger vos commandes
+              </AppText>
+              <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
+                {error}
+              </AppText>
+              <Pressable
+                onPress={() => {
+                  setLoading(true);
+                  setError(null);
+                  void (async () => {
+                    try {
+                      const data = await listTransactionsForDevUser();
+                      setTxns(data);
+                    } catch (e: any) {
+                      setError(String(e?.message ?? e ?? "Erreur"));
+                    } finally {
+                      setLoading(false);
+                    }
+                  })();
+                }}
+                style={{ marginTop: 14, alignSelf: "flex-start" }}
+                hitSlop={10}
+              >
+                <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                  Réessayer
+                </AppText>
+              </Pressable>
+            </View>
+          ) : recentUi ? (
+            <TransactionCard item={recentUi} />
+          ) : null}
+        </View>
+      ) : null}
 
       {/* Promo Banner */}
       <PromoBanner />
