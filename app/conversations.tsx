@@ -4,9 +4,10 @@ import { router } from "expo-router";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
 import ConversationCard, { type ConversationItem } from "@/components/ConversationCard";
+import EmptyConversationsCard from "@/components/EmptyConversationsCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
-import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
+import { colors, fonts, spacing, typography } from "@/theme/tokens";
 import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
 
 export default function ConversationsScreen() {
@@ -177,35 +178,7 @@ export default function ConversationsScreen() {
             </Pressable>
           </View>
         ) : filtered.length === 0 ? (
-          <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
-            <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2} ellipsizeMode="tail">
-              {query.trim().length > 0 ? "Aucun résultat" : "Rien à suivre pour l’instant"}
-            </AppText>
-            <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
-              {query.trim().length > 0
-                ? "Essayez avec une autre référence ou un autre mot-clé."
-                : "Dès qu’une livraison est créée, vous verrez ici les statuts, incidents et confirmations."}
-            </AppText>
-
-            {query.trim().length === 0 ? (
-              <Pressable
-                onPress={() => router.push("/ma-demande-livraison")}
-                style={{
-                  marginTop: 14,
-                  minHeight: 56,
-                  paddingVertical: 14,
-                  borderRadius: radii.pill,
-                  backgroundColor: colors.primary,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <AppText style={typography.buttonTextInverse} numberOfLines={1}>
-                  Créer une livraison
-                </AppText>
-              </Pressable>
-            ) : null}
-          </View>
+          <EmptyConversationsCard query={query} />
         ) : (
           filtered.map((c) => (
             <ConversationCard

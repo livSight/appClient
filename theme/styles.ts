@@ -48,9 +48,13 @@ export const button = StyleSheet.create({
   },
   pillPrimary: {
     backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
   pillWhite: {
     backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
 });
 

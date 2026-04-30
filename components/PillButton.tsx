@@ -24,7 +24,7 @@ export default function PillButton({ label, variant = "primary", onPress, style 
 
   return (
     <Pressable onPress={onPress} style={[button.pill, bgStyle, style]}>
-      <AppText style={textStyle} numberOfLines={1}>
+      <AppText style={[textStyle, { textAlign: "center" }]} numberOfLines={1}>
         {label}
       </AppText>
     </Pressable>
