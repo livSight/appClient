@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, View, Pressable } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import * as Linking from "expo-linking";
-import { FontAwesome } from "@expo/vector-icons";
 import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
 import LivraisonDetailHeader from "../../components/LivraisonDetailHeader";
 import TransactionDetailCardLivaison from "../../components/TransactionDetailCardLivaison";
+import RecipientCard from "../../components/RecipientCard";
 import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
@@ -90,18 +89,6 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
 function formatFcfa(n: number): string {
   const v = Math.max(0, Math.round(n));
   return v.toLocaleString("fr-FR").replace(/\s/g, " ");
-}
-
-function toE164Cameroon(phoneRaw: string): string | null {
-  const digits = phoneRaw.replace(/[^\d+]/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("+")) return digits;
-  const onlyDigits = digits.replace(/[^\d]/g, "");
-  if (onlyDigits.length === 9 && (onlyDigits.startsWith("6") || onlyDigits.startsWith("7"))) {
-    return `+237${onlyDigits}`;
-  }
-  if (onlyDigits.length >= 10) return `+${onlyDigits}`;
-  return null;
 }
 
 function normalizeStatus(status?: string | null): string {
@@ -514,50 +501,7 @@ export default function LivraisonDetailScreen() {
 
           {/* Client */}
           <View style={{ marginTop: 16 }}>
-            <View style={[card.base, { padding: 24 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-                <SolarIcon name="solar:user-outline" size={24} color={colors.primary} />
-                <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  Client
-                </AppText>
-              </View>
-
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-                    {delivery.phone}
-                  </AppText>
-                  <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }} numberOfLines={1} ellipsizeMode="tail">
-                    Contact client
-                  </AppText>
-                </View>
-
-                <View style={{ flexDirection: "row", gap: 10, flexShrink: 0 }}>
-                  <Pressable
-                    onPress={() => {
-                      const e164 = toE164Cameroon(delivery.phone);
-                      void Linking.openURL(`tel:${e164 ?? delivery.phone}`);
-                    }}
-                    hitSlop={10}
-                    style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
-                  >
-                    <SolarIcon name="solar:phone-outline" size={22} color={colors.text} />
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => {
-                      const e164 = toE164Cameroon(delivery.phone);
-                      const phone = (e164 ?? delivery.phone).replace(/[^\d]/g, "");
-                      void Linking.openURL(`https://wa.me/${phone}`);
-                    }}
-                    hitSlop={10}
-                    style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
-                  >
-                    <FontAwesome name="whatsapp" size={24} color={"#25D366"} />
-                  </Pressable>
-                </View>
-              </View>
-            </View>
+            <RecipientCard phone={delivery.phone} />
           </View>
 
           <View style={{ marginTop: 16 }}>

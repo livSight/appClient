@@ -7,6 +7,7 @@ type Props = {
   locationLabel: string;
   agencyStatus?: "online" | "offline";
   onProfilePress?: () => void;
+  initials?: string;
 };
 
 function StatusBadge({ status }: { status: "online" | "offline" }) {
@@ -31,7 +32,7 @@ function StatusBadge({ status }: { status: "online" | "offline" }) {
   );
 }
 
-export default function HomeTopBar({ locationLabel, agencyStatus, onProfilePress }: Props) {
+export default function HomeTopBar({ locationLabel, agencyStatus, onProfilePress, initials }: Props) {
   return (
     <View
       style={{
@@ -65,7 +66,7 @@ export default function HomeTopBar({ locationLabel, agencyStatus, onProfilePress
         }}
       >
         <AppText variant="dense" style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-          A
+          {(initials?.trim() || "A").toUpperCase()}
         </AppText>
       </Pressable>
     </View>

@@ -10,6 +10,7 @@ import TransactionCard, { type TransactionCardItem } from "../../components/Tran
 import PromoBanner from "../../components/PromoBanner";
 import CategoryGrid, { type CategoryItem } from "../../components/CategoryGrid";
 import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
+import { getUserById, type User } from "@/lib/api/users";
  
 const CATEGORIES: CategoryItem[] = [
   { title: "Livraison", iconName: "solar:delivery-bold-duotone", onPress: () => router.push("/ma-demande-livraison") },
@@ -86,6 +87,7 @@ export default function AccueilScreen() {
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -110,6 +112,47 @@ export default function AccueilScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await getUserById(1);
+        if (!mounted) return;
+        setUser(data);
+      } catch {
+        if (!mounted) return;
+        setUser(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const displayName = useMemo(() => {
+    const first = String(user?.first_name ?? "").trim();
+    const fullName = String(user?.name ?? "").trim();
+    return first || fullName || "—";
+  }, [user?.first_name, user?.name]);
+
+  const initials = useMemo(() => {
+    const first = String(user?.first_name ?? "").trim();
+    const last = String((user as any)?.last_name ?? "").trim();
+    if (first || last) {
+      const a = first ? first[0] : "";
+      const b = last ? last[0] : "";
+      const s = `${a}${b}`.trim();
+      return s.length ? s : "A";
+    }
+    const name = String(user?.name ?? "").trim();
+    if (!name) return "A";
+    const parts = name.split(/\s+/).filter(Boolean);
+    const a = parts[0]?.[0] ?? "";
+    const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+    const s = `${a}${b}`.trim();
+    return s.length ? s : "A";
+  }, [user?.first_name, (user as any)?.last_name, user?.name]);
+
   const recentUi = useMemo(() => {
     const sorted = [...txns].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
     const first = sorted[0];
@@ -126,9 +169,10 @@ export default function AccueilScreen() {
             locationLabel="Yaoundé, Cameroun"
             agencyStatus={agencyStatus}
             onProfilePress={() => router.push("/profile")}
+            initials={initials}
           />
           <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
-            Bonjour Alex
+            {displayName !== "—" ? `Bonjour ${displayName}` : "Bonjour"}
           </AppText>
         </View>
       }

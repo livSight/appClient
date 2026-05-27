@@ -1,4 +1,5 @@
 import { Alert, View, Pressable } from "react-native";
+import { useEffect, useMemo, useState } from "react";
 import { router } from "expo-router";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
@@ -6,6 +7,7 @@ import { card } from "../theme/styles";
 import { colors, fonts, typography } from "../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../components/AppText";
+import { getUserById, type User } from "@/lib/api/users";
 
 function SettingRow({
   iconName,
@@ -65,10 +67,43 @@ function Divider() {
 }
 
 export default function ProfileScreen() {
+  const [user, setUser] = useState<User | null>(null);
+
   function onLogout() {
     // UI-only: no session to clear.
     router.replace("/(tabs)");
   }
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await getUserById(1);
+        if (!mounted) return;
+        setUser(data);
+      } catch {
+        if (!mounted) return;
+        setUser(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const fullName = useMemo(() => {
+    const name = String(user?.name ?? "").trim();
+    if (name) return name;
+    const first = String(user?.first_name ?? "").trim();
+    const last = String(user?.last_name ?? "").trim();
+    const both = `${first} ${last}`.trim();
+    return both || "—";
+  }, [user?.first_name, user?.last_name, user?.name]);
+
+  const phoneLabel = useMemo(() => {
+    const raw = String(user?.phone ?? "").trim();
+    return raw || "—";
+  }, [user?.phone]);
 
   return (
     <ScreenLayout
@@ -127,10 +162,10 @@ export default function ProfileScreen() {
         </View>
 
         <AppText style={{ marginTop: 12, fontSize: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-          Julien Santalucia
+          {fullName}
         </AppText>
         <AppText variant="dense" style={{ marginTop: 6, fontSize: 16, fontFamily: fonts.bodySemi, color: colors.muted, opacity: 0.7 }} numberOfLines={1} ellipsizeMode="tail">
-          +237657799274
+          {phoneLabel}
         </AppText>
       </View>
 
@@ -141,7 +176,7 @@ export default function ProfileScreen() {
             iconName="solar:user-outline"
             iconColor={colors.primary}
             title="Mes informations"
-            onPress={() => {}}
+            onPress={() => router.push("/mes-informations")}
           />
           <Divider />
           <SettingRow
