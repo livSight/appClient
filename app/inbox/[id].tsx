@@ -20,8 +20,8 @@ type TxInfo = {
 
 function mapBackendStatusToBanner(status?: string | null) {
   const s = String(status ?? "").trim().toLowerCase();
-  if (s === "delivered") return { status: "LIVRÉ", statusColor: "#2E7D32", statusBg: "#EAF7EE" };
-  if (s === "failed" || s === "cancelled") return { status: "ANNULÉ", statusColor: "#D32F2F", statusBg: "#FCECEC" };
+  if (s === "delivered" || s === "completed") return { status: "LIVRÉ", statusColor: "#2E7D32", statusBg: "#EAF7EE" };
+  if (s === "failed" || s === "cancelled" || s === "canceled") return { status: "ANNULÉ", statusColor: "#D32F2F", statusBg: "#FCECEC" };
   return { status: "EN COURS", statusColor: colors.primary, statusBg: "#E9F4FB" };
 }
 
@@ -33,8 +33,15 @@ function formatAmountLabel(amount?: number | null) {
 function mapTransactionToTxInfo(tx: Transaction): TxInfo {
   const ref = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : `TR-${String(tx.id ?? "")}`;
   const { status, statusColor, statusBg } = mapBackendStatusToBanner(typeof tx.status === "string" ? tx.status : null);
-  const typeRaw = String(tx.type ?? tx.mode ?? "").toLowerCase();
-  const typeLabel = typeRaw === "pickup" ? "RAMASSAGE" : typeRaw === "expedition" ? "EXPÉDITION" : "EN STOCK";
+  const typeRaw = String(tx.type ?? "").toLowerCase();
+  const sourceRaw = String(tx.source ?? "").toLowerCase();
+  const modeRaw = tx.mode ?? (sourceRaw === "pick_up" ? "pickup" : sourceRaw === "instocke" ? "stock" : "");
+  const typeLabel =
+    typeRaw === "expedition"
+      ? "EXPÉDITION"
+      : modeRaw === "pickup" || typeRaw === "pickup"
+        ? "RAMASSAGE"
+        : "EN STOCK";
 
   const location =
     typeRaw === "expedition"
@@ -48,7 +55,7 @@ function mapTransactionToTxInfo(tx: Transaction): TxInfo {
     statusBg,
     type: typeLabel,
     location,
-    amountLabel: formatAmountLabel((tx as any).amount),
+    amountLabel: formatAmountLabel(tx.amount),
   };
 }
 

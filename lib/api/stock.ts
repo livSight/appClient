@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/config/api";
+import { DEV_USER_ID } from "@/lib/config/env";
 import { logger } from "@/lib/logger";
 
 export type StockItem = {
@@ -12,8 +13,6 @@ export type StockItem = {
 };
 
 type ApiError = { success?: false; error?: string; message?: string };
-
-const DEV_USER_ID = Number(process.env.EXPO_PUBLIC_DEV_USER_ID ?? "1") || 1;
 
 function parseResponseText(rawText: string): any {
   if (!rawText.length) return null;

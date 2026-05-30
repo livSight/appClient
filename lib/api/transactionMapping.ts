@@ -1,0 +1,319 @@
+export type UiMode = "stock" | "pickup";
+export type TransactionSource = "instocke" | "pick_up";
+
+export type CreateTransactionPayload = {
+  package_name: string;
+  description: string;
+  destination_street: string;
+  receiver_name: string;
+  receiver_phone: string;
+  source: TransactionSource;
+  type?: string;
+  quantity?: number;
+  amount?: number;
+  status?: string;
+  cash_collect?: boolean;
+  serviceLevel?: string;
+  weight?: string;
+  receiver_gender?: string;
+  departure_city?: string;
+  departure_region?: string;
+  departure_street?: string;
+  departure_landmark?: string;
+  destination_city?: string;
+  destination_region?: string;
+  destination_landmark?: string;
+  driver_id?: number;
+  agent_id?: number;
+  transactionReference?: string;
+  imageUri?: string;
+};
+
+export type ParsedTransaction = {
+  id?: string | number;
+  package_name?: string;
+  description?: string;
+  weight?: string;
+  type?: string;
+  quantity?: number;
+  user_id?: number;
+  status?: string;
+  transactionReference?: string;
+  amount?: number;
+  source?: string | null;
+  cash_collect?: boolean | null;
+  serviceLevel?: string | null;
+  driver_id?: number | null;
+  agent_id?: number | null;
+  updatedBy?: number | null;
+  created_at?: string;
+  updated_at?: string;
+  receiver_name?: string;
+  receiver_phone?: string;
+  receiver_gender?: string;
+  departure?: { city?: string; region?: string; street?: string; landmark?: string | null };
+  destination?: { city?: string; region?: string; street?: string; landmark?: string | null };
+  receiverData?: { name?: string; phone?: string; gender?: string };
+  departure_city?: string;
+  departure_region?: string;
+  departure_street?: string;
+  departure_landmark?: string;
+  destination_city?: string;
+  destination_region?: string;
+  destination_street?: string;
+  destination_landmark?: string;
+  /** UI-friendly mode derived from source */
+  mode?: UiMode;
+  /** UI-friendly express flag derived from serviceLevel */
+  express?: boolean;
+  /** Alias for cash_collect */
+  collect_cash?: boolean;
+};
+
+export function mapUiModeToSource(mode: UiMode): TransactionSource {
+  return mode === "pickup" ? "pick_up" : "instocke";
+}
+
+export function mapExpressToServiceLevel(express: "yes" | "no"): string {
+  return express === "yes" ? "express" : "standard";
+}
+
+export function isTransactionReference(id: string): boolean {
+  return /^LVS-/i.test(id.trim());
+}
+
+export function getTransactionNavigationId(tx: ParsedTransaction): string {
+  if (tx.id != null && String(tx.id).trim().length) return String(tx.id);
+  if (tx.transactionReference?.trim()) return tx.transactionReference.trim();
+  return "";
+}
+
+function appendFormField(form: FormData, key: string, value: string | number | boolean | undefined | null) {
+  if (value === undefined || value === null) return;
+  if (typeof value === "boolean") {
+    form.append(key, value ? "true" : "false");
+    return;
+  }
+  const s = String(value).trim();
+  if (!s.length) return;
+  form.append(key, s);
+}
+
+export function buildTransactionFormData(payload: CreateTransactionPayload): FormData {
+  const form = new FormData();
+  appendFormField(form, "package_name", payload.package_name);
+  appendFormField(form, "description", payload.description);
+  appendFormField(form, "destination_street", payload.destination_street);
+  appendFormField(form, "receiver_name", payload.receiver_name);
+  appendFormField(form, "receiver_phone", payload.receiver_phone);
+  appendFormField(form, "source", payload.source);
+  appendFormField(form, "type", payload.type);
+  appendFormField(form, "quantity", payload.quantity);
+  appendFormField(form, "amount", payload.amount);
+  appendFormField(form, "status", payload.status);
+  appendFormField(form, "cash_collect", payload.cash_collect);
+  appendFormField(form, "serviceLevel", payload.serviceLevel);
+  appendFormField(form, "weight", payload.weight);
+  appendFormField(form, "receiver_gender", payload.receiver_gender);
+  appendFormField(form, "departure_city", payload.departure_city);
+  appendFormField(form, "departure_region", payload.departure_region);
+  appendFormField(form, "departure_street", payload.departure_street);
+  appendFormField(form, "departure_landmark", payload.departure_landmark);
+  appendFormField(form, "destination_city", payload.destination_city);
+  appendFormField(form, "destination_region", payload.destination_region);
+  appendFormField(form, "destination_landmark", payload.destination_landmark);
+  appendFormField(form, "driver_id", payload.driver_id);
+  appendFormField(form, "agent_id", payload.agent_id);
+  appendFormField(form, "transactionReference", payload.transactionReference);
+
+  if (payload.imageUri?.trim()) {
+    const uri = payload.imageUri.trim();
+    const name = uri.split("/").pop() || "photo.jpg";
+    form.append("image", { uri, name, type: "image/jpeg" } as unknown as Blob);
+  }
+
+  return form;
+}
+
+function sourceToUiMode(source: unknown, type?: unknown): UiMode | undefined {
+  const s = String(source ?? "").trim().toLowerCase();
+  if (s === "pick_up" || s === "pickup") return "pickup";
+  if (s === "instocke" || s === "in_stock" || s === "stock") return "stock";
+  const t = String(type ?? "").trim().toLowerCase();
+  if (t === "pickup") return "pickup";
+  if (t === "delivery") return "stock";
+  return undefined;
+}
+
+export function parseTransaction(raw: any): ParsedTransaction {
+  const receiverData = raw?.receiverData ?? raw?.receiver;
+  const departure = raw?.departure;
+  const destination = raw?.destination;
+
+  const receiver_name =
+    String(receiverData?.name ?? raw?.receiver_name ?? "").trim() || undefined;
+  const receiver_phone =
+    String(receiverData?.phone ?? raw?.receiver_phone ?? "").trim() || undefined;
+  const receiver_gender =
+    String(receiverData?.gender ?? raw?.receiver_gender ?? "").trim() || undefined;
+
+  const departure_city = departure?.city ?? raw?.departure_city;
+  const departure_region = departure?.region ?? raw?.departure_region;
+  const departure_street = departure?.street ?? raw?.departure_street;
+  const departure_landmark = departure?.landmark ?? raw?.departure_landmark;
+
+  const destination_city = destination?.city ?? raw?.destination_city;
+  const destination_region = destination?.region ?? raw?.destination_region;
+  const destination_street = destination?.street ?? raw?.destination_street;
+  const destination_landmark = destination?.landmark ?? raw?.destination_landmark;
+
+  const source = raw?.source ?? null;
+  const serviceLevel = raw?.serviceLevel ?? null;
+  const cash_collect =
+    typeof raw?.cash_collect === "boolean"
+      ? raw.cash_collect
+      : typeof raw?.collect_cash === "boolean"
+        ? raw.collect_cash
+        : null;
+
+  const mode = sourceToUiMode(source, raw?.type) ?? (raw?.mode === "pickup" || raw?.mode === "stock" ? raw.mode : undefined);
+  const express =
+    typeof serviceLevel === "string"
+      ? serviceLevel.trim().toLowerCase() === "express"
+      : Boolean(raw?.express);
+
+  const id = raw?.id ?? (raw?.transactionReference ? undefined : undefined);
+
+  return {
+    ...raw,
+    id,
+    receiver_name,
+    receiver_phone,
+    receiver_gender,
+    receiverData,
+    departure,
+    destination,
+    departure_city,
+    departure_region,
+    departure_street,
+    departure_landmark,
+    destination_city,
+    destination_region,
+    destination_street,
+    destination_landmark,
+    source,
+    serviceLevel,
+    cash_collect,
+    collect_cash: cash_collect ?? undefined,
+    mode,
+    express,
+  } as ParsedTransaction;
+}
+
+export function txnModeLabelFromTransaction(tx: ParsedTransaction): string {
+  if (tx.mode === "pickup") return "Ramassage";
+  if (tx.mode === "stock") return "Stock";
+  const source = String(tx.source ?? "").trim().toLowerCase();
+  if (source === "pick_up") return "Ramassage";
+  if (source === "instocke") return "Stock";
+  const t = String(tx.type ?? "").trim().toLowerCase();
+  if (t === "pickup") return "Ramassage";
+  return "";
+}
+
+export type UiStatusBucket = "En cours" | "Livré" | "Annulé";
+
+export function mapTxnStatusToUi(status?: string): UiStatusBucket {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (["delivered", "completed", "complete", "done", "success"].includes(s)) return "Livré";
+  if (["cancelled", "canceled", "failed", "rejected", "expired", "aborted"].includes(s)) return "Annulé";
+  if (["pending", "processing", "pickup", "in_progress", "inprogress", "assigned", "accepted", "created", "new", "started", ""].includes(s)) {
+    return "En cours";
+  }
+  return "En cours";
+}
+
+export type StockResumePayloadInput = {
+  forExpedition: boolean;
+  itemsLine: string;
+  description: string;
+  phone: string;
+  receiverName?: string;
+  express: "yes" | "no";
+  collectCash: "yes" | "no";
+  amount: number;
+  quantity: number;
+  destinationQuartier: string;
+  destinationLandmark: string;
+  departureCity?: string;
+  departureRegion?: string;
+  departureStreet: string;
+  destinationCity?: string;
+  destinationRegion?: string;
+};
+
+export function buildPayloadFromStockResume(input: StockResumePayloadInput): CreateTransactionPayload {
+  const destination_street = input.destinationQuartier.trim() || "—";
+  return {
+    package_name: input.itemsLine.trim() || "Colis",
+    description: input.description.trim() || "Aucune description donnée",
+    destination_street,
+    destination_landmark: input.destinationLandmark.trim() || undefined,
+    receiver_name: input.receiverName?.trim() || "Client",
+    receiver_phone: input.phone.trim(),
+    source: "instocke",
+    type: input.forExpedition ? "expedition" : "delivery",
+    quantity: input.quantity,
+    amount: input.amount,
+    status: "pending",
+    cash_collect: input.collectCash === "yes",
+    serviceLevel: mapExpressToServiceLevel(input.express),
+    departure_city: input.departureCity ?? "Yaoundé",
+    departure_region: input.departureRegion ?? "Centre",
+    departure_street: input.departureStreet.trim() || "Agence | Ongola Express",
+    destination_city: input.destinationCity ?? "Yaoundé",
+    destination_region: input.destinationRegion ?? "Centre",
+  };
+}
+
+export type PickupResumePayloadInput = {
+  forExpedition: boolean;
+  packageName: string;
+  description: string;
+  phone: string;
+  receiverName?: string;
+  express: "yes" | "no";
+  collectCash: "yes" | "no";
+  amount: number;
+  quantity: number;
+  pickupStreet: string;
+  pickupLandmark?: string;
+  dropoffStreet: string;
+  dropoffLandmark?: string;
+  city?: string;
+  region?: string;
+};
+
+export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): CreateTransactionPayload {
+  return {
+    package_name: input.packageName.trim() || "Colis",
+    description: input.description.trim() || "Aucune description donnée",
+    destination_street: input.dropoffStreet.trim() || "—",
+    destination_landmark: input.dropoffLandmark?.trim() || undefined,
+    receiver_name: input.receiverName?.trim() || "Client",
+    receiver_phone: input.phone.trim(),
+    source: "pick_up",
+    type: input.forExpedition ? "expedition" : "pickup",
+    quantity: input.quantity,
+    amount: input.amount,
+    status: "pending",
+    cash_collect: input.collectCash === "yes",
+    serviceLevel: mapExpressToServiceLevel(input.express),
+    departure_city: input.city ?? "Yaoundé",
+    departure_region: input.region ?? "Centre",
+    departure_street: input.pickupStreet.trim() || "—",
+    departure_landmark: input.pickupLandmark?.trim() || undefined,
+    destination_city: input.city ?? "Yaoundé",
+    destination_region: input.region ?? "Centre",
+  };
+}

@@ -11,6 +11,7 @@ import { colors, fonts, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
 import { createTransaction } from "@/lib/api/deliveries";
+import { buildPayloadFromPickupResume } from "@/lib/api/transactionMapping";
 
 type Params = {
   quartier?: string; // legacy
@@ -213,81 +214,48 @@ export default function ResumeProduitRamasseScreen() {
             label="Confirmer la commande"
             onPress={async () => {
               await hapticSuccess();
-              if (forExpedition) {
-                const pickupStreet = pickupAddressV2.trim();
-                const destinationStreet = dropoffAddressV2.trim() || "—";
-                const descriptionToSend = pickupStreet ? `Ramassage: ${pickupStreet}` : "Aucune description donnée";
-
-                try {
-                  const created = await createTransaction({
-                    package_name: itemName.trim().length ? itemName.trim() : "Colis",
-                    description: descriptionToSend,
-                    weight: null,
-                    type: "expedition",
-                    mode: "pickup",
-                    express: express === "yes",
-                    collect_cash: collectCash === "yes",
-                    quantity: qty > 0 ? qty : 1,
-                    receiver_phone: phone.trim(),
-                    receiver_name: expeditionClient?.clientName?.trim() || undefined,
-                    driver_id: 0,
-                    agent_id: 0,
-                    status: "pending",
-                    transactionReference: "",
-                    amount: collectCash === "yes" ? Math.max(0, Math.round(amount)) : 0,
-                    departure_city: "Yaoundé",
-                    departure_region: "Centre",
-                    departure_street: pickupStreet || "—",
-                    destination_city: "Yaoundé",
-                    destination_region: "Centre",
-                    destination_street: destinationStreet,
-                  });
-                  const createdId = created?.id ?? created?.data?.id;
-                  router.push({
-                    pathname: "/confirmee",
-                    params: { id: createdId ? String(createdId) : "", flow: "expedition" },
-                  });
-                } catch (e: any) {
-                  Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer l'expédition."));
-                }
-                return;
-              }
-
+              const pickupStreet = pickupAddressV2.trim();
+              const dropoffStreet = dropoffAddressV2.trim();
+              const descriptionToSend = pickupStreet ? `Ramassage: ${pickupStreet}` : "Aucune description donnée";
               const amountDueNumber = collectCash === "yes" ? Math.max(0, Math.round(amount)) : 0;
               const amountDueFallback = Math.max(0, Math.round(totalXaf));
               const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
 
               try {
-                const pickupStreet = pickupAddressV2.trim();
-                const dropoffStreet = dropoffAddressV2.trim();
-                const descriptionToSend = pickupStreet ? `Ramassage: ${pickupStreet}` : "Aucune description donnée";
-
-                const created = await createTransaction({
-                  package_name: itemName.trim().length ? itemName.trim() : "Colis",
-                  description: descriptionToSend,
-                  weight: null,
-                  type: "pickup",
-                  quantity: qty > 0 ? qty : 1,
-                  receiver_phone: phone.trim(),
-                  driver_id: 0,
-                  agent_id: 0,
-                  status: "pickup",
-                  transactionReference: "",
-                  amount: amountDueToSend,
-                  departure_city: "Yaoundé",
-                  departure_region: "Centre",
-                  departure_street: pickupStreet || "—",
-                  destination_city: "Yaoundé",
-                  destination_region: "Centre",
-                  destination_street: dropoffStreet || "—",
-                });
-                const createdId = created?.id ?? created?.data?.id;
+                const created = await createTransaction(
+                  buildPayloadFromPickupResume({
+                    forExpedition,
+                    packageName: itemName.trim().length ? itemName.trim() : "Colis",
+                    description: descriptionToSend,
+                    phone: phone.trim(),
+                    receiverName: expeditionClient?.clientName,
+                    express,
+                    collectCash,
+                    amount: forExpedition
+                      ? collectCash === "yes"
+                        ? Math.max(0, Math.round(amount))
+                        : 0
+                      : amountDueToSend,
+                    quantity: qty > 0 ? qty : 1,
+                    pickupStreet: pickupStreet || "—",
+                    pickupLandmark: pickupPickupLandmark.trim() || undefined,
+                    dropoffStreet: dropoffStreet || "—",
+                    dropoffLandmark: pickupDropoffLandmark.trim() || undefined,
+                  }),
+                );
+                const createdId = created?.id ?? created?.data?.id ?? created?.transactionReference;
                 router.push({
                   pathname: "/confirmee",
-                  params: { id: createdId ? String(createdId) : "" },
+                  params: {
+                    id: createdId ? String(createdId) : "",
+                    ...(forExpedition ? { flow: "expedition" } : {}),
+                  },
                 });
               } catch (e: any) {
-                Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer la livraison."));
+                Alert.alert(
+                  "Erreur",
+                  String(e?.message ?? e ?? (forExpedition ? "Impossible de créer l'expédition." : "Impossible de créer la livraison.")),
+                );
               }
             }}
           />

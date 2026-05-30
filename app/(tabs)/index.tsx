@@ -10,7 +10,9 @@ import TransactionCard, { type TransactionCardItem } from "../../components/Tran
 import PromoBanner from "../../components/PromoBanner";
 import CategoryGrid, { type CategoryItem } from "../../components/CategoryGrid";
 import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
+import { getTransactionNavigationId, mapTxnStatusToUi as mapTxnStatusBucket, txnModeLabelFromTransaction } from "@/lib/api/transactionMapping";
 import { getUserById, type User } from "@/lib/api/users";
+import { DEV_USER_ID } from "@/lib/config/env";
  
 const CATEGORIES: CategoryItem[] = [
   { title: "Livraison", iconName: "solar:delivery-bold-duotone", onPress: () => router.push("/ma-demande-livraison") },
@@ -30,10 +32,7 @@ function formatDateLabel(iso?: string): string {
 }
 
 function mapTxnStatusToUi(status?: string): "En cours" | "Livré" | "Annulé" {
-  const s = String(status ?? "").trim().toLowerCase();
-  if (["delivered", "completed", "complete", "done", "success"].includes(s)) return "Livré";
-  if (["cancelled", "canceled", "failed", "rejected", "expired", "aborted"].includes(s)) return "Annulé";
-  return "En cours";
+  return mapTxnStatusBucket(status ?? "");
 }
 
 function moneyLabel(amount?: number): string {
@@ -45,27 +44,20 @@ function txnTypeLabel(type?: string): string {
   const t = String(type ?? "").trim().toLowerCase();
   if (t === "expedition") return "Expédition";
   if (t === "delivery" || t === "livraison") return "Livraison";
-  // Backwards-compat: backend may still send type="pickup" for ramassage flows.
-  // Ramassage is a mode; keep the visible "type" as Livraison.
   if (t === "pickup") return "Livraison";
   return t.length ? t : "";
 }
 
 function txnModeLabel(tx: Transaction): string {
-  const mode = String((tx as any).mode ?? "").trim().toLowerCase();
-  if (mode === "pickup") return "Ramassage";
-  if (mode === "stock") return "Stock";
-  const t = String((tx as any).type ?? "").trim().toLowerCase();
-  if (t === "pickup") return "Ramassage";
-  return "";
+  return txnModeLabelFromTransaction(tx);
 }
 
 function mapTransactionToOrder(tx: Transaction): TransactionCardItem {
-  const id = String(tx.id ?? "");
+  const id = getTransactionNavigationId(tx);
   const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
   const titleBase = String(tx.package_name ?? "Colis");
   const title = qty > 1 && !titleBase.includes("x") ? `${titleBase} x${qty}` : titleBase;
-  const destStreet = typeof tx.destination?.street === "string" ? tx.destination.street : String((tx as any).destination_street ?? "");
+  const destStreet = typeof tx.destination?.street === "string" ? tx.destination.street : String(tx.destination_street ?? "");
   const quartier = destStreet.split("—")[0]?.trim() || destStreet.trim() || "—";
   const amount = Number(tx.amount ?? 0);
 
@@ -78,7 +70,7 @@ function mapTransactionToOrder(tx: Transaction): TransactionCardItem {
     status: mapTxnStatusToUi(tx.status),
     amountLabel: moneyLabel(amount),
     paymentLabel: amount > 0 ? "ESPÈCES" : "—",
-    typeLabel: txnTypeLabel((tx as any).type),
+    typeLabel: txnTypeLabel(tx.type),
     modeLabel: txnModeLabel(tx),
   };
 }
@@ -116,7 +108,7 @@ export default function AccueilScreen() {
     let mounted = true;
     (async () => {
       try {
-        const data = await getUserById(1);
+        const data = await getUserById(DEV_USER_ID);
         if (!mounted) return;
         setUser(data);
       } catch {

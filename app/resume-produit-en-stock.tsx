@@ -11,6 +11,7 @@ import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
 import { createTransaction } from "@/lib/api/deliveries";
+import { buildPayloadFromStockResume } from "@/lib/api/transactionMapping";
 
 type SelectedItem = { id: string; name: string; qty: number };
 
@@ -198,88 +199,51 @@ export default function ResumeProduitEnStockScreen() {
             label="Confirmer la commande"
             onPress={async () => {
               await hapticSuccess();
-              if (forExpedition) {
-                const first = items[0];
-                const itemsLine = first ? `${first.name} x${first.qty}` : "";
-                const descriptionToSend = "Aucune description donnée";
-                const departureStreet = [expAgence.trim(), expPickupAddress.trim()].filter(Boolean).join(" — ") || expeditionClient?.address?.trim() || "—";
-                const quartierLine = (deliveryQuartier || deliveryAddress || quartier || "").trim();
-                const destinationStreet =
-                  [quartierLine, deliveryLandmark.trim()].filter(Boolean).join(" — ") || quartierLine || "—";
-                const city = quartier.trim() || "Yaoundé";
-
-                try {
-                  const created = await createTransaction({
-                    package_name: itemsLine,
-                    description: descriptionToSend,
-                    weight: null,
-                    type: "expedition",
-                    mode: "stock",
-                    express: false,
-                    collect_cash: false,
-                    quantity: first?.qty ?? 1,
-                    receiver_phone: phone.trim(),
-                    receiver_name: expeditionClient?.clientName?.trim() || undefined,
-                    driver_id: 0,
-                    agent_id: 0,
-                    status: "pending",
-                    transactionReference: "",
-                    amount: 0,
-                    departure_city: city,
-                    departure_region: "Centre",
-                    departure_street: departureStreet,
-                    destination_city: city,
-                    destination_region: "Centre",
-                    destination_street: destinationStreet,
-                  });
-                  const createdId = created?.id ?? created?.data?.id;
-                  router.push({
-                    pathname: "/confirmee",
-                    params: { id: createdId ? String(createdId) : "", flow: "expedition" },
-                  });
-                } catch (e: any) {
-                  Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer l'expédition."));
-                }
-                return;
-              }
-
               const first = items[0];
               const itemsLine = first ? `${first.name} x${first.qty}` : "";
               const quartierLine = (deliveryQuartier || deliveryAddress || quartier || "").trim();
-              const destinationStreet = [quartierLine, deliveryLandmark.trim()].filter(Boolean).join(" — ") || quartierLine || "—";
               const amountDueNumber =
                 collectCash === "yes" && Number.isFinite(amountDue) ? Math.max(0, Math.round(amountDue)) : 0;
               const amountDueFallback = Math.max(0, Math.round(totalXaf));
               const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
               const descriptionToSend = notes.trim().length ? notes.trim() : "Aucune description donnée";
+              const departureStreet = forExpedition
+                ? [expAgence.trim(), expPickupAddress.trim()].filter(Boolean).join(" — ") || expeditionClient?.address?.trim() || "—"
+                : "Agence | Ongola Express";
+              const city = forExpedition ? quartier.trim() || "Yaoundé" : "Yaoundé";
 
               try {
-                const created = await createTransaction({
-                  package_name: itemsLine,
-                  description: descriptionToSend,
-                  weight: "",
-                  type: "livraison",
-                  quantity: first?.qty ?? 1,
-                  receiver_phone: phone.trim(),
-                  driver_id: 0,
-                  agent_id: 0,
-                  status: "pending",
-                  transactionReference: "",
-                  amount: amountDueToSend,
-                  departure_city: "Yaoundé",
-                  departure_region: "Centre",
-                  departure_street: "Agence | Ongola Express",
-                  destination_city: "Yaoundé",
-                  destination_region: "Centre",
-                  destination_street: destinationStreet,
-                });
-                const createdId = created?.id ?? created?.data?.id;
+                const created = await createTransaction(
+                  buildPayloadFromStockResume({
+                    forExpedition,
+                    itemsLine,
+                    description: forExpedition ? "Aucune description donnée" : descriptionToSend,
+                    phone: phone.trim(),
+                    receiverName: expeditionClient?.clientName,
+                    express: forExpedition ? "no" : express,
+                    collectCash: forExpedition ? "no" : collectCash,
+                    amount: forExpedition ? 0 : amountDueToSend,
+                    quantity: first?.qty ?? 1,
+                    destinationQuartier: quartierLine || "—",
+                    destinationLandmark: deliveryLandmark.trim(),
+                    departureCity: city,
+                    departureStreet,
+                    destinationCity: city,
+                  }),
+                );
+                const createdId = created?.id ?? created?.data?.id ?? created?.transactionReference;
                 router.push({
                   pathname: "/confirmee",
-                  params: { id: createdId ? String(createdId) : "" },
+                  params: {
+                    id: createdId ? String(createdId) : "",
+                    ...(forExpedition ? { flow: "expedition" } : {}),
+                  },
                 });
               } catch (e: any) {
-                Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de créer la livraison."));
+                Alert.alert(
+                  "Erreur",
+                  String(e?.message ?? e ?? (forExpedition ? "Impossible de créer l'expédition." : "Impossible de créer la livraison.")),
+                );
               }
             }}
           />

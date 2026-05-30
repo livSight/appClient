@@ -11,6 +11,7 @@ import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../../components/AppText";
 import { getTransactionById, type Transaction } from "@/lib/api/deliveries";
+import { getTransactionNavigationId } from "@/lib/api/transactionMapping";
 
 const WARNING_AMBER = "#F59E0B";
 
@@ -39,15 +40,16 @@ type Delivery = {
 };
 
 function mapTransactionToDelivery(tx: Transaction): Delivery {
-  const id = String(tx.id ?? "");
+  const id = getTransactionNavigationId(tx);
   const reference = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : null;
-  const phone = typeof tx.receiver?.phone === "string" && tx.receiver.phone.trim().length ? tx.receiver.phone.trim() : String(tx.receiver_phone ?? "");
+  const phone =
+    (typeof tx.receiver_phone === "string" && tx.receiver_phone.trim().length ? tx.receiver_phone.trim() : "") ||
+    (typeof tx.receiverData?.phone === "string" ? tx.receiverData.phone.trim() : "");
   const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
   const packageName = String(tx.package_name ?? "Colis");
-  const modeRaw = String((tx as any).mode ?? "").trim().toLowerCase();
-  const typeRaw = String((tx as any).type ?? "").trim().toLowerCase();
+  const typeRaw = String(tx.type ?? "").trim().toLowerCase();
   const service: ServiceKind = typeRaw === "expedition" ? "expedition" : "livraison";
-  const mode: DeliveryMode = modeRaw === "pickup" || typeRaw === "pickup" ? "pickup" : "stock";
+  const mode: DeliveryMode = tx.mode === "pickup" ? "pickup" : "stock";
   const pickupAddress =
     mode === "pickup"
       ? (typeof tx.departure?.street === "string" && tx.departure.street.trim().length
@@ -65,8 +67,8 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
   const deliveryAddress = destinationStreet.length ? destinationStreet : null;
   const notes = typeof tx.description === "string" ? tx.description : null;
   const amount = Number(tx.amount ?? 0);
-  const collectCash = typeof (tx as any).collect_cash === "boolean" ? Boolean((tx as any).collect_cash) : amount > 0;
-  const deliveryType: DeliveryType = Boolean((tx as any).express) ? "express" : "normal";
+  const collectCash = typeof tx.cash_collect === "boolean" ? tx.cash_collect : typeof tx.collect_cash === "boolean" ? tx.collect_cash : amount > 0;
+  const deliveryType: DeliveryType = tx.express ? "express" : "normal";
 
   return {
     id,
@@ -98,14 +100,15 @@ function normalizeStatus(status?: string | null): string {
 function mapBackendStatusToChip(status?: string | null): Chip {
   const s = normalizeStatus(status);
 
-  if (s === "delivered") return { label: "LIVRÉ", color: "#2E7D32", bg: "#EAF7EE" };
+  if (s === "delivered" || s === "completed") return { label: "LIVRÉ", color: "#2E7D32", bg: "#EAF7EE" };
+  if (s === "processing") return { label: "EN COURS", color: colors.primary, bg: "#E0F2FE" };
   if (s === "pickup")
     return {
       label: "AU BUREAU",
       color: colors.primary,
       bg: "#E0F2FE",
     };
-  if (s === "failed" || s === "cancelled") return { label: "ANNULÉ", color: "#D32F2F", bg: "#FCECEC" };
+  if (s === "failed" || s === "cancelled" || s === "canceled") return { label: "ANNULÉ", color: "#D32F2F", bg: "#FCECEC" };
 
   // Issue / warning states
   if (

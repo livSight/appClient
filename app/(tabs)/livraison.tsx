@@ -7,6 +7,7 @@ import TransactionCard, { type TransactionCardItem } from "../../components/Tran
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
 import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
+import { getTransactionNavigationId, mapTxnStatusToUi as mapTxnStatusBucket, txnModeLabelFromTransaction } from "@/lib/api/transactionMapping";
 
 type Status = "Tout" | "En cours" | "Livré" | "Annulé";
 
@@ -20,33 +21,6 @@ function formatDateLabel(iso?: string): string {
   }
 }
 
-function mapTxnStatusToUi(status?: string): Status {
-  const s = String(status ?? "").trim().toLowerCase();
-  // Backend statuses can evolve; we map them into the 3 UI buckets.
-  // EN COURS: pending / pickup / in_progress / assigned / accepted / processing / created
-  // LIVRÉ: delivered / completed / done
-  // ANNULÉ: cancelled / failed / rejected / expired
-  if (["delivered", "completed", "complete", "done", "success"].includes(s)) return "Livré";
-  if (["cancelled", "canceled", "failed", "rejected", "expired", "aborted"].includes(s)) return "Annulé";
-  if (
-    [
-      "pending",
-      "pickup",
-      "in_progress",
-      "inprogress",
-      "assigned",
-      "accepted",
-      "processing",
-      "created",
-      "new",
-      "started",
-      "",
-    ].includes(s)
-  )
-    return "En cours";
-  return "En cours";
-}
-
 function moneyLabel(amount?: number): string {
   const n = Number.isFinite(Number(amount)) ? Math.max(0, Math.round(Number(amount))) : 0;
   return `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA`;
@@ -56,30 +30,22 @@ function txnTypeLabel(type?: string): string {
   const t = String(type ?? "").trim().toLowerCase();
   if (t === "expedition") return "Expédition";
   if (t === "delivery" || t === "livraison") return "Livraison";
-  // Backwards-compat: backend may still send type="pickup" for ramassage flows.
-  // Ramassage is a mode; keep the visible "type" as Livraison.
   if (t === "pickup") return "Livraison";
   return t.length ? t : "";
 }
 
 function txnModeLabel(tx: Transaction): string {
-  const mode = String((tx as any).mode ?? "").trim().toLowerCase();
-  if (mode === "pickup") return "Ramassage";
-  if (mode === "stock") return "Stock";
-  // Backwards-compat if backend encodes pickup in "type"
-  const t = String((tx as any).type ?? "").trim().toLowerCase();
-  if (t === "pickup") return "Ramassage";
-  return "";
+  return txnModeLabelFromTransaction(tx);
 }
 
 function mapTransactionToOrder(tx: Transaction): TransactionCardItem {
-  const id = String(tx.id ?? "");
+  const id = getTransactionNavigationId(tx);
   const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
   const titleBase = String(tx.package_name ?? "Colis");
   const title = qty > 1 && !titleBase.includes("x") ? `${titleBase} x${qty}` : titleBase;
   const destStreet = typeof tx.destination?.street === "string" ? tx.destination.street : String(tx.destination_street ?? "");
   const quartier = destStreet.split("—")[0]?.trim() || destStreet.trim() || "—";
-  const statusUi = mapTxnStatusToUi(tx.status);
+  const statusUi = mapTxnStatusBucket(tx.status);
   const amount = Number(tx.amount ?? 0);
 
   return {
@@ -88,10 +54,10 @@ function mapTransactionToOrder(tx: Transaction): TransactionCardItem {
     title,
     quartier,
     dateLabel: formatDateLabel(tx.created_at),
-    status: statusUi === "En cours" ? "En cours" : statusUi === "Livré" ? "Livré" : "Annulé",
+    status: statusUi,
     amountLabel: moneyLabel(amount),
     paymentLabel: amount > 0 ? "ESPÈCES" : "—",
-    typeLabel: txnTypeLabel((tx as any).type),
+    typeLabel: txnTypeLabel(tx.type),
     modeLabel: txnModeLabel(tx),
   };
 }

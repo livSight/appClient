@@ -7,6 +7,7 @@ import SolarIcon from "@/components/SolarIcon";
 import { card } from "@/theme/styles";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
 import { getUserById, type User } from "@/lib/api/users";
+import { DEV_USER_ID } from "@/lib/config/env";
 
 type UserDetails = User & {
   city?: string;
@@ -106,7 +107,7 @@ export default function MesInformationsScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getUserById(1);
+      const data = await getUserById(DEV_USER_ID);
       setUser(data as UserDetails);
     } catch (e: any) {
       setUser(null);

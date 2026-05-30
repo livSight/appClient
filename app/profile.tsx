@@ -8,6 +8,7 @@ import { colors, fonts, typography } from "../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../components/AppText";
 import { getUserById, type User } from "@/lib/api/users";
+import { DEV_USER_ID } from "@/lib/config/env";
 
 function SettingRow({
   iconName,
@@ -78,7 +79,7 @@ export default function ProfileScreen() {
     let mounted = true;
     (async () => {
       try {
-        const data = await getUserById(1);
+        const data = await getUserById(DEV_USER_ID);
         if (!mounted) return;
         setUser(data);
       } catch {

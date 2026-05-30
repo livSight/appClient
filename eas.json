@@ -8,7 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_HOST": "https://birgit-genty-collette.ngrok-free.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "http://156.67.27.35:8085",
+        "EXPO_PUBLIC_DEV_USER_ID": "3"
       },
       "android": {
         "buildType": "apk"
@@ -20,13 +21,19 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_HOST": "https://birgit-genty-collette.ngrok-free.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "http://156.67.27.35:8085",
+        "EXPO_PUBLIC_DEV_USER_ID": "3"
       },
       "android": {
         "buildType": "apk"
       }
     },
-    "production": {}
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://156.67.27.35:8085",
+        "EXPO_PUBLIC_DEV_USER_ID": "3"
+      }
+    }
   },
   "submit": {
     "production": {}

@@ -12,6 +12,7 @@ import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../../components/AppText";
 import { getTransactionById, type Transaction } from "@/lib/api/deliveries";
+import { getTransactionNavigationId } from "@/lib/api/transactionMapping";
 
 type Expedition = {
   id: string;
@@ -44,19 +45,20 @@ function toE164Cameroon(phoneRaw: string): string | null {
 }
 
 function mapTransactionToExpedition(tx: Transaction): Expedition {
-  const id = String(tx.id ?? "");
+  const id = getTransactionNavigationId(tx);
   const reference = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : null;
   const receiverPhone =
-    (typeof tx.receiver?.phone === "string" && tx.receiver.phone.trim().length ? tx.receiver.phone.trim() : "") || String((tx as any).receiver_phone ?? "");
-  const receiverName = typeof (tx as any).receiver_name === "string" && (tx as any).receiver_name.trim().length ? (tx as any).receiver_name.trim() : null;
-  const amount = Number((tx as any).amount ?? 0);
-  const collectCash = typeof (tx as any).collect_cash === "boolean" ? Boolean((tx as any).collect_cash) : amount > 0;
-  const express = Boolean((tx as any).express);
+    (typeof tx.receiver_phone === "string" && tx.receiver_phone.trim().length ? tx.receiver_phone.trim() : "") ||
+    (typeof tx.receiverData?.phone === "string" ? tx.receiverData.phone.trim() : "");
+  const receiverName = typeof tx.receiver_name === "string" && tx.receiver_name.trim().length ? tx.receiver_name.trim() : null;
+  const amount = Number(tx.amount ?? 0);
+  const collectCash = typeof tx.cash_collect === "boolean" ? tx.cash_collect : typeof tx.collect_cash === "boolean" ? tx.collect_cash : amount > 0;
+  const express = Boolean(tx.express);
 
-  const departureCity = typeof tx.departure?.city === "string" ? tx.departure.city : String((tx as any).departure_city ?? "");
-  const departureStreet = typeof tx.departure?.street === "string" ? tx.departure.street : String((tx as any).departure_street ?? "");
-  const destinationCity = typeof tx.destination?.city === "string" ? tx.destination.city : String((tx as any).destination_city ?? "");
-  const destinationStreet = typeof tx.destination?.street === "string" ? tx.destination.street : String((tx as any).destination_street ?? "");
+  const departureCity = typeof tx.departure?.city === "string" ? tx.departure.city : String(tx.departure_city ?? "");
+  const departureStreet = typeof tx.departure?.street === "string" ? tx.departure.street : String(tx.departure_street ?? "");
+  const destinationCity = typeof tx.destination?.city === "string" ? tx.destination.city : String(tx.destination_city ?? "");
+  const destinationStreet = typeof tx.destination?.street === "string" ? tx.destination.street : String(tx.destination_street ?? "");
 
   return {
     id,

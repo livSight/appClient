@@ -9,6 +9,7 @@ import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, spacing, typography } from "@/theme/tokens";
 import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
+import { getTransactionNavigationId } from "@/lib/api/transactionMapping";
 
 export default function ConversationsScreen() {
   const [query, setQuery] = useState("");
@@ -51,7 +52,7 @@ export default function ConversationsScreen() {
   }
 
   function mapTxnToConversation(tx: Transaction): ConversationItem | null {
-    const id = String(tx.id ?? "");
+    const id = getTransactionNavigationId(tx);
     if (!id) return null;
 
     const ref = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : `TR-${id}`;
