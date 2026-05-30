@@ -11,8 +11,7 @@ import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../../components/AppText";
-import { getTransactionById, type Transaction } from "@/lib/api/deliveries";
-import { getTransactionNavigationId } from "@/lib/api/transactionMapping";
+import { getTransactionById, getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
 
 type Expedition = {
   id: string;

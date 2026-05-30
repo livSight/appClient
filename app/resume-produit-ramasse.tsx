@@ -10,8 +10,7 @@ import { card } from "../theme/styles";
 import { colors, fonts, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
-import { createTransaction } from "@/lib/api/deliveries";
-import { buildPayloadFromPickupResume } from "@/lib/api/transactionMapping";
+import { createTransaction, buildPayloadFromPickupResume } from "@/lib/api/transactions";
 
 type Params = {
   quartier?: string; // legacy

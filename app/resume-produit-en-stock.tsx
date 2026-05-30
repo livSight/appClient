@@ -10,8 +10,7 @@ import { card } from "../theme/styles";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
-import { createTransaction } from "@/lib/api/deliveries";
-import { buildPayloadFromStockResume } from "@/lib/api/transactionMapping";
+import { createTransaction, buildPayloadFromStockResume } from "@/lib/api/transactions";
 
 type SelectedItem = { id: string; name: string; qty: number };
 

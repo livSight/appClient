@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import ScreenLayout from "../../components/ScreenLayout";
 import SectionHeader from "../../components/SectionHeader";
@@ -9,10 +10,14 @@ import HomeTopBar from "../../components/HomeTopBar";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import PromoBanner from "../../components/PromoBanner";
 import CategoryGrid, { type CategoryItem } from "../../components/CategoryGrid";
-import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
-import { getTransactionNavigationId, mapTxnStatusToUi as mapTxnStatusBucket, txnModeLabelFromTransaction } from "@/lib/api/transactionMapping";
-import { getUserById, type User } from "@/lib/api/users";
-import { DEV_USER_ID } from "@/lib/config/env";
+import {
+  listTransactions,
+  getTransactionNavigationId,
+  mapTxnStatusToUi as mapTxnStatusBucket,
+  txnModeLabelFromTransaction,
+  type Transaction,
+} from "@/lib/api/transactions";
+import { getCurrentUser, type User } from "@/lib/api/users";
  
 const CATEGORIES: CategoryItem[] = [
   { title: "Livraison", iconName: "solar:delivery-bold-duotone", onPress: () => router.push("/ma-demande-livraison") },
@@ -81,45 +86,44 @@ export default function AccueilScreen() {
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await listTransactionsForDevUser();
-        if (!mounted) return;
-        setTxns(data);
-      } catch (e: any) {
-        if (!mounted) return;
-        setError(String(e?.message ?? e ?? "Erreur"));
-        setTxns([]);
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+  const loadTransactions = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await listTransactions();
+      setTxns(data);
+    } catch (e: unknown) {
+      setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
+      setTxns([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const data = await getUserById(DEV_USER_ID);
-        if (!mounted) return;
-        setUser(data);
-      } catch {
-        if (!mounted) return;
-        setUser(null);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      void loadTransactions();
+    }, [loadTransactions]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const data = await getCurrentUser();
+          if (!mounted) return;
+          setUser(data);
+        } catch {
+          if (!mounted) return;
+          setUser(null);
+        }
+      })();
+      return () => {
+        mounted = false;
+      };
+    }, []),
+  );
 
   const displayName = useMemo(() => {
     const first = String(user?.first_name ?? "").trim();
@@ -210,18 +214,7 @@ export default function AccueilScreen() {
               </AppText>
               <Pressable
                 onPress={() => {
-                  setLoading(true);
-                  setError(null);
-                  void (async () => {
-                    try {
-                      const data = await listTransactionsForDevUser();
-                      setTxns(data);
-                    } catch (e: any) {
-                      setError(String(e?.message ?? e ?? "Erreur"));
-                    } finally {
-                      setLoading(false);
-                    }
-                  })();
+                  void loadTransactions();
                 }}
                 style={{ marginTop: 14, alignSelf: "flex-start" }}
                 hitSlop={10}

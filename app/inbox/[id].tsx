@@ -6,7 +6,7 @@ import AppTextInput from "@/components/AppTextInput";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
-import { getTransactionById, type Transaction } from "@/lib/api/deliveries";
+import { getTransactionById, type Transaction } from "@/lib/api/transactions";
 
 type TxInfo = {
   ref: string;

@@ -1,0 +1,61 @@
+---
+description: TDD is mandatory for all new and changed behavior — Red, Green, Refactor on every feature
+alwaysApply: true
+---
+
+# Test-Driven Development (mandatory)
+
+**TDD must be used throughout the writing of code** — not only for auth. Every new behavior, bug fix, or refactor that changes logic needs tests first (or updated tests first).
+
+Phased auth work is tracked in `docs/auth-tdd-phases.md`. Follow that doc for auth; apply the same TDD discipline everywhere else.
+
+## Red → Green → Refactor (always)
+
+1. **Red** — Write a failing test that describes the desired behavior (function, hook, API client, or component).
+2. **Green** — Write the **minimum** code to make the test pass.
+3. **Refactor** — Clean up while keeping tests green. Do not skip tests to “move faster.”
+
+## Before implementing
+
+- Check if a test file already exists under `__tests__/` (mirror `lib/` or `app/` structure).
+- Run `npm test` before and after changes.
+- Mock externals in `__tests__/setup.ts` or per-file: `fetch`, `expo-secure-store`, `@/lib/logger`.
+
+## Where tests live
+
+| Source | Tests |
+|---|---|
+| `lib/auth/*.ts` | `__tests__/auth/*.test.ts` |
+| `lib/api/*.ts` | `__tests__/api/*.test.ts` |
+| `lib/**/*.ts` | `__tests__/lib/**/*.test.ts` |
+| Components / screens | `__tests__/**/*.test.tsx` with `@testing-library/react-native` |
+
+## What to test
+
+- **Pure logic** — mappers, parsers, JWT helpers, session rules (unit tests).
+- **API clients** — mock `fetch`; assert URL, method, headers, body (unit tests).
+- **UI** — render, user actions, error/loading states (component tests).
+- **Do not** add tests that only assert implementation details or trivial getters.
+
+## Commands
+
+```bash
+npm test              # must pass before finishing a task
+npm run test:watch    # while developing
+npm run test:coverage # when touching lib/
+```
+
+## Agent / PR checklist
+
+- [ ] Failing test written **before** production code (or existing test updated first).
+- [ ] `npm test` passes.
+- [ ] No new `console.log` in app code (use `@/lib/logger`).
+- [ ] Auth/API phases updated in `docs/auth-tdd-phases.md` when a phase is completed.
+
+## Exceptions (rare — ask first)
+
+- Pure styling/layout with no logic change.
+- Config-only edits (e.g. `eas.json`) with no testable behavior.
+- Exploratory spikes — must be followed by tests before merge.
+
+When in doubt: **write the test first.**

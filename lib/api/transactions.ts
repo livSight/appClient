@@ -1,7 +1,14 @@
+import { API_BASE_URL } from "@/lib/config/api";
+import { logger } from "@/lib/logger";
+import { apiFetch } from "@/lib/api/client";
+import { authSession } from "@/lib/auth/session";
+import { getDefaultTransactionImagePart } from "@/lib/api/transactionImage";
+
 export type UiMode = "stock" | "pickup";
 export type TransactionSource = "instocke" | "pick_up";
 
-export type CreateTransactionPayload = {
+/** Request body for POST /api/transactions (matches backend TransactionRequest). */
+export type TransactionRequest = {
   package_name: string;
   description: string;
   destination_street: string;
@@ -29,7 +36,7 @@ export type CreateTransactionPayload = {
   imageUri?: string;
 };
 
-export type ParsedTransaction = {
+export type Transaction = {
   id?: string | number;
   package_name?: string;
   description?: string;
@@ -70,6 +77,33 @@ export type ParsedTransaction = {
   collect_cash?: boolean;
 };
 
+type ApiError = { success?: false; error?: string; message?: string };
+
+function parseResponseText(rawText: string): any {
+  if (!rawText.length) return null;
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return rawText;
+  }
+}
+
+function errorMessageFrom(resStatus: number, data: any, rawText: string): string {
+  return (
+    (data as ApiError | null)?.message ||
+    (data && typeof data === "string" ? data : null) ||
+    (rawText && typeof rawText === "string" ? rawText : null) ||
+    `HTTP ${resStatus}`
+  );
+}
+
+function normalizeListResponse(data: any): any[] {
+  if (Array.isArray(data)) return data;
+  const inner = data?.data;
+  if (Array.isArray(inner)) return inner;
+  return [];
+}
+
 export function mapUiModeToSource(mode: UiMode): TransactionSource {
   return mode === "pickup" ? "pick_up" : "instocke";
 }
@@ -78,11 +112,19 @@ export function mapExpressToServiceLevel(express: "yes" | "no"): string {
   return express === "yes" ? "express" : "standard";
 }
 
+/**
+ * Backend `Source` enum rejects client strings like `instocke` / `pick_up` (verified Phase 12).
+ * Omit `source` on multipart POST — server accepts the request when `type` is set.
+ */
+export function resolveApiSourceField(_source?: TransactionSource): string | undefined {
+  return undefined;
+}
+
 export function isTransactionReference(id: string): boolean {
   return /^LVS-/i.test(id.trim());
 }
 
-export function getTransactionNavigationId(tx: ParsedTransaction): string {
+export function getTransactionNavigationId(tx: Transaction): string {
   if (tx.id != null && String(tx.id).trim().length) return String(tx.id);
   if (tx.transactionReference?.trim()) return tx.transactionReference.trim();
   return "";
@@ -99,14 +141,26 @@ function appendFormField(form: FormData, key: string, value: string | number | b
   form.append(key, s);
 }
 
-export function buildTransactionFormData(payload: CreateTransactionPayload): FormData {
+function appendTransactionImage(form: FormData, imageUri?: string) {
+  if (imageUri?.trim()) {
+    const uri = imageUri.trim();
+    const name = uri.split("/").pop() || "photo.jpg";
+    form.append("image", { uri, name, type: "image/jpeg" } as unknown as Blob);
+    return;
+  }
+
+  const placeholder = getDefaultTransactionImagePart();
+  form.append("image", placeholder as unknown as Blob);
+}
+
+export function buildTransactionFormData(payload: TransactionRequest): FormData {
   const form = new FormData();
   appendFormField(form, "package_name", payload.package_name);
   appendFormField(form, "description", payload.description);
   appendFormField(form, "destination_street", payload.destination_street);
   appendFormField(form, "receiver_name", payload.receiver_name);
   appendFormField(form, "receiver_phone", payload.receiver_phone);
-  appendFormField(form, "source", payload.source);
+  appendFormField(form, "source", resolveApiSourceField(payload.source));
   appendFormField(form, "type", payload.type);
   appendFormField(form, "quantity", payload.quantity);
   appendFormField(form, "amount", payload.amount);
@@ -126,11 +180,7 @@ export function buildTransactionFormData(payload: CreateTransactionPayload): For
   appendFormField(form, "agent_id", payload.agent_id);
   appendFormField(form, "transactionReference", payload.transactionReference);
 
-  if (payload.imageUri?.trim()) {
-    const uri = payload.imageUri.trim();
-    const name = uri.split("/").pop() || "photo.jpg";
-    form.append("image", { uri, name, type: "image/jpeg" } as unknown as Blob);
-  }
+  appendTransactionImage(form, payload.imageUri);
 
   return form;
 }
@@ -145,7 +195,7 @@ function sourceToUiMode(source: unknown, type?: unknown): UiMode | undefined {
   return undefined;
 }
 
-export function parseTransaction(raw: any): ParsedTransaction {
+export function parseTransaction(raw: any): Transaction {
   const receiverData = raw?.receiverData ?? raw?.receiver;
   const departure = raw?.departure;
   const destination = raw?.destination;
@@ -207,10 +257,10 @@ export function parseTransaction(raw: any): ParsedTransaction {
     collect_cash: cash_collect ?? undefined,
     mode,
     express,
-  } as ParsedTransaction;
+  } as Transaction;
 }
 
-export function txnModeLabelFromTransaction(tx: ParsedTransaction): string {
+export function txnModeLabelFromTransaction(tx: Transaction): string {
   if (tx.mode === "pickup") return "Ramassage";
   if (tx.mode === "stock") return "Stock";
   const source = String(tx.source ?? "").trim().toLowerCase();
@@ -252,7 +302,7 @@ export type StockResumePayloadInput = {
   destinationRegion?: string;
 };
 
-export function buildPayloadFromStockResume(input: StockResumePayloadInput): CreateTransactionPayload {
+export function buildPayloadFromStockResume(input: StockResumePayloadInput): TransactionRequest {
   const destination_street = input.destinationQuartier.trim() || "—";
   return {
     package_name: input.itemsLine.trim() || "Colis",
@@ -294,7 +344,7 @@ export type PickupResumePayloadInput = {
   region?: string;
 };
 
-export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): CreateTransactionPayload {
+export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): TransactionRequest {
   return {
     package_name: input.packageName.trim() || "Colis",
     description: input.description.trim() || "Aucune description donnée",
@@ -316,4 +366,90 @@ export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): C
     destination_city: input.city ?? "Yaoundé",
     destination_region: input.region ?? "Centre",
   };
+}
+
+export async function createTransaction(input: TransactionRequest) {
+  const sessionUser = await authSession.getSessionUser();
+  if (!sessionUser?.keycloakId) {
+    throw new Error("Session expirée. Reconnectez-vous pour créer une transaction.");
+  }
+
+  const url = `${API_BASE_URL}/api/transactions`;
+  const form = buildTransactionFormData(input);
+
+  logger.info("createTransaction", "POST /api/transactions (multipart)", {
+    url,
+    source: input.source,
+    type: input.type,
+    keycloakId: sessionUser.keycloakId,
+  });
+
+  const res = await apiFetch(url, {
+    method: "POST",
+    body: form,
+    headers: {
+      "X-User-Id": sessionUser.keycloakId,
+    },
+  });
+
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (!res.ok) {
+    logger.info("createTransaction", "POST /api/transactions failed", { status: res.status, body: data ?? rawText });
+    throw new Error(errorMessageFrom(res.status, data, rawText));
+  }
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>;
+    if (typeof record.transactionReference === "string" && record.transactionReference.trim()) {
+      return parseTransaction(record);
+    }
+    if (record.data && typeof record.data === "object") {
+      return parseTransaction(record.data);
+    }
+  }
+
+  const refreshed = await listTransactions();
+  return refreshed[refreshed.length - 1] ?? data;
+}
+
+export async function listTransactions() {
+  const url = `${API_BASE_URL}/api/transactions`;
+  logger.info("listTransactions", "GET /api/transactions", { url });
+
+  const res = await apiFetch(url, { method: "GET" });
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (!res.ok) {
+    logger.info("listTransactions", "GET /api/transactions failed", { status: res.status, body: data ?? rawText });
+    throw new Error(errorMessageFrom(res.status, data, rawText));
+  }
+
+  const all = normalizeListResponse(data);
+  return all.map((t) => parseTransaction(t));
+}
+
+export async function getTransactionById(id: string | number) {
+  const idStr = String(id).trim();
+  const url = isTransactionReference(idStr)
+    ? `${API_BASE_URL}/api/transactions/reference?transactionReference=${encodeURIComponent(idStr)}`
+    : `${API_BASE_URL}/api/transactions/${encodeURIComponent(idStr)}`;
+
+  logger.info("getTransaction", isTransactionReference(idStr) ? "GET /api/transactions/reference" : "GET /api/transactions/:id", {
+    url,
+    id: idStr,
+  });
+
+  const res = await apiFetch(url, { method: "GET" });
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (!res.ok) {
+    logger.info("getTransaction", "GET transaction failed", { status: res.status, body: data ?? rawText });
+    throw new Error(errorMessageFrom(res.status, data, rawText));
+  }
+
+  return parseTransaction(data?.data ?? data);
 }

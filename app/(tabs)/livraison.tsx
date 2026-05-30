@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
-import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
-import { getTransactionNavigationId, mapTxnStatusToUi as mapTxnStatusBucket, txnModeLabelFromTransaction } from "@/lib/api/transactionMapping";
+import {
+  listTransactions,
+  getTransactionNavigationId,
+  mapTxnStatusToUi as mapTxnStatusBucket,
+  txnModeLabelFromTransaction,
+  type Transaction,
+} from "@/lib/api/transactions";
 
 type Status = "Tout" | "En cours" | "Livré" | "Annulé";
 
@@ -103,27 +109,24 @@ export default function LivraisonScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await listTransactionsForDevUser();
-        if (!mounted) return;
-        setTxns(data);
-      } catch (e: any) {
-        if (!mounted) return;
-        setError(String(e?.message ?? e ?? "Erreur"));
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+  const loadTransactions = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await listTransactions();
+      setTxns(data);
+    } catch (e: unknown) {
+      setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadTransactions();
+    }, [loadTransactions]),
+  );
 
   const allOrders = useMemo(() => txns.map(mapTransactionToOrder).filter((o) => o.id.length > 0), [txns]);
   const orders = useMemo(() => {
@@ -197,18 +200,7 @@ export default function LivraisonScreen() {
           </AppText>
           <Pressable
             onPress={() => {
-              setLoading(true);
-              setError(null);
-              void (async () => {
-                try {
-                  const data = await listTransactionsForDevUser();
-                  setTxns(data);
-                } catch (e: any) {
-                  setError(String(e?.message ?? e ?? "Erreur"));
-                } finally {
-                  setLoading(false);
-                }
-              })();
+              void loadTransactions();
             }}
             style={{
               marginTop: 14,

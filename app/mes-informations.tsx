@@ -6,8 +6,7 @@ import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { card } from "@/theme/styles";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
-import { getUserById, type User } from "@/lib/api/users";
-import { DEV_USER_ID } from "@/lib/config/env";
+import { getCurrentUser, type User } from "@/lib/api/users";
 
 type UserDetails = User & {
   city?: string;
@@ -107,7 +106,7 @@ export default function MesInformationsScreen() {
     try {
       setLoading(true);
       setError(null);
-      const data = await getUserById(DEV_USER_ID);
+      const data = await getCurrentUser();
       setUser(data as UserDetails);
     } catch (e: any) {
       setUser(null);

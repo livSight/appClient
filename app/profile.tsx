@@ -7,8 +7,8 @@ import { card } from "../theme/styles";
 import { colors, fonts, typography } from "../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../components/AppText";
-import { getUserById, type User } from "@/lib/api/users";
-import { DEV_USER_ID } from "@/lib/config/env";
+import { getCurrentUser, type User } from "@/lib/api/users";
+import { useAuth } from "@/lib/auth/AuthProvider";
 
 function SettingRow({
   iconName,
@@ -17,6 +17,7 @@ function SettingRow({
   titleColor,
   onPress,
   showChevron = true,
+  testID,
 }: {
   iconName: string;
   iconColor: string;
@@ -24,9 +25,11 @@ function SettingRow({
   titleColor?: string;
   onPress?: () => void;
   showChevron?: boolean;
+  testID?: string;
 }) {
   return (
     <Pressable
+      testID={testID}
       onPress={async () => {
         await hapticLight();
         onPress?.();
@@ -68,18 +71,26 @@ function Divider() {
 }
 
 export default function ProfileScreen() {
+  const { logout } = useAuth();
   const [user, setUser] = useState<User | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  function onLogout() {
-    // UI-only: no session to clear.
-    router.replace("/(tabs)");
+  async function onLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace("/login");
+    } finally {
+      setLoggingOut(false);
+    }
   }
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const data = await getUserById(DEV_USER_ID);
+        const data = await getCurrentUser();
         if (!mounted) return;
         setUser(data);
       } catch {
@@ -199,10 +210,11 @@ export default function ProfileScreen() {
           <SettingRow
             iconName="solar:logout-2-outline"
             iconColor={"#BA1A1A"}
-            title="Déconnexion"
+            title={loggingOut ? "Déconnexion…" : "Déconnexion"}
             titleColor={"#BA1A1A"}
-            onPress={onLogout}
+            onPress={loggingOut ? undefined : onLogout}
             showChevron
+            testID="profile-logout"
           />
         </View>
 

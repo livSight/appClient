@@ -3,6 +3,8 @@ import { Stack, usePathname } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import "../global.css";
 import { usePushNotifications } from "@/lib/push/usePushNotifications";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
+import { useAuthGuard } from "@/lib/auth/useAuthGuard";
 import AppBackground from "@/components/AppBackground";
 import { useFonts } from "expo-font";
 import {
@@ -16,22 +18,13 @@ import {
   Palanquin_700Bold,
 } from "@expo-google-fonts/palanquin";
 
-export default function RootLayout() {
+function RootLayoutNav() {
   const pathname = usePathname();
-  const checking = false;
+  const { showSplash } = useAuthGuard(pathname);
 
-  const [fontsLoaded] = useFonts({
-    Montserrat_400Regular,
-    Montserrat_500Medium,
-    Montserrat_600SemiBold,
-    Montserrat_700Bold,
-    Palanquin_600SemiBold,
-    Palanquin_700Bold,
-  });
+  usePushNotifications(pathname, showSplash);
 
-  usePushNotifications(pathname, checking);
-
-  if (!fontsLoaded) {
+  if (showSplash) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator />
@@ -43,5 +36,30 @@ export default function RootLayout() {
     <AppBackground opacity={0.12}>
       <Stack screenOptions={{ headerShown: false }} />
     </AppBackground>
+  );
+}
+
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Montserrat_400Regular,
+    Montserrat_500Medium,
+    Montserrat_600SemiBold,
+    Montserrat_700Bold,
+    Palanquin_600SemiBold,
+    Palanquin_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  return (
+    <AuthProvider>
+      <RootLayoutNav />
+    </AuthProvider>
   );
 }

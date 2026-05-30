@@ -8,8 +8,7 @@ import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, spacing, typography } from "@/theme/tokens";
-import { listTransactionsForDevUser, type Transaction } from "@/lib/api/deliveries";
-import { getTransactionNavigationId } from "@/lib/api/transactionMapping";
+import { listTransactions, getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
 
 export default function ConversationsScreen() {
   const [query, setQuery] = useState("");
@@ -24,7 +23,7 @@ export default function ConversationsScreen() {
       try {
         setLoading(true);
         setError(null);
-        const data = await listTransactionsForDevUser();
+        const data = await listTransactions();
         if (!mounted) return;
         setTxns(data);
       } catch (e: any) {
@@ -161,7 +160,7 @@ export default function ConversationsScreen() {
                 setError(null);
                 void (async () => {
                   try {
-                    const data = await listTransactionsForDevUser();
+                    const data = await listTransactions();
                     setTxns(data);
                   } catch (e: any) {
                     setError(String(e?.message ?? e ?? "Erreur"));
