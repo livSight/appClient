@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, RefreshControl, ScrollView } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import EmptyStateCard from "../../components/EmptyStateCard";
@@ -7,68 +7,14 @@ import ScreenLayout from "../../components/ScreenLayout";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
+import { listTransactions } from "@/lib/api/transactions";
 import {
-  listTransactions,
-  getTransactionNavigationId,
-  mapTxnStatusToUi as mapTxnStatusBucket,
-  txnModeLabelFromTransaction,
-  type Transaction,
-} from "@/lib/api/transactions";
+  filterCardItemsByStatus,
+  transactionsToCardItems,
+  type TransactionStatusFilter,
+} from "@/lib/api/transactionUi";
 
-type Status = "Tout" | "En cours" | "Livré" | "Annulé";
-
-function formatDateLabel(iso?: string): string {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
-  } catch {
-    return "—";
-  }
-}
-
-function moneyLabel(amount?: number): string {
-  const n = Number.isFinite(Number(amount)) ? Math.max(0, Math.round(Number(amount))) : 0;
-  return `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA`;
-}
-
-function txnTypeLabel(type?: string): string {
-  const t = String(type ?? "").trim().toLowerCase();
-  if (t === "expedition") return "Expédition";
-  if (t === "delivery" || t === "livraison") return "Livraison";
-  if (t === "pickup") return "Livraison";
-  return t.length ? t : "";
-}
-
-function txnModeLabel(tx: Transaction): string {
-  return txnModeLabelFromTransaction(tx);
-}
-
-function mapTransactionToOrder(tx: Transaction): TransactionCardItem {
-  const id = getTransactionNavigationId(tx);
-  const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
-  const titleBase = String(tx.package_name ?? "Colis");
-  const title = qty > 1 && !titleBase.includes("x") ? `${titleBase} x${qty}` : titleBase;
-  const destStreet = typeof tx.destination?.street === "string" ? tx.destination.street : String(tx.destination_street ?? "");
-  const quartier = destStreet.split("—")[0]?.trim() || destStreet.trim() || "—";
-  const statusUi = mapTxnStatusBucket(tx.status);
-  const amount = Number(tx.amount ?? 0);
-
-  return {
-    id,
-    ref: tx.transactionReference ? `#${tx.transactionReference}` : id ? `#TR-${id}` : "#—",
-    title,
-    quartier,
-    dateLabel: formatDateLabel(tx.created_at),
-    status: statusUi,
-    amountLabel: moneyLabel(amount),
-    paymentLabel: amount > 0 ? "ESPÈCES" : "—",
-    typeLabel: txnTypeLabel(tx.type),
-    modeLabel: txnModeLabel(tx),
-  };
-}
-
-function Chip({ label, active }: { label: Status; active?: boolean }) {
+function Chip({ label, active }: { label: TransactionStatusFilter; active?: boolean }) {
   return (
     <View
       style={{
@@ -98,44 +44,58 @@ function Chip({ label, active }: { label: Status; active?: boolean }) {
 
 export default function LivraisonScreen() {
   const { filter } = useLocalSearchParams<{ filter?: string }>();
-  const [active, setActive] = useState<Status>(() => {
+  const [active, setActive] = useState<TransactionStatusFilter>(() => {
     if (filter === "En cours") return "En cours";
     if (filter === "Livré") return "Livré";
     if (filter === "Annulé") return "Annulé";
     return "Tout";
   });
 
-  const [txns, setTxns] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allOrders, setAllOrders] = useState<TransactionCardItem[]>([]);
 
-  const loadTransactions = useCallback(async () => {
+  const loadTransactions = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     try {
-      setLoading(true);
+      if (mode === "initial") setLoading(true);
+      if (mode === "refresh") setRefreshing(true);
       setError(null);
+
       const data = await listTransactions();
-      setTxns(data);
+      setAllOrders(transactionsToCardItems(data));
     } catch (e: unknown) {
       setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      void loadTransactions();
+      void loadTransactions("initial");
     }, [loadTransactions]),
   );
 
-  const allOrders = useMemo(() => txns.map(mapTransactionToOrder).filter((o) => o.id.length > 0), [txns]);
-  const orders = useMemo(() => {
-    if (active === "Tout") return allOrders;
-    return allOrders.filter((o) => o.status === active);
-  }, [active, allOrders]);
+  const orders = useMemo(() => filterCardItemsByStatus(allOrders, active), [active, allOrders]);
+  const hasAnyOrders = allOrders.length > 0;
+  const isFilteredEmpty = hasAnyOrders && orders.length === 0;
 
   return (
     <ScreenLayout
+      scrollViewProps={{
+        refreshControl: (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void loadTransactions("refresh");
+            }}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        ),
+      }}
       header={
         <View style={{ paddingBottom: 10 }}>
           <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
@@ -147,24 +107,22 @@ export default function LivraisonScreen() {
         </View>
       }
     >
-      {allOrders.length > 0 ? (
-        <View style={{ flexDirection: "row", gap: 12, marginBottom: spacing.sectionGap / 2 }}>
-          <Pressable onPress={() => setActive("Tout")}>
-            <Chip label="Tout" active={active === "Tout"} />
-          </Pressable>
-          <Pressable onPress={() => setActive("En cours")}>
-            <Chip label="En cours" active={active === "En cours"} />
-          </Pressable>
-          <Pressable onPress={() => setActive("Livré")}>
-            <Chip label="Livré" active={active === "Livré"} />
-          </Pressable>
-          <Pressable onPress={() => setActive("Annulé")}>
-            <Chip label="Annulé" active={active === "Annulé"} />
-          </Pressable>
-        </View>
+      {hasAnyOrders ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 12, paddingBottom: spacing.sectionGap / 2 }}
+          style={{ marginBottom: 0, flexGrow: 0 }}
+        >
+          {(["Tout", "En cours", "Livré", "Annulé"] as const).map((label) => (
+            <Pressable key={label} onPress={() => setActive(label)}>
+              <Chip label={label} active={active === label} />
+            </Pressable>
+          ))}
+        </ScrollView>
       ) : null}
 
-      {orders.length > 0 ? (
+      {hasAnyOrders ? (
         <View style={{ marginBottom: spacing.sectionGap / 2 }}>
           <Pressable
             onPress={() => router.push("/ma-demande-livraison")}
@@ -184,7 +142,7 @@ export default function LivraisonScreen() {
         </View>
       ) : null}
 
-      {loading ? (
+      {loading && !refreshing ? (
         <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
           <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
             Chargement…
@@ -200,7 +158,7 @@ export default function LivraisonScreen() {
           </AppText>
           <Pressable
             onPress={() => {
-              void loadTransactions();
+              void loadTransactions("initial");
             }}
             style={{
               marginTop: 14,
@@ -219,7 +177,27 @@ export default function LivraisonScreen() {
         </View>
       ) : null}
 
-      {orders.length === 0 ? (
+      {isFilteredEmpty ? (
+        <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
+          <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
+            Aucune course « {active} »
+          </AppText>
+          <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
+            Essayez un autre filtre ou consultez toutes vos courses.
+          </AppText>
+          <Pressable
+            onPress={() => setActive("Tout")}
+            style={{ marginTop: 14, alignSelf: "flex-start" }}
+            hitSlop={10}
+          >
+            <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+              Voir tout
+            </AppText>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {!loading && !error && orders.length === 0 && !isFilteredEmpty ? (
         <EmptyStateCard
           label={
             active === "En cours"
@@ -254,13 +232,13 @@ export default function LivraisonScreen() {
               : []
           }
         />
-      ) : (
+      ) : orders.length > 0 ? (
         <View style={{ gap: 24, paddingBottom: 8 }}>
           {orders.map((o) => (
             <TransactionCard key={o.id} item={o} />
           ))}
         </View>
-      )}
+      ) : null}
     </ScreenLayout>
   );
 }

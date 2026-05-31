@@ -9,7 +9,7 @@ import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticLight, hapticSuccess } from "@/lib/haptics";
 import AppText from "../components/AppText";
 import AppTextInput from "../components/AppTextInput";
-import { createStockItem } from "@/lib/api/stock";
+import { createPackage } from "@/lib/api/packages";
 
 function Label({ children }: { children: string }) {
   return (
@@ -111,13 +111,18 @@ export default function AjouterAuStockScreen() {
     setError(null);
     try {
       await hapticSuccess();
-      await createStockItem({ name: name.trim(), subtitle: description.trim(), qty });
+      const description_to_send = description.trim() || "Aucune description";
+      await createPackage({
+        package_name: name.trim(),
+        description: description_to_send,
+        quantity: qty,
+      });
       router.replace({
         pathname: "/confirmation-ajout-stock",
         params: {
           addedName: name.trim(),
           addedQty: String(qty),
-          addedSubtitle: description.trim(),
+          addedSubtitle: description_to_send,
         },
       });
     } catch (e) {

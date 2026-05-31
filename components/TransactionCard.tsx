@@ -1,12 +1,13 @@
 import { useMemo } from "react";
-import { View, Pressable } from "react-native";
+import { View, Pressable, ScrollView } from "react-native";
 import { router } from "expo-router";
 import SolarIcon from "./SolarIcon";
 import AppText from "./AppText";
 import { card } from "../theme/styles";
 import { colors, fonts, radii, typography } from "../theme/tokens";
+import { hapticLight } from "@/lib/haptics";
 
-type Status = "Tout" | "En cours" | "Livré" | "Annulé";
+type StatusBucket = "En cours" | "Livré" | "Annulé";
 
 export type TransactionCardItem = {
   id: string;
@@ -14,42 +15,30 @@ export type TransactionCardItem = {
   title: string;
   quartier: string;
   dateLabel: string;
-  status: Status;
-  amountLabel: string;
+  status: StatusBucket;
+  statusLabel: string;
+  amountLabel?: string;
   paymentLabel?: string;
-  typeLabel?: string;
-  modeLabel?: string;
+  serviceLabel?: string;
+  sourceLabel?: string;
+  expressLabel?: string;
+  isExpedition: boolean;
 };
 
-function StatusPill({ status }: { status: Status }) {
-  if (status === "Tout") return null;
-
+function StatusPill({ label, status }: { label: string; status: StatusBucket }) {
   const bg =
     status === "En cours"
-      ? "#E9F4FB"
+      ? colors.statusPendingBg
       : status === "Livré"
-        ? "#EAF7EE"
-        : status === "Annulé"
-          ? "#FCECEC"
-          : "#EEF2F7";
+        ? colors.statusDeliveredBg
+        : colors.statusCancelledBg;
 
   const fg =
     status === "En cours"
       ? colors.primary
       : status === "Livré"
-        ? "#2E7D32"
-        : status === "Annulé"
-          ? "#D32F2F"
-          : colors.text;
-
-  const label =
-    status === "En cours"
-      ? "EN ATTENTE"
-      : status === "Livré"
-        ? "LIVRÉ"
-        : status === "Annulé"
-          ? "ANNULÉ"
-          : status.toUpperCase();
+        ? colors.statusDeliveredFg
+        : colors.statusCancelledFg;
 
   return (
     <View
@@ -64,15 +53,19 @@ function StatusPill({ status }: { status: Status }) {
       }}
     >
       <AppText variant="dense" style={{ fontSize: 10, fontFamily: fonts.bodyBold, color: fg, letterSpacing: 0.6 }} numberOfLines={1}>
-        {label}
+        {label.toUpperCase()}
       </AppText>
     </View>
   );
 }
 
-function TypePill({ label }: { label: string }) {
+function MetaPill({ label, variant }: { label: string; variant: "neutral" | "primary" | "express" }) {
   const safe = label.trim();
   if (!safe.length) return null;
+
+  const backgroundColor =
+    variant === "primary" ? colors.statusPendingBg : variant === "express" ? colors.iconBg : colors.placeholderBg;
+  const color = variant === "primary" || variant === "express" ? colors.primary : colors.text;
 
   return (
     <View
@@ -81,39 +74,36 @@ function TypePill({ label }: { label: string }) {
         minHeight: 26,
         paddingVertical: 5,
         borderRadius: radii.pill,
-        backgroundColor: "#EEF2F7",
+        backgroundColor,
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <AppText variant="dense" style={{ fontSize: 10, fontFamily: fonts.bodyBold, color: colors.text, letterSpacing: 0.6 }} numberOfLines={1}>
+      <AppText variant="dense" style={{ fontSize: 10, fontFamily: fonts.bodyBold, color, letterSpacing: 0.6 }} numberOfLines={1}>
         {safe.toUpperCase()}
       </AppText>
     </View>
   );
 }
 
-function ModePill({ label }: { label: string }) {
-  const safe = label.trim();
-  if (!safe.length) return null;
+function collectMetaPills(item: TransactionCardItem): { label: string; variant: "neutral" | "primary" | "express" }[] {
+  const pills: { label: string; variant: "neutral" | "primary" | "express" }[] = [];
+  const seen = new Set<string>();
 
-  return (
-    <View
-      style={{
-        paddingHorizontal: 10,
-        minHeight: 26,
-        paddingVertical: 5,
-        borderRadius: radii.pill,
-        backgroundColor: "#E9F4FB",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <AppText variant="dense" style={{ fontSize: 10, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
-        {safe.toUpperCase()}
-      </AppText>
-    </View>
-  );
+  const add = (label: string | undefined, variant: "neutral" | "primary" | "express") => {
+    const safe = String(label ?? "").trim();
+    if (!safe.length) return;
+    const key = safe.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    pills.push({ label: safe, variant });
+  };
+
+  add(item.serviceLabel, "neutral");
+  add(item.sourceLabel, "primary");
+  add(item.expressLabel, "express");
+
+  return pills;
 }
 
 export default function TransactionCard({ item }: { item: TransactionCardItem }) {
@@ -134,49 +124,73 @@ export default function TransactionCard({ item }: { item: TransactionCardItem })
     return "solar:box-bold-duotone";
   }, [item.title]);
 
-  const ref = item.ref ?? `#AD-${item.id}`;
-  const subtitle = [item.dateLabel, item.paymentLabel ?? item.quartier].filter(Boolean).join("  ·  ");
-  const detailPath = item.typeLabel === "Expédition" ? `/expedition-detail/${item.id}` : `/livraison-detail/${item.id}`;
+  const ref = item.ref ?? item.id;
+  const metaPills = useMemo(() => collectMetaPills(item), [item]);
+  const subtitle = [item.quartier !== "—" ? item.quartier : null, item.dateLabel !== "—" ? item.dateLabel : null, item.paymentLabel]
+    .filter(Boolean)
+    .join("  ·  ");
+  const detailPath = item.isExpedition ? `/expedition-detail/${item.id}` : `/livraison-detail/${item.id}`;
+  const accessibilityLabel = `Ouvrir la course ${item.title}, référence ${ref}`;
 
   return (
-    <Pressable onPress={() => router.push(detailPath)} style={[card.base, { padding: 16 }]}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0, flex: 1, paddingRight: 10 }}>
-          <AppText
-            variant="dense"
-            style={{ fontSize: 11, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.55)", letterSpacing: 0.4 }}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            REF {ref}
-          </AppText>
-          {item.typeLabel ? <TypePill label={item.typeLabel} /> : null}
-          {item.modeLabel ? <ModePill label={item.modeLabel} /> : null}
-        </View>
-        <StatusPill status={item.status} />
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      onPress={async () => {
+        await hapticLight();
+        router.push(detailPath);
+      }}
+      style={[card.base, { padding: 16 }]}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: metaPills.length ? 8 : 12 }}>
+        <AppText
+          variant="dense"
+          style={{ fontSize: 11, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.55)", letterSpacing: 0.4, flex: 1, minWidth: 0, paddingRight: 10 }}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          REF {ref}
+        </AppText>
+        <StatusPill label={item.statusLabel} status={item.status} />
       </View>
+
+      {metaPills.length ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingBottom: 12 }}
+          style={{ flexGrow: 0 }}
+        >
+          {metaPills.map((pill) => (
+            <MetaPill key={pill.label} label={pill.label} variant={pill.variant} />
+          ))}
+        </ScrollView>
+      ) : null}
 
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         <View style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center", marginRight: 12, flexShrink: 0 }}>
           <SolarIcon name={iconName} size={32} color={colors.primary} />
         </View>
 
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+        <View style={{ flex: 1, minWidth: 0, paddingRight: item.amountLabel ? 12 : 0 }}>
           <AppText style={{ fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text, lineHeight: 20 }} numberOfLines={2} ellipsizeMode="tail">
             {item.title}
           </AppText>
-          <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 11, lineHeight: 16, marginTop: 3 }} numberOfLines={1} ellipsizeMode="tail">
-            {subtitle}
-          </AppText>
+          {subtitle.length ? (
+            <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 11, lineHeight: 16, marginTop: 3 }} numberOfLines={1} ellipsizeMode="tail">
+              {subtitle}
+            </AppText>
+          ) : null}
         </View>
 
-        <View style={{ flexShrink: 0, alignItems: "flex-end" }}>
-          <AppText style={{ fontSize: 16, fontFamily: fonts.bodyBold, color: colors.text, lineHeight: 22 }} numberOfLines={1}>
-            {item.amountLabel}
-          </AppText>
-        </View>
+        {item.amountLabel ? (
+          <View style={{ flexShrink: 0, alignItems: "flex-end" }}>
+            <AppText style={{ fontSize: 16, fontFamily: fonts.bodyBold, color: colors.text, lineHeight: 22 }} numberOfLines={1}>
+              {item.amountLabel}
+            </AppText>
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
 }
-

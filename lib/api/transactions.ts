@@ -5,7 +5,7 @@ import { authSession } from "@/lib/auth/session";
 import { getDefaultTransactionImagePart } from "@/lib/api/transactionImage";
 
 export type UiMode = "stock" | "pickup";
-export type TransactionSource = "instocke" | "pick_up";
+export type TransactionSource = "pickup" | "stock";
 
 /** Request body for POST /api/transactions (matches backend TransactionRequest). */
 export type TransactionRequest = {
@@ -105,19 +105,16 @@ function normalizeListResponse(data: any): any[] {
 }
 
 export function mapUiModeToSource(mode: UiMode): TransactionSource {
-  return mode === "pickup" ? "pick_up" : "instocke";
+  return mode;
 }
 
 export function mapExpressToServiceLevel(express: "yes" | "no"): string {
   return express === "yes" ? "express" : "standard";
 }
 
-/**
- * Backend `Source` enum rejects client strings like `instocke` / `pick_up` (verified Phase 12).
- * Omit `source` on multipart POST — server accepts the request when `type` is set.
- */
-export function resolveApiSourceField(_source?: TransactionSource): string | undefined {
-  return undefined;
+/** Backend `Source` enum: `pickup` | `stock` (legacy `pick_up` / `instocke` are rejected). */
+export function resolveApiSourceField(source?: TransactionSource): TransactionSource | undefined {
+  return source;
 }
 
 export function isTransactionReference(id: string): boolean {
@@ -185,13 +182,17 @@ export function buildTransactionFormData(payload: TransactionRequest): FormData 
   return form;
 }
 
-function sourceToUiMode(source: unknown, type?: unknown): UiMode | undefined {
+function sourceToUiMode(source: unknown, type?: unknown, description?: unknown): UiMode | undefined {
   const s = String(source ?? "").trim().toLowerCase();
   if (s === "pick_up" || s === "pickup") return "pickup";
   if (s === "instocke" || s === "in_stock" || s === "stock") return "stock";
   const t = String(type ?? "").trim().toLowerCase();
   if (t === "pickup") return "pickup";
-  if (t === "delivery") return "stock";
+  if (t === "delivery") {
+    const desc = String(description ?? "").trim().toLowerCase();
+    if (desc.startsWith("ramassage:")) return "pickup";
+    return "stock";
+  }
   return undefined;
 }
 
@@ -226,7 +227,7 @@ export function parseTransaction(raw: any): Transaction {
         ? raw.collect_cash
         : null;
 
-  const mode = sourceToUiMode(source, raw?.type) ?? (raw?.mode === "pickup" || raw?.mode === "stock" ? raw.mode : undefined);
+  const mode = sourceToUiMode(source, raw?.type, raw?.description) ?? (raw?.mode === "pickup" || raw?.mode === "stock" ? raw.mode : undefined);
   const express =
     typeof serviceLevel === "string"
       ? serviceLevel.trim().toLowerCase() === "express"
@@ -264,8 +265,8 @@ export function txnModeLabelFromTransaction(tx: Transaction): string {
   if (tx.mode === "pickup") return "Ramassage";
   if (tx.mode === "stock") return "Stock";
   const source = String(tx.source ?? "").trim().toLowerCase();
-  if (source === "pick_up") return "Ramassage";
-  if (source === "instocke") return "Stock";
+  if (source === "pick_up" || source === "pickup") return "Ramassage";
+  if (source === "instocke" || source === "stock") return "Stock";
   const t = String(tx.type ?? "").trim().toLowerCase();
   if (t === "pickup") return "Ramassage";
   return "";
@@ -311,7 +312,7 @@ export function buildPayloadFromStockResume(input: StockResumePayloadInput): Tra
     destination_landmark: input.destinationLandmark.trim() || undefined,
     receiver_name: input.receiverName?.trim() || "Client",
     receiver_phone: input.phone.trim(),
-    source: "instocke",
+    source: "stock",
     type: input.forExpedition ? "expedition" : "delivery",
     quantity: input.quantity,
     amount: input.amount,
@@ -352,8 +353,8 @@ export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): T
     destination_landmark: input.dropoffLandmark?.trim() || undefined,
     receiver_name: input.receiverName?.trim() || "Client",
     receiver_phone: input.phone.trim(),
-    source: "pick_up",
-    type: input.forExpedition ? "expedition" : "pickup",
+    source: "pickup",
+    type: input.forExpedition ? "expedition" : "delivery",
     quantity: input.quantity,
     amount: input.amount,
     status: "pending",
@@ -415,15 +416,21 @@ export async function createTransaction(input: TransactionRequest) {
 }
 
 export async function listTransactions() {
-  const url = `${API_BASE_URL}/api/transactions`;
-  logger.info("listTransactions", "GET /api/transactions", { url });
+  const sessionUser = await authSession.getSessionUser();
+  if (!sessionUser?.keycloakId) {
+    throw new Error("Session expirée. Reconnectez-vous pour voir vos livraisons.");
+  }
+
+  const safeKeycloakId = encodeURIComponent(sessionUser.keycloakId.trim());
+  const url = `${API_BASE_URL}/api/users/transactions?keycloakId=${safeKeycloakId}`;
+  logger.info("listTransactions", "GET /api/users/transactions", { url, keycloakId: sessionUser.keycloakId });
 
   const res = await apiFetch(url, { method: "GET" });
   const rawText = await res.text().catch(() => "");
   const data = parseResponseText(rawText);
 
   if (!res.ok) {
-    logger.info("listTransactions", "GET /api/transactions failed", { status: res.status, body: data ?? rawText });
+    logger.info("listTransactions", "GET /api/users/transactions failed", { status: res.status, body: data ?? rawText });
     throw new Error(errorMessageFrom(res.status, data, rawText));
   }
 

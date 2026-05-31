@@ -69,6 +69,17 @@ export function userIdFromUser(user: User | null | undefined): number | null {
   return null;
 }
 
+function keycloakIdsMatch(stored: unknown, requested: string): boolean {
+  return String(stored ?? "").trim().toLowerCase() === requested.trim().toLowerCase();
+}
+
+/** Backend may return all users for GET /api/users?keycloakId= — pick the session user. */
+export function findUserByKeycloakId(users: User[], keycloakId: string): User | null {
+  const needle = String(keycloakId).trim();
+  if (!needle.length) return null;
+  return users.find((user) => keycloakIdsMatch(user.keycloakId, needle)) ?? null;
+}
+
 export async function getUserByKeycloakId(keycloakId: string): Promise<User | null> {
   const safeKeycloakId = encodeURIComponent(String(keycloakId).trim());
   const url = `${API_BASE_URL}/api/users?keycloakId=${safeKeycloakId}`;
@@ -84,7 +95,7 @@ export async function getUserByKeycloakId(keycloakId: string): Promise<User | nu
   }
 
   const users = normalizeUserList(data);
-  return users[0] ?? null;
+  return findUserByKeycloakId(users, keycloakId);
 }
 
 export async function getUserById(id: string | number) {

@@ -3,7 +3,12 @@ jest.mock("@/lib/api/client", () => ({
 }));
 
 import { apiFetch } from "@/lib/api/client";
-import { getUserById, getUserByKeycloakId, userIdFromUser } from "@/lib/api/users";
+import {
+  findUserByKeycloakId,
+  getUserById,
+  getUserByKeycloakId,
+  userIdFromUser,
+} from "@/lib/api/users";
 
 const API_BASE = "http://156.67.27.35:8085";
 
@@ -25,12 +30,30 @@ describe("userIdFromUser", () => {
   });
 });
 
+describe("findUserByKeycloakId", () => {
+  it("matches keycloakId in a multi-user list (not users[0])", () => {
+    const users = [
+      { id: 5, keycloakId: "2ab7eed1-180a-473c-ba31-c94cd5d2da8d", email: "other@example.com" },
+      { id: 6, keycloakId: "6b415ee2-7024-4cbf-9e3b-fa4a5a2054a2", email: "ericdjou17@gmail.com" },
+    ];
+
+    const match = findUserByKeycloakId(users, "6b415ee2-7024-4cbf-9e3b-fa4a5a2054a2");
+
+    expect(match?.id).toBe(6);
+    expect(match?.email).toBe("ericdjou17@gmail.com");
+  });
+
+  it("returns null when no user matches", () => {
+    expect(findUserByKeycloakId([{ id: 5, keycloakId: "abc" }], "missing")).toBeNull();
+  });
+});
+
 describe("getUserByKeycloakId", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it("GETs /api/users?keycloakId= via apiFetch and returns first match", async () => {
+  it("GETs /api/users?keycloakId= and returns the matching user", async () => {
     mockApiResponse(200, [
       {
         id: 3,
@@ -49,8 +72,26 @@ describe("getUserByKeycloakId", () => {
     expect(user?.email).toBe("snake123@example.com");
   });
 
+  it("picks the correct user when API returns the full user list", async () => {
+    mockApiResponse(200, [
+      { id: 5, keycloakId: "2ab7eed1-180a-473c-ba31-c94cd5d2da8d", email: "other@example.com" },
+      { id: 6, keycloakId: "6b415ee2-7024-4cbf-9e3b-fa4a5a2054a2", email: "ericdjou17@gmail.com" },
+    ]);
+
+    const user = await getUserByKeycloakId("6b415ee2-7024-4cbf-9e3b-fa4a5a2054a2");
+
+    expect(user?.id).toBe(6);
+    expect(user?.email).toBe("ericdjou17@gmail.com");
+  });
+
   it("returns null when API returns an empty list", async () => {
     mockApiResponse(200, []);
+
+    await expect(getUserByKeycloakId("missing-id")).resolves.toBeNull();
+  });
+
+  it("returns null when keycloakId is not in the list", async () => {
+    mockApiResponse(200, [{ id: 5, keycloakId: "other-id", email: "other@example.com" }]);
 
     await expect(getUserByKeycloakId("missing-id")).resolves.toBeNull();
   });

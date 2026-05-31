@@ -10,6 +10,11 @@ export const colors = {
   cardStroke: "#E2E8F0",
   iconBg: "#E0F2FE",
   placeholderBg: "#EEF2F7",
+  statusPendingBg: "#E9F4FB",
+  statusDeliveredBg: "#EAF7EE",
+  statusDeliveredFg: "#2E7D32",
+  statusCancelledBg: "#FCECEC",
+  statusCancelledFg: "#D32F2F",
   tabInactive: {
     commandes: "#64748B",
     rapports: "#94A3B8",

@@ -7,6 +7,12 @@ import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
 import { getTransactionById, type Transaction } from "@/lib/api/transactions";
+import {
+  formatTransactionAmountLabel,
+  formatTransactionRef,
+  inboxCategoryBannerLabel,
+  isCollectingCash,
+} from "@/lib/api/transactionUi";
 
 type TxInfo = {
   ref: string;
@@ -20,28 +26,16 @@ type TxInfo = {
 
 function mapBackendStatusToBanner(status?: string | null) {
   const s = String(status ?? "").trim().toLowerCase();
-  if (s === "delivered" || s === "completed") return { status: "LIVRÉ", statusColor: "#2E7D32", statusBg: "#EAF7EE" };
-  if (s === "failed" || s === "cancelled" || s === "canceled") return { status: "ANNULÉ", statusColor: "#D32F2F", statusBg: "#FCECEC" };
-  return { status: "EN COURS", statusColor: colors.primary, statusBg: "#E9F4FB" };
-}
-
-function formatAmountLabel(amount?: number | null) {
-  const n = Number.isFinite(Number(amount)) ? Math.max(0, Math.round(Number(amount))) : 0;
-  return n > 0 ? `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA` : undefined;
+  if (s === "delivered" || s === "completed") return { status: "LIVRÉ", statusColor: colors.statusDeliveredFg, statusBg: colors.statusDeliveredBg };
+  if (s === "failed" || s === "cancelled" || s === "canceled") return { status: "ANNULÉ", statusColor: colors.statusCancelledFg, statusBg: colors.statusCancelledBg };
+  return { status: "EN COURS", statusColor: colors.primary, statusBg: colors.statusPendingBg };
 }
 
 function mapTransactionToTxInfo(tx: Transaction): TxInfo {
-  const ref = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : `TR-${String(tx.id ?? "")}`;
+  const ref = formatTransactionRef(tx);
   const { status, statusColor, statusBg } = mapBackendStatusToBanner(typeof tx.status === "string" ? tx.status : null);
   const typeRaw = String(tx.type ?? "").toLowerCase();
-  const sourceRaw = String(tx.source ?? "").toLowerCase();
-  const modeRaw = tx.mode ?? (sourceRaw === "pick_up" ? "pickup" : sourceRaw === "instocke" ? "stock" : "");
-  const typeLabel =
-    typeRaw === "expedition"
-      ? "EXPÉDITION"
-      : modeRaw === "pickup" || typeRaw === "pickup"
-        ? "RAMASSAGE"
-        : "EN STOCK";
+  const typeLabel = inboxCategoryBannerLabel(tx);
 
   const location =
     typeRaw === "expedition"
@@ -55,7 +49,7 @@ function mapTransactionToTxInfo(tx: Transaction): TxInfo {
     statusBg,
     type: typeLabel,
     location,
-    amountLabel: formatAmountLabel(tx.amount),
+    amountLabel: isCollectingCash(tx) ? formatTransactionAmountLabel(tx.amount) : undefined,
   };
 }
 

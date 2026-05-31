@@ -1,0 +1,195 @@
+import type { TransactionCardItem } from "@/components/TransactionCard";
+import {
+  getTransactionNavigationId,
+  mapTxnStatusToUi,
+  type Transaction,
+  type UiStatusBucket,
+} from "@/lib/api/transactions";
+
+export type TransactionStatusFilter = "Tout" | "En cours" | "Livré" | "Annulé";
+
+export function formatTransactionDateLabel(iso?: string): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+export function formatTransactionAmountLabel(amount?: number): string {
+  const n = Number.isFinite(Number(amount)) ? Math.max(0, Math.round(Number(amount))) : 0;
+  return `${n.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA`;
+}
+
+/** Service kind from backend `type`. Legacy rows used `pickup` for Ramassage livraisons. */
+export function serviceLabelFromType(type?: string): string | undefined {
+  const t = String(type ?? "").trim().toLowerCase();
+  if (t === "expedition") return "Expédition";
+  if (t === "delivery" || t === "livraison") return "Livraison";
+  if (t === "pickup") return "Livraison";
+  return undefined;
+}
+
+function isRamassageDescription(description?: string): boolean {
+  return String(description ?? "").trim().toLowerCase().startsWith("ramassage:");
+}
+
+/** Fulfillment from backend `source`, with fallbacks when GET omits source. */
+export function sourceLabelFromTransaction(tx: Transaction): string | undefined {
+  const source = String(tx.source ?? "").trim().toLowerCase();
+  if (source === "pick_up" || source === "pickup") return "Ramassage";
+  if (source === "instocke" || source === "in_stock" || source === "stock") return "En stock";
+
+  if (isRamassageDescription(tx.description)) return "Ramassage";
+
+  if (tx.mode === "pickup") return "Ramassage";
+  if (tx.mode === "stock") return "En stock";
+
+  const type = String(tx.type ?? "").trim().toLowerCase();
+  if (type === "pickup") return "Ramassage";
+
+  return undefined;
+}
+
+export function isExpeditionType(type?: string): boolean {
+  return String(type ?? "").trim().toLowerCase() === "expedition";
+}
+
+export function statusLabelFromBucket(status: UiStatusBucket): string {
+  return status;
+}
+
+export function isCollectingCash(tx: Transaction): boolean {
+  if (typeof tx.cash_collect === "boolean") return tx.cash_collect;
+  if (typeof tx.collect_cash === "boolean") return tx.collect_cash;
+  return Number(tx.amount ?? 0) > 0;
+}
+
+export function formatTransactionRef(tx: Transaction): string {
+  const reference = String(tx.transactionReference ?? "").trim();
+  if (reference.length) return reference;
+  const id = tx.id != null ? String(tx.id).trim() : "";
+  if (id.length) return `TR-${id}`;
+  return "—";
+}
+
+export function expressLabelFromTransaction(tx: Transaction): string | undefined {
+  const level = String(tx.serviceLevel ?? "").trim().toLowerCase();
+  if (level === "express" || tx.express) return "Express";
+  return undefined;
+}
+
+/** Single uppercase label for inbox banner (legacy combined display). */
+export function inboxCategoryBannerLabel(tx: Transaction): string {
+  if (isExpeditionType(tx.type)) return "EXPÉDITION";
+  const source = sourceLabelFromTransaction(tx);
+  if (source === "Ramassage") return "RAMASSAGE";
+  if (source === "En stock") return "EN STOCK";
+  const service = serviceLabelFromType(tx.type);
+  if (service === "Livraison") return "LIVRAISON";
+  return "COURSE";
+}
+
+function extractQuartier(tx: Transaction): string {
+  const destStreet =
+    typeof tx.destination?.street === "string" ? tx.destination.street : String(tx.destination_street ?? "");
+  const fromStreet = destStreet.split("—")[0]?.trim() || destStreet.trim();
+  if (fromStreet.length) return fromStreet;
+
+  const city =
+    typeof tx.destination?.city === "string" ? tx.destination.city.trim() : String(tx.destination_city ?? "").trim();
+  if (city.length) return city;
+
+  const receiver =
+    String(tx.receiver_name ?? tx.receiverData?.name ?? "").trim();
+  if (receiver.length) return receiver;
+
+  return "—";
+}
+
+export function mapTransactionToCardItem(tx: Transaction): TransactionCardItem {
+  const id = getTransactionNavigationId(tx);
+  const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
+  const titleBase = String(tx.package_name ?? "Colis");
+  const title = qty > 1 && !titleBase.includes("x") ? `${titleBase} x${qty}` : titleBase;
+  const quartier = extractQuartier(tx);
+  const status = mapTxnStatusToUi(tx.status);
+  const collectingCash = isCollectingCash(tx);
+  const amount = Number(tx.amount ?? 0);
+  const dateLabel = formatTransactionDateLabel(tx.created_at);
+
+  let serviceLabel = serviceLabelFromType(tx.type);
+  let sourceLabel = sourceLabelFromTransaction(tx);
+
+  if (serviceLabel && sourceLabel && serviceLabel.toLowerCase() === sourceLabel.toLowerCase()) {
+    sourceLabel = undefined;
+  }
+
+  return {
+    id,
+    ref: formatTransactionRef(tx),
+    title,
+    quartier,
+    dateLabel: dateLabel || "—",
+    status,
+    statusLabel: statusLabelFromBucket(status),
+    amountLabel: collectingCash ? formatTransactionAmountLabel(amount) : undefined,
+    paymentLabel: collectingCash ? "ESPÈCES" : undefined,
+    serviceLabel,
+    sourceLabel,
+    expressLabel: expressLabelFromTransaction(tx),
+    isExpedition: isExpeditionType(tx.type),
+  };
+}
+
+export function filterTransactionsForUser(txns: Transaction[], userId: number | null): Transaction[] {
+  if (userId == null) return txns;
+  return txns.filter((tx) => {
+    const ownerId = Number(tx.user_id);
+    if (!Number.isFinite(ownerId)) return true;
+    return ownerId === userId;
+  });
+}
+
+function transactionSortTimestamp(tx: Transaction): number | null {
+  for (const field of [tx.created_at, tx.updated_at]) {
+    const parsed = Date.parse(String(field ?? ""));
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+export function sortTransactionsForDisplay(txns: Transaction[]): Transaction[] {
+  return txns
+    .map((tx, index) => ({ tx, index }))
+    .sort((a, b) => {
+      const aTime = transactionSortTimestamp(a.tx);
+      const bTime = transactionSortTimestamp(b.tx);
+
+      if (aTime != null && bTime != null && aTime !== bTime) {
+        return bTime - aTime;
+      }
+      if (aTime != null && bTime == null) return -1;
+      if (aTime == null && bTime != null) return 1;
+
+      return b.index - a.index;
+    })
+    .map(({ tx }) => tx);
+}
+
+export function filterCardItemsByStatus(
+  items: TransactionCardItem[],
+  filter: TransactionStatusFilter,
+): TransactionCardItem[] {
+  if (filter === "Tout") return items;
+  return items.filter((item) => item.status === filter);
+}
+
+export function transactionsToCardItems(txns: Transaction[]): TransactionCardItem[] {
+  return sortTransactionsForDisplay(txns)
+    .map(mapTransactionToCardItem)
+    .filter((item) => item.id.length > 0);
+}

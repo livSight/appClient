@@ -1,161 +1,67 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, View, Pressable, ActivityIndicator } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { View, Pressable, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
-import SolarIcon from "../../components/SolarIcon";
-import { card, row } from "../../theme/styles";
-import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
-import { hapticLight, hapticSuccess } from "@/lib/haptics";
+import { colors, fonts, radii, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
-import { deleteStockItem, listStockItems, updateStockItemPut } from "@/lib/api/stock";
+import { listPackages, makeClientId, type Package } from "@/lib/api/packages";
 import StockProductCard, { type StockProductCardItem } from "@/components/StockProductCard";
 
-type StockItem = {
-  id: string;
-  name: string;
-  subtitle: string;
-  qty: number;
-  low?: boolean;
-};
+type Row = StockProductCardItem;
 
-function toSnapshot(items: StockItem[]) {
-  return JSON.stringify(
-    [...items]
-      .map((it) => ({ name: it.name, subtitle: it.subtitle, qty: it.qty }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-  );
-}
-
-function asId(value: unknown): string {
-  if (typeof value === "string" && value.length) return value;
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return "";
-}
-
-function normalizeServerItems(items: any[]): StockItem[] {
-  return items
-    .map((it) => ({
-      id: asId(it?.id),
-      name: String(it?.name ?? ""),
-      subtitle: String(it?.subtitle ?? ""),
-      qty: Number.isFinite(Number(it?.qty)) ? Number(it.qty) : 0,
-    }))
-    .filter((it) => it.id && it.name);
+function toRows(packages: Package[]): Row[] {
+  return packages
+    .map((p) => {
+      const name = String(p?.package_name ?? "").trim();
+      if (!name) return null;
+      const qty = Number.isFinite(Number(p?.quantity)) ? Math.max(0, Math.floor(Number(p.quantity))) : 0;
+      return {
+        id: makeClientId(p),
+        name,
+        subtitle: String(p?.description ?? ""),
+        qty,
+        low: qty <= 2,
+      } satisfies Row;
+    })
+    .filter(Boolean) as Row[];
 }
 
 export default function StockScreen() {
-  const { addedName, addedQty, addedSubtitle } = useLocalSearchParams<{
-    addedName?: string;
-    addedQty?: string;
-    addedSubtitle?: string;
-  }>();
-  const insets = useSafeAreaInsets();
-  const [items, setItems] = useState<StockItem[]>([]);
+  const { addedName } = useLocalSearchParams<{ addedName?: string }>();
+  const [items, setItems] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const initialSnapshotRef = useRef<string>(toSnapshot(items));
-
-  const dirty = useMemo(
-    () => toSnapshot(items) !== initialSnapshotRef.current,
-    [items],
-  );
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const serverItems = await listStockItems();
-      const next = normalizeServerItems(serverItems).map((it) => ({ ...it, low: it.qty <= 2 }));
-      setItems(next);
-      initialSnapshotRef.current = toSnapshot(next);
+      const packages = await listPackages();
+      setItems(toRows(packages));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   useFocusEffect(
     useCallback(() => {
-      if (addedName) return; // item ajouté via params — l'useEffect dédié s'en charge
-      load();
+      void load();
       return () => {};
-    }, [addedName]),
+    }, [load]),
   );
 
-  function dec(id: string) {
-    void hapticLight();
-    setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, qty: Math.max(0, it.qty - 1) } : it)),
-    );
-  }
-
-  function inc(id: string) {
-    void hapticLight();
-    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, qty: it.qty + 1 } : it)));
-  }
-
-  function remove(id: string) {
-    Alert.alert("Supprimer ce produit ?", "Cette action est irréversible.", [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Supprimer",
-        style: "destructive",
-        onPress: async () => {
-          await hapticSuccess();
-          try {
-            await deleteStockItem(id);
-            setItems((prev) => {
-              const next = prev.filter((it) => it.id !== id);
-              initialSnapshotRef.current = toSnapshot(next);
-              return next;
-            });
-          } catch (e: any) {
-            Alert.alert("Erreur", String(e?.message ?? e ?? "Impossible de supprimer le produit."));
-          }
-        },
-      },
-    ]);
-  }
-
-  async function save() {
-    if (saving) return;
-    setSaving(true);
-    setError(null);
-
-    try {
-      // Persist changes to API (PUT full resource).
-      const ops = items.map((it) =>
-        updateStockItemPut(it.id, {
-          name: it.name,
-          subtitle: it.subtitle,
-          qty: it.qty,
-        }),
-      );
-      await Promise.all(ops);
-      initialSnapshotRef.current = toSnapshot(items);
-      await hapticSuccess();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur lors de l&apos;enregistrement");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // Accept new item from /ajouter-au-stock. Backend already created it → just refresh.
   useEffect(() => {
     if (!addedName) return;
     void load();
-  }, [addedName, addedQty, addedSubtitle]);
+  }, [addedName, load]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -229,49 +135,11 @@ export default function StockScreen() {
         ) : (
           <View style={{ marginTop: 32, gap: 32 }}>
             {items.map((it) => (
-              <StockProductCard
-                key={it.id}
-                item={{ ...it, low: it.qty <= 2 } satisfies StockProductCardItem}
-              />
+              <StockProductCard key={it.id} item={it} />
             ))}
           </View>
         )}
-
-        {dirty ? <View style={{ height: insets.bottom + 110 }} /> : null}
       </ScreenLayout>
-
-      {dirty ? (
-        <View
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            paddingHorizontal: 18,
-            paddingBottom: insets.bottom + 18,
-            paddingTop: 10,
-            backgroundColor: "rgba(248,249,250,0.92)",
-          }}
-        >
-          <Pressable
-            onPress={save}
-            disabled={saving}
-            style={{
-              minHeight: 68,
-              paddingVertical: 16,
-              borderRadius: 24,
-              backgroundColor: saving ? "rgba(14,165,233,0.65)" : colors.primary,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <AppText style={{ fontSize: 18, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
-              {saving ? "Enregistrement..." : "Enregistrer"}
-            </AppText>
-          </Pressable>
-        </View>
-      ) : null}
     </View>
   );
 }
-

@@ -20,10 +20,13 @@ import { apiFetch } from "@/lib/api/client";
 import { authSession } from "@/lib/auth/session";
 import { getDefaultTransactionImagePart } from "@/lib/api/transactionImage";
 import {
+  buildPayloadFromPickupResume,
+  buildPayloadFromStockResume,
   buildTransactionFormData,
   createTransaction,
   getTransactionById,
   listTransactions,
+  parseTransaction,
   resolveApiSourceField,
   type TransactionRequest,
 } from "@/lib/api/transactions";
@@ -49,7 +52,7 @@ const sampleRequest: TransactionRequest = {
   destination_street: "Bastos",
   receiver_name: "Client",
   receiver_phone: "670000000",
-  source: "instocke",
+  source: "stock",
   type: "delivery",
   quantity: 1,
   amount: 1500,
@@ -58,10 +61,91 @@ const sampleRequest: TransactionRequest = {
   serviceLevel: "standard",
 };
 
+describe("buildPayloadFromPickupResume", () => {
+  it("uses type delivery for livraison ramassage with source pickup", () => {
+    const payload = buildPayloadFromPickupResume({
+      forExpedition: false,
+      packageName: "Fort",
+      description: "Ramassage: Mimboman — Sac",
+      phone: "658478764",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      quantity: 1,
+      pickupStreet: "Mimboman",
+      dropoffStreet: "Sac",
+    });
+    expect(payload.type).toBe("delivery");
+    expect(payload.source).toBe("pickup");
+  });
+
+  it("uses type expedition for expedition ramassage", () => {
+    const payload = buildPayloadFromPickupResume({
+      forExpedition: true,
+      packageName: "Colis",
+      description: "Ramassage: Agence",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      quantity: 1,
+      pickupStreet: "Agence",
+      dropoffStreet: "Ville",
+    });
+    expect(payload.type).toBe("expedition");
+    expect(payload.source).toBe("pickup");
+  });
+});
+
+describe("buildPayloadFromStockResume", () => {
+  it("uses type delivery and source stock for livraison stock", () => {
+    const payload = buildPayloadFromStockResume({
+      forExpedition: false,
+      itemsLine: "Robe",
+      description: "Robe x1",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      quantity: 1,
+      destinationQuartier: "Bastos",
+      destinationLandmark: "",
+      departureStreet: "Agence | Ongola Express",
+    });
+    expect(payload.type).toBe("delivery");
+    expect(payload.source).toBe("stock");
+  });
+});
+
+describe("parseTransaction mode inference", () => {
+  it("infers pickup mode for delivery when description starts with Ramassage:", () => {
+    const tx = parseTransaction({
+      type: "delivery",
+      description: "Ramassage: Mimboman — Sac",
+      package_name: "Fort",
+    });
+    expect(tx.mode).toBe("pickup");
+  });
+
+  it("infers stock mode for delivery without ramassage description", () => {
+    const tx = parseTransaction({
+      type: "delivery",
+      description: "Robe x1",
+      package_name: "Robe",
+    });
+    expect(tx.mode).toBe("stock");
+  });
+
+  it("infers pickup mode for legacy type pickup rows", () => {
+    const tx = parseTransaction({ type: "pickup", package_name: "Sac" });
+    expect(tx.mode).toBe("pickup");
+  });
+});
+
 describe("resolveApiSourceField", () => {
-  it("omits source on POST until backend enum strings are confirmed", () => {
-    expect(resolveApiSourceField("instocke")).toBeUndefined();
-    expect(resolveApiSourceField("pick_up")).toBeUndefined();
+  it("passes through backend Source enum values pickup and stock", () => {
+    expect(resolveApiSourceField("stock")).toBe("stock");
+    expect(resolveApiSourceField("pickup")).toBe("pickup");
   });
 });
 
@@ -70,9 +154,9 @@ describe("buildTransactionFormData", () => {
     mockGetDefaultTransactionImagePart.mockClear();
   });
 
-  it("does not append invalid source values", () => {
+  it("appends source pickup or stock on POST", () => {
     const form = buildTransactionFormData(sampleRequest);
-    expect(form.get("source")).toBeNull();
+    expect(form.get("source")).toBe("stock");
     expect(form.get("package_name")).toBe("Colis test");
     expect(form.get("type")).toBe("delivery");
   });
@@ -102,7 +186,7 @@ describe("transactions API", () => {
   });
 
   describe("listTransactions", () => {
-    it("returns all transactions from the authenticated API response", async () => {
+    it("GETs /api/users/transactions?keycloakId= for the session user", async () => {
       mockApiResponse(200, [
         {
           package_name: "Mine",
@@ -112,20 +196,31 @@ describe("transactions API", () => {
           destination: { street: "Bastos" },
         },
         {
-          package_name: "Other",
-          user_id: 5,
+          package_name: "WhatsApp order",
+          user_id: 3,
           type: "delivery",
-          transactionReference: "LVS-BBB",
-          destination: { street: "Akwa" },
+          source: "stock",
+          transactionReference: "LVS-BBIHDBBBEF",
+          destination: { street: "Makepe" },
         },
       ]);
 
       const result = await listTransactions();
 
-      expect(apiFetch).toHaveBeenCalledWith(`${API_BASE}/api/transactions`, { method: "GET" });
+      expect(apiFetch).toHaveBeenCalledWith(
+        `${API_BASE}/api/users/transactions?keycloakId=${encodeURIComponent(KEYCLOAK_ID)}`,
+        { method: "GET" },
+      );
       expect(result).toHaveLength(2);
       expect(result[0].package_name).toBe("Mine");
-      expect(result[1].package_name).toBe("Other");
+      expect(result[1].transactionReference).toBe("LVS-BBIHDBBBEF");
+    });
+
+    it("throws when there is no authenticated session", async () => {
+      mockGetSessionUser.mockResolvedValue(null);
+
+      await expect(listTransactions()).rejects.toThrow("Session expirée");
+      expect(apiFetch).not.toHaveBeenCalled();
     });
 
     it("throws when apiFetch returns an error status", async () => {

@@ -17,7 +17,7 @@ import {
   stringifyExpeditionClient,
 } from "@/lib/expeditionClient";
 import { hapticSuccess } from "@/lib/haptics";
-import { listStockItems, type StockItem } from "@/lib/api/stock";
+import { listPackages, makeClientId, type Package } from "@/lib/api/packages";
 
 export type MaDemandeProduitsFlow = "livraison" | "expedition";
 
@@ -51,22 +51,20 @@ type InventoryItem = {
   stockAvailable: number;
 };
 
-function asId(value: unknown): string {
-  if (typeof value === "string" && value.length) return value;
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  return "";
-}
-
-function toInventory(items: StockItem[]): InventoryItem[] {
+function toInventory(items: Package[]): InventoryItem[] {
   return items
-    .map((it) => {
-      const id = asId(it?.id);
-      const name = String(it?.name ?? "");
-      const subtitle = String(it?.subtitle ?? "");
-      const qty = Number.isFinite(Number(it?.qty)) ? Math.max(0, Math.floor(Number(it.qty))) : 0;
-      if (!id || !name) return null;
-      const stockLabel = [subtitle, `STOCK: ${qty}`].filter(Boolean).join(" • ");
-      return { id, name, stockLabel, stockAvailable: qty } satisfies InventoryItem;
+    .map((p) => {
+      const name = String(p?.package_name ?? "").trim();
+      if (!name) return null;
+      const description = String(p?.description ?? "").trim();
+      const qty = Number.isFinite(Number(p?.quantity)) ? Math.max(0, Math.floor(Number(p.quantity))) : 0;
+      const stockLabel = [description, `STOCK: ${qty}`].filter(Boolean).join(" • ");
+      return {
+        id: makeClientId(p),
+        name,
+        stockLabel,
+        stockAvailable: qty,
+      } satisfies InventoryItem;
     })
     .filter(Boolean) as InventoryItem[];
 }
@@ -261,7 +259,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
       try {
         setInventoryLoading(true);
         setInventoryError(null);
-        const items = await listStockItems();
+        const items = await listPackages();
         if (!mounted) return;
         setInventory(toInventory(items));
       } catch (e: any) {
