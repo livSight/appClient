@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, type StyleProp, type ViewStyle } from "react-native";
 import AppText from "./AppText";
 import { colors, fonts, radii } from "../theme/tokens";
@@ -21,12 +22,25 @@ type Props = {
  *   <FormButton label="Continuer" onPress={handleSubmit} disabled={!isValid} />
  */
 export default function FormButton({ label, onPress, disabled = false, style, iconName, iconSize = 18 }: Props) {
-  const bg = disabled ? "#D1D5DB" : colors.primary;
-  const fg = disabled ? "#374151" : colors.white;
+  const [submitting, setSubmitting] = useState(false);
+  const isActive = disabled || submitting;
+  const bg = isActive ? "#D1D5DB" : colors.primary;
+  const fg = isActive ? "#374151" : colors.white;
+
+  async function handlePress() {
+    if (isActive) return;
+    setSubmitting(true);
+    try {
+      await onPress();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <Pressable
-      onPress={onPress}
-      disabled={disabled}
+      onPress={handlePress}
+      disabled={isActive}
       style={[
         {
           minHeight: 56,
@@ -38,11 +52,11 @@ export default function FormButton({ label, onPress, disabled = false, style, ic
           justifyContent: "center",
           flexDirection: "row",
           gap: 10,
-          shadowColor: disabled ? "transparent" : colors.primary,
+          shadowColor: isActive ? "transparent" : colors.primary,
           shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: disabled ? 0 : 0.18,
+          shadowOpacity: isActive ? 0 : 0.18,
           shadowRadius: 16,
-          elevation: disabled ? 0 : 6,
+          elevation: isActive ? 0 : 6,
         },
         style,
       ]}
