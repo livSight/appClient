@@ -3,6 +3,7 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { getEASProjectId } from "@/lib/config/expoProject";
 import { logger } from "@/lib/logger";
+import { shouldRegisterPushNotifications } from "@/lib/push/pushConfig";
 
 const ANDROID_CHANNEL_ID = "default";
 
@@ -31,6 +32,11 @@ async function ensureAndroidChannel() {
  * No-ops on simulator / denied permission / missing EAS project id (with console warning).
  */
 export async function registerPushNotificationsAsync(): Promise<void> {
+  if (!shouldRegisterPushNotifications()) {
+    logger.info("push", "Push registration skipped in dev (set EXPO_PUBLIC_ENABLE_PUSH=true to enable).");
+    return;
+  }
+
   logger.debug("push", "device info", { isDevice: Device.isDevice, brand: Device.brand, modelName: Device.modelName });
   if (!Device.isDevice) {
     logger.info("push", "Not a physical device, skipping.");

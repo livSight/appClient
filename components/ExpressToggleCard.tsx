@@ -14,7 +14,11 @@ function formatFcfa(n: number): string {
   return v.toLocaleString("fr-FR").replace(/\s/g, " ");
 }
 
-export default function ExpressToggleCard({ value, onChange, supplementXaf = 1000 }: Props) {
+export default function ExpressToggleCard({ value, onChange, supplementXaf }: Props) {
+  const supplementLabel =
+    supplementXaf != null && Number.isFinite(supplementXaf)
+      ? `+${formatFcfa(supplementXaf)} FCFA`
+      : "—";
   return (
     <View
       style={{
@@ -84,7 +88,7 @@ export default function ExpressToggleCard({ value, onChange, supplementXaf = 100
           }}
         >
           <AppText style={{ fontSize: 18, lineHeight: 24, fontFamily: fonts.bodyBold, color: "#9A5B00" }} numberOfLines={1}>
-            +{formatFcfa(supplementXaf)} FCFA
+            {supplementLabel}
           </AppText>
         </View>
       </View>

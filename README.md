@@ -1,50 +1,214 @@
-# Welcome to your Expo app 👋
+# LivSight — Client mobile (Expo)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Application mobile **client** LivSight : livraisons, expéditions, stock (packages), conversations et profil. UI en **français**. Branchée sur le backend LivSight (`backend_core`) et la passerelle auth Keycloak (`api-gateway`).
 
-## Get started
+**Stack :** React Native · Expo 54 · Expo Router · TypeScript · NativeWind · Jest (TDD)
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Démarrage
 
-2. Start the app
+### Prérequis
 
-   ```bash
-   npx expo start
-   ```
+- Node 18+
+- Expo CLI / Expo Go ou dev client
+- Backend local ou distant accessible depuis l’appareil/simulateur
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### Installation
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Variables d’environnement
 
-## Learn more
+Créer `.env` à la racine (non versionné) :
 
-To learn more about developing your project with Expo, look at the following resources:
+```env
+EXPO_PUBLIC_API_BASE_URL=http://localhost:8085
+EXPO_PUBLIC_AUTH_BASE_URL=http://localhost:4000
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+| Variable | Rôle |
+|----------|------|
+| `EXPO_PUBLIC_API_BASE_URL` | API métier (`backend_core`, port **8085**) |
+| `EXPO_PUBLIC_AUTH_BASE_URL` | Login JWT (`api-gateway`, port **4000**) |
 
-## Join the community
+Sur **appareil physique**, `localhost` pointe vers le téléphone — utiliser l’IP de votre machine ou l’URL du serveur déployé.
 
-Join our community of developers creating universal apps.
+Redémarrer Metro après modification du `.env` :
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npx expo start --clear
+```
+
+**Push (dev)** : l’enregistrement du token Expo est **désactivé** en `__DEV__` par défaut. Pour tester sur appareil réel : `EXPO_PUBLIC_ENABLE_PUSH=true` dans `.env`.
+
+### Commandes
+
+```bash
+npm start              # Expo dev server
+npm run start:dev      # Dev client (build natif custom)
+npm run ios            # Simulateur iOS
+npm run android        # Émulateur Android
+npm run lint           # ESLint
+
+npm test               # Jest (146+ tests)
+npm run test:watch
+npm run test:coverage
+```
+
+Builds EAS : voir `eas.json` et scripts `npm run eas:build:*`.
+
+---
+
+## Fonctionnalités (état actuel)
+
+### Authentification
+
+- Login email/mot de passe → `POST {AUTH}/auth/login`
+- JWT stocké dans Secure Store ; `apiFetch` envoie `Authorization: Bearer`
+- Garde de route : `app/_layout.tsx` + `lib/auth/useAuthGuard.ts`
+- Fichiers : `app/login.tsx`, `lib/auth/*`, `lib/config/auth.ts`
+
+### Stock (packages)
+
+- Liste et ajout via **`/api/packages`** (remplace l’ancien `/api/stock-items`)
+- Écran liste en **lecture seule** ; création sur `ajouter-au-stock`
+- Catalogue réutilisé dans les formulaires livraison/expédition (typeahead)
+- Fichiers : `lib/api/packages.ts`, `app/(tabs)/stock.tsx`, `app/ajouter-au-stock.tsx`, `components/MaDemandeProduitsForm.tsx`
+
+### Livraisons & expéditions (transactions)
+
+- **Liste** : `GET /api/users/transactions?keycloakId={JWT.sub}` — uniquement les courses de l’utilisateur connecté (inclut les créations WhatsApp)
+- **Création** : `POST /api/transactions` (multipart) + header **`X-User-Id`** = Keycloak `sub`
+- **Détail** : `GET /api/transactions/:id` ou `?transactionReference=LVS-…`
+- **`source`** (enum backend) : `stock` (en stock) · `pickup` (ramassage) — **pas** `instocke` / `pick_up`
+- **`type`** : `delivery` · `expedition`
+- Image **obligatoire** côté API ; l’app envoie un placeholder PNG si l’utilisateur n’a pas de photo
+- Fichiers flux : `ma-demande-livraison`, `ma-demande-expedition`, `resume-produit-en-stock`, `resume-produit-ramasse`, `livraison-detail`, `expedition-detail`
+
+### Cartes liste (`TransactionCard`)
+
+Pastilles : **Livraison** / **Expédition**, **En stock** / **Ramassage**, **Express**, statut, montant espèces.
+
+- Mapping : `lib/api/transactionUi.ts` → `mapTransactionToCardItem()`
+- Composant : `components/TransactionCard.tsx`
+- Écrans : `app/(tabs)/livraison.tsx`, `app/(tabs)/index.tsx` (dernière commande)
+
+### Inbox / conversations
+
+- Onglet **Inbox** → `app/conversations.tsx` (réexport `app/(tabs)/inbox.tsx`)
+- Cartes **`ConversationCard`** : titre = **`package_name`** (produit), sous-titre = quartier ou trajet
+- Chat : `app/inbox/[id].tsx` (bannière transaction + messages mock)
+- Mapping : `lib/api/conversationUi.ts` → `mapTransactionToConversationItem()`
+
+### Profil & divers
+
+- `app/profile.tsx`, `app/mes-informations.tsx`, tarifs, annulation, etc.
+
+---
+
+## Intégration API (résumé)
+
+| Action | Endpoint | Notes |
+|--------|----------|--------|
+| Login | `POST /auth/login` | `:4000` — body `{ username, password }` |
+| Profil user | `GET /api/users?keycloakId=…` | Retourne souvent **tous** les users ; le client filtre par `keycloakId` (`findUserByKeycloakId`) |
+| Mes transactions | `GET /api/users/transactions?keycloakId=…` | Liste mobile |
+| Créer transaction | `POST /api/transactions` | Multipart + `X-User-Id` |
+| Packages | `GET/POST /api/packages`, `POST …/create-package` | Stock |
+| Détail transaction | `GET /api/transactions/reference?transactionReference=` | |
+
+Contrat détaillé : [`docs/api-transactions.md`](docs/api-transactions.md)  
+Phases auth TDD : [`docs/auth-tdd-phases.md`](docs/auth-tdd-phases.md)
+
+---
+
+## Arborescence utile
+
+```
+app/
+├── _layout.tsx                 # Root + auth guard
+├── login.tsx
+├── (tabs)/
+│   ├── index.tsx               # Accueil
+│   ├── livraison.tsx           # Mes courses
+│   ├── stock.tsx               # Mon stock (packages)
+│   ├── inbox.tsx               # → conversations
+│   └── rapports.tsx
+├── conversations.tsx           # Liste conversations
+├── inbox/[id].tsx              # Chat + bannière course
+├── ajouter-au-stock.tsx
+├── ma-demande-livraison.tsx
+├── ma-demande-expedition.tsx
+├── resume-produit-en-stock.tsx
+├── resume-produit-ramasse.tsx
+├── livraison-detail/[id].tsx
+└── expedition-detail/[id].tsx
+
+lib/
+├── api/
+│   ├── client.ts               # fetch + Bearer + 401 logout
+│   ├── transactions.ts         # CRUD transactions, multipart create
+│   ├── transactionUi.ts        # Cartes livraison (pills, filtres)
+│   ├── conversationUi.ts       # Cartes inbox
+│   ├── packages.ts             # Stock / packages
+│   ├── users.ts                # Lookup user (keycloakId)
+│   └── transactionImage.ts     # Placeholder image POST
+├── auth/                       # Session, JWT, login API
+└── config/env.ts               # EXPO_PUBLIC_* URLs
+
+components/
+├── TransactionCard.tsx
+├── ConversationCard.tsx
+├── MaDemandeProduitsForm.tsx
+├── StockProductCard.tsx
+├── AppText.tsx / AppTextInput.tsx
+└── …
+
+theme/
+├── tokens.ts                   # Couleurs, typo Montserrat/Palanquin
+└── styles.ts
+
+__tests__/
+├── api/                        # packages, transactions, transactionUi, conversationUi, users, client
+├── auth/
+└── app/
+```
+
+**Supprimé :** `lib/api/stock.ts` (remplacé par `packages.ts`).
+
+---
+
+## Tests
+
+TDD obligatoire pour la logique API et auth. Miroir `lib/` → `__tests__/`.
+
+```bash
+npm test
+```
+
+Suites principales : `packages`, `transactions`, `transactionUi`, `conversationUi`, `users`, `auth`, `client`.
+
+---
+
+## Design & accessibilité
+
+- Typo centralisée : `theme/tokens.ts` — **Montserrat** (corps), **Palanquin** (titres)
+- Toujours `<AppText>` / `<AppTextInput>` (pas `Text` / `TextInput` RN) — Dynamic Type
+- Tokens partagés : `theme/styles.ts` (`card`, `layout`, …)
+- Règles projet : `.cursor/rules/`, `CLAUDE.md`
+
+---
+
+## Admin dashboard (hors repo)
+
+Le tableau de bord web vit dans le dossier frère **`client/`** (Vite, port 5177). Même auth `:4000` et API `:8085`, mais liste admin via `GET /api/transactions` (tous les clients).
+
+---
+
+## Learn more (Expo)
+
+- [Expo documentation](https://docs.expo.dev/)
+- [Expo Router](https://docs.expo.dev/router/introduction/)

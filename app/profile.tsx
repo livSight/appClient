@@ -1,14 +1,17 @@
-import { Alert, View, Pressable } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { Alert, View, Pressable, ActivityIndicator } from "react-native";
+import { useCallback, useState } from "react";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
 import { card } from "../theme/styles";
-import { colors, fonts, typography } from "../theme/tokens";
+import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../components/AppText";
-import { getCurrentUser, type User } from "@/lib/api/users";
+import type { User } from "@/lib/api/users";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { displayEmail, displayFullName, displayInitials, displayPhone } from "@/lib/userDisplay";
 
 function SettingRow({
   iconName,
@@ -73,7 +76,29 @@ function Divider() {
 export default function ProfileScreen() {
   const { logout } = useAuth();
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  const loadUser = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getCurrentUser();
+      setUser(data);
+    } catch (e: unknown) {
+      setUser(null);
+      setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadUser();
+    }, [loadUser]),
+  );
 
   async function onLogout() {
     if (loggingOut) return;
@@ -86,36 +111,10 @@ export default function ProfileScreen() {
     }
   }
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const data = await getCurrentUser();
-        if (!mounted) return;
-        setUser(data);
-      } catch {
-        if (!mounted) return;
-        setUser(null);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const fullName = useMemo(() => {
-    const name = String(user?.name ?? "").trim();
-    if (name) return name;
-    const first = String(user?.first_name ?? "").trim();
-    const last = String(user?.last_name ?? "").trim();
-    const both = `${first} ${last}`.trim();
-    return both || "—";
-  }, [user?.first_name, user?.last_name, user?.name]);
-
-  const phoneLabel = useMemo(() => {
-    const raw = String(user?.phone ?? "").trim();
-    return raw || "—";
-  }, [user?.phone]);
+  const fullName = displayFullName(user);
+  const emailLabel = displayEmail(user);
+  const phoneLabel = displayPhone(user);
+  const initials = displayInitials(user);
 
   return (
     <ScreenLayout
@@ -137,107 +136,162 @@ export default function ProfileScreen() {
         </View>
       }
     >
-      {/* Profile header */}
-      <View style={{ alignItems: "center", marginTop: 8, marginBottom: 22 }}>
-        <View style={{ width: 112, height: 112 }}>
-          <View
-            style={{
-              width: 112,
-              height: 112,
-              borderRadius: 40,
-              backgroundColor: "#A5A5A5",
-              borderWidth: 4,
-              borderColor: colors.white,
-            }}
-          />
+      {loading ? (
+        <View style={{ alignItems: "center", paddingVertical: 48 }}>
+          <ActivityIndicator color={colors.primary} />
+          <AppText style={{ ...typography.subtitle, marginTop: 12 }} numberOfLines={1}>
+            Chargement…
+          </AppText>
+        </View>
+      ) : error ? (
+        <View style={[card.base, { padding: 20, marginTop: 8 }]}>
+          <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
+            Impossible de charger votre profil
+          </AppText>
+          <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
+            {error}
+          </AppText>
           <Pressable
-            hitSlop={10}
+            onPress={() => {
+              void loadUser();
+            }}
             style={{
-              position: "absolute",
-              right: 0,
-              bottom: 0,
-              width: 31,
-              height: 31,
-              borderRadius: 12,
+              marginTop: 14,
+              minHeight: 44,
+              borderRadius: radii.pill,
+              paddingHorizontal: 16,
+              alignSelf: "flex-start",
               backgroundColor: colors.primary,
               alignItems: "center",
               justifyContent: "center",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.12,
-              shadowRadius: 15,
-              elevation: 4,
+              paddingVertical: 10,
             }}
           >
-            <SolarIcon name="solar:pen-outline" size={24} color={colors.white} />
+            <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
+              Réessayer
+            </AppText>
           </Pressable>
         </View>
+      ) : (
+        <>
+          <View style={{ alignItems: "center", marginTop: 8, marginBottom: 22 }}>
+            <View style={{ width: 112, height: 112 }}>
+              <View
+                style={{
+                  width: 112,
+                  height: 112,
+                  borderRadius: 40,
+                  backgroundColor: "rgba(48,144,192,0.12)",
+                  borderWidth: 4,
+                  borderColor: colors.white,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <AppText style={{ fontSize: 36, lineHeight: 44, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                  {initials}
+                </AppText>
+              </View>
+              <Pressable
+                hitSlop={10}
+                onPress={() => {
+                  Alert.alert("Photo de profil", "La modification de la photo sera disponible prochainement.");
+                }}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  bottom: 0,
+                  width: 31,
+                  height: 31,
+                  borderRadius: 12,
+                  backgroundColor: colors.primary,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 10 },
+                  shadowOpacity: 0.12,
+                  shadowRadius: 15,
+                  elevation: 4,
+                }}
+              >
+                <SolarIcon name="solar:pen-outline" size={24} color={colors.white} />
+              </Pressable>
+            </View>
 
-        <AppText style={{ marginTop: 12, fontSize: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
-          {fullName}
-        </AppText>
-        <AppText variant="dense" style={{ marginTop: 6, fontSize: 16, fontFamily: fonts.bodySemi, color: colors.muted, opacity: 0.7 }} numberOfLines={1} ellipsizeMode="tail">
-          {phoneLabel}
-        </AppText>
-      </View>
+            <AppText style={{ marginTop: 12, fontSize: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
+              {fullName}
+            </AppText>
+            <AppText variant="dense" style={{ marginTop: 6, fontSize: 15, fontFamily: fonts.bodySemi, color: colors.muted, opacity: 0.85 }} numberOfLines={1} ellipsizeMode="tail">
+              {emailLabel}
+            </AppText>
+            <AppText variant="dense" style={{ marginTop: 4, fontSize: 16, fontFamily: fonts.bodySemi, color: colors.muted, opacity: 0.7 }} numberOfLines={1} ellipsizeMode="tail">
+              {phoneLabel}
+            </AppText>
+          </View>
 
-      {/* Settings groups */}
-      <View style={{ gap: 24 }}>
-        <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
-          <SettingRow
-            iconName="solar:user-outline"
-            iconColor={colors.primary}
-            title="Mes informations"
-            onPress={() => router.push("/mes-informations")}
-          />
-          <Divider />
-          <SettingRow
-            iconName="solar:tag-outline"
-            iconColor={colors.primary}
-            title="Consulter les tarifs"
-            onPress={() => router.push("/tarifs")}
-          />
-        </View>
+          <View style={{ gap: 24 }}>
+            <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
+              <SettingRow
+                iconName="solar:user-outline"
+                iconColor={colors.primary}
+                title="Mes informations"
+                onPress={() => router.push("/mes-informations")}
+              />
+              <Divider />
+              <SettingRow
+                iconName="solar:tag-outline"
+                iconColor={colors.primary}
+                title="Consulter les tarifs"
+                onPress={() => router.push("/tarifs")}
+              />
+            </View>
 
-        <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
-          <SettingRow
-            iconName="solar:question-circle-outline"
-            iconColor={"rgba(25,28,29,0.5)"}
-            title="Aide"
-            onPress={() => {}}
-          />
-          <Divider />
-          <SettingRow
-            iconName="solar:logout-2-outline"
-            iconColor={"#BA1A1A"}
-            title={loggingOut ? "Déconnexion…" : "Déconnexion"}
-            titleColor={"#BA1A1A"}
-            onPress={loggingOut ? undefined : onLogout}
-            showChevron
-            testID="profile-logout"
-          />
-        </View>
+            <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
+              <SettingRow
+                iconName="solar:question-circle-outline"
+                iconColor={"rgba(25,28,29,0.5)"}
+                title="Aide"
+                onPress={() => {
+                  Alert.alert(
+                    "Aide",
+                    "Pour toute question sur vos livraisons ou votre compte, contactez votre agence Ongola Express.",
+                  );
+                }}
+              />
+              <Divider />
+              <SettingRow
+                iconName="solar:logout-2-outline"
+                iconColor={"#BA1A1A"}
+                title={loggingOut ? "Déconnexion…" : "Déconnexion"}
+                titleColor={"#BA1A1A"}
+                onPress={loggingOut ? undefined : onLogout}
+                showChevron
+                testID="profile-logout"
+              />
+            </View>
 
-        <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
-          <SettingRow
-            iconName="solar:trash-bin-trash-outline"
-            iconColor={"#BA1A1A"}
-            title="Supprimer le compte"
-            titleColor={"#BA1A1A"}
-            onPress={() => {
-              Alert.alert(
-                "Supprimer le compte",
-                "Cette action est irréversible. Toutes vos données seront supprimées.",
-                [
-                  { text: "Annuler", style: "cancel" },
-                  { text: "Supprimer", style: "destructive", onPress: () => {} },
-                ]
-              );
-            }}
-            showChevron={false}
-          />
-        </View>
-      </View>
+            <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
+              <SettingRow
+                iconName="solar:trash-bin-trash-outline"
+                iconColor={"#BA1A1A"}
+                title="Supprimer le compte"
+                titleColor={"#BA1A1A"}
+                onPress={() => {
+                  Alert.alert(
+                    "Supprimer le compte",
+                    "Cette action est irréversible. Contactez le support pour demander la suppression de votre compte.",
+                    [
+                      { text: "Annuler", style: "cancel" },
+                      { text: "OK", style: "default" },
+                    ],
+                  );
+                }}
+                showChevron={false}
+              />
+            </View>
+          </View>
+        </>
+      )}
 
       <View style={{ marginTop: 22, paddingVertical: 10 }}>
         <AppText
@@ -260,4 +314,3 @@ export default function ProfileScreen() {
     </ScreenLayout>
   );
 }
-

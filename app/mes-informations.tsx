@@ -6,7 +6,9 @@ import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { card } from "@/theme/styles";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
-import { getCurrentUser, type User } from "@/lib/api/users";
+import type { User } from "@/lib/api/users";
+import { getCurrentUser } from "@/lib/auth/currentUser";
+import { displayFullName, displayInitials } from "@/lib/userDisplay";
 
 type UserDetails = User & {
   city?: string;
@@ -70,37 +72,13 @@ export default function MesInformationsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fullName = useMemo(() => {
-    const name = String(user?.name ?? "").trim();
-    if (name) return name;
-    const first = String(user?.first_name ?? "").trim();
-    const last = String(user?.last_name ?? "").trim();
-    const both = `${first} ${last}`.trim();
-    return both || "—";
-  }, [user?.first_name, user?.last_name, user?.name]);
+  const fullName = useMemo(() => displayFullName(user), [user]);
+  const initials = useMemo(() => displayInitials(user), [user]);
 
   const rolesLabel = useMemo(() => {
     const roles = Array.isArray(user?.roles) ? user!.roles!.filter(Boolean) : [];
     return roles.length ? roles.join(" · ") : "—";
   }, [user?.roles]);
-
-  const initials = useMemo(() => {
-    const first = String(user?.first_name ?? "").trim();
-    const last = String(user?.last_name ?? "").trim();
-    if (first || last) {
-      const a = first ? first[0] : "";
-      const b = last ? last[0] : "";
-      const s = `${a}${b}`.trim();
-      if (s.length) return s.toUpperCase();
-    }
-    const name = String(user?.name ?? "").trim();
-    if (!name) return "A";
-    const parts = name.split(/\s+/).filter(Boolean);
-    const a = parts[0]?.[0] ?? "";
-    const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
-    const s = `${a}${b}`.trim();
-    return (s.length ? s : "A").toUpperCase();
-  }, [user?.first_name, user?.last_name, user?.name]);
 
   const load = useCallback(async () => {
     try {

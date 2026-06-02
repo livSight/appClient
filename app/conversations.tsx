@@ -8,12 +8,13 @@ import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, spacing, typography } from "@/theme/tokens";
-import { listTransactions, getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
+import { conversationSearchText, mapTransactionToConversationItem } from "@/lib/api/conversationUi";
+import { listTransactions } from "@/lib/api/transactions";
 
 export default function ConversationsScreen() {
   const [query, setQuery] = useState("");
 
-  const [txns, setTxns] = useState<Transaction[]>([]);
+  const [txns, setTxns] = useState<Awaited<ReturnType<typeof listTransactions>>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,61 +41,15 @@ export default function ConversationsScreen() {
     };
   }, []);
 
-  function timeLabelFromIso(iso?: string) {
-    if (!iso) return "—";
-    try {
-      const d = new Date(iso);
-      return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
-    } catch {
-      return "—";
-    }
-  }
-
-  function mapTxnToConversation(tx: Transaction): ConversationItem | null {
-    const id = getTransactionNavigationId(tx);
-    if (!id) return null;
-
-    const ref = typeof tx.transactionReference === "string" && tx.transactionReference.trim().length ? tx.transactionReference.trim() : `TR-${id}`;
-    const amountXaf = Number.isFinite(Number(tx.amount)) ? Math.max(0, Math.round(Number(tx.amount))) : null;
-    const subtitle = typeof tx.description === "string" && tx.description.trim().length ? tx.description.trim() : "Aucune description donnée";
-    const timeLabel = timeLabelFromIso(tx.created_at);
-
-    const typeRaw = String(tx.type ?? "").toLowerCase();
-    if (typeRaw === "expedition") {
-      const from = tx.departure?.city?.trim() || "—";
-      const to = tx.destination?.city?.trim() || "—";
-      return {
-        id,
-        refLabel: `REF: ${ref}`,
-        timeLabel,
-        type: "expedition",
-        trajet: `${from} → ${to}`,
-        agence: tx.departure?.region?.trim() || "—",
-        amountXaf,
-        subtitle,
-      };
-    }
-
-    const street = tx.destination?.street?.trim() || "";
-    const quartier = street.split("—")[0]?.trim() || street || "—";
-
-    return {
-      id,
-      refLabel: `REF: ${ref}`,
-      timeLabel,
-      type: "livraison",
-      quartier,
-      amountXaf,
-      subtitle,
-    };
-  }
-
-  const all = useMemo<ConversationItem[]>(() => txns.map(mapTxnToConversation).filter(Boolean) as ConversationItem[], [txns]);
+  const all = useMemo<ConversationItem[]>(
+    () => txns.map(mapTransactionToConversationItem).filter(Boolean) as ConversationItem[],
+    [txns],
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return all;
-    return all.filter((c) => `${c.refLabel} ${c.title} ${c.subtitle}`.toLowerCase().includes(q));
+    return all.filter((c) => conversationSearchText(c).includes(q));
   }, [all, query]);
 
   return (

@@ -18,6 +18,8 @@ import {
 } from "@/lib/expeditionClient";
 import { hapticSuccess } from "@/lib/haptics";
 import { listPackages, makeClientId, type Package } from "@/lib/api/packages";
+import { formatSupplementFcfaLabel } from "@/lib/api/tariffUi";
+import { useDeliveryFeeSettings } from "@/lib/hooks/useDeliveryFeeSettings";
 
 export type MaDemandeProduitsFlow = "livraison" | "expedition";
 
@@ -137,6 +139,7 @@ type FormProps = {
 export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const isExpedition = flow === "expedition";
   const screenTitle = isExpedition ? "Ma demande d'expédition" : "Ma demande de livraison";
+  const { expressFee, pickupFee } = useDeliveryFeeSettings();
 
   const {
     quartier: quartierParam,
@@ -986,7 +989,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               <View>
                 <View onLayout={setSectionLayout("deliveryType")} />
                 <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
-                <ExpressToggleCard value={livExpress === "yes"} onChange={(next) => setLivExpress(next ? "yes" : "no")} supplementXaf={1000} />
+                <ExpressToggleCard
+                  value={livExpress === "yes"}
+                  onChange={(next) => setLivExpress(next ? "yes" : "no")}
+                  supplementXaf={expressFee ?? undefined}
+                />
               </View>
 
               <View onLayout={setSectionLayout("notes")} />
@@ -1116,7 +1123,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               </View>
               <View style={{ flexShrink: 0 }}>
                 <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: "#B45309" }} numberOfLines={1}>
-                  +500 FCFA
+                  {formatSupplementFcfaLabel(pickupFee)}
                 </AppText>
               </View>
             </View>
@@ -1125,7 +1132,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           <View>
             <View onLayout={setSectionLayout("deliveryType")} />
             <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
-            <ExpressToggleCard value={pickupExpress === "yes"} onChange={(next) => setPickupExpress(next ? "yes" : "no")} supplementXaf={1000} />
+            <ExpressToggleCard
+              value={pickupExpress === "yes"}
+              onChange={(next) => setPickupExpress(next ? "yes" : "no")}
+              supplementXaf={expressFee ?? undefined}
+            />
           </View>
 
           <View onLayout={setSectionLayout("items")} />

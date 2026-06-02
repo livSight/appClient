@@ -80,4 +80,35 @@ describe("getCurrentUser", () => {
       email: "snake123@example.com",
     });
   });
+
+  it("deduplicates parallel getCurrentUser calls into one API request", async () => {
+    mockGetSessionUser.mockResolvedValue({
+      keycloakId: "5785160a-6c5c-44d5-96fd-d28aa677d8d4",
+    });
+    mockGetUserByKeycloakId.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ id: 3, first_name: "Maxime" }), 10);
+        }),
+    );
+
+    const [a, b, c] = await Promise.all([getCurrentUser(), getCurrentUser(), getCurrentUser()]);
+
+    expect(a?.id).toBe(3);
+    expect(b?.id).toBe(3);
+    expect(c?.id).toBe(3);
+    expect(mockGetUserByKeycloakId).toHaveBeenCalledTimes(1);
+  });
+
+  it("caches getCurrentUser until reset", async () => {
+    mockGetSessionUser.mockResolvedValue({
+      keycloakId: "5785160a-6c5c-44d5-96fd-d28aa677d8d4",
+    });
+    mockGetUserByKeycloakId.mockResolvedValue({ id: 3 });
+
+    await getCurrentUser();
+    await getCurrentUser();
+
+    expect(mockGetUserByKeycloakId).toHaveBeenCalledTimes(1);
+  });
 });

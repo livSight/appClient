@@ -24,12 +24,25 @@ jest.mock("@/lib/auth/AuthProvider", () => ({
   }),
 }));
 
-jest.mock("@/lib/api/users", () => ({
-  getCurrentUser: jest.fn(async () => ({
-    id: 3,
-    name: "Snake User",
-    phone: "+221 77 000 00 00",
-  })),
+const mockGetCurrentUser = jest.fn(async () => ({
+  id: 3,
+  first_name: "Snake",
+  last_name: "User",
+  email: "snake123@example.com",
+  phone: "+221 77 000 00 00",
+}));
+
+jest.mock("@/lib/auth/currentUser", () => ({
+  getCurrentUser: (...args: unknown[]) => mockGetCurrentUser(...args),
+  getCurrentUserId: jest.fn(),
+  resetCurrentUserIdCache: jest.fn(),
+}));
+
+jest.mock("@react-navigation/native", () => ({
+  useFocusEffect: (cb: () => void) => {
+    const React = require("react");
+    React.useEffect(() => cb(), [cb]);
+  },
 }));
 
 jest.mock("@/lib/haptics", () => ({
@@ -72,11 +85,40 @@ function renderProfile() {
   );
 }
 
-describe("ProfileScreen logout", () => {
+describe("ProfileScreen", () => {
   beforeEach(() => {
     mockLogout.mockReset();
     mockReplace.mockReset();
     mockLogout.mockResolvedValue(undefined);
+    mockGetCurrentUser.mockReset();
+    mockGetCurrentUser.mockResolvedValue({
+      id: 3,
+      first_name: "Snake",
+      last_name: "User",
+      email: "snake123@example.com",
+      phone: "+221 77 000 00 00",
+    });
+  });
+
+  it("shows name, email, and initials after load", async () => {
+    const screen = renderProfile();
+
+    await waitFor(() => {
+      expect(screen.getByText("Snake User")).toBeTruthy();
+      expect(screen.getByText("snake123@example.com")).toBeTruthy();
+      expect(screen.getByText("SU")).toBeTruthy();
+    });
+  });
+
+  it("shows error and retry when profile load fails", async () => {
+    mockGetCurrentUser.mockRejectedValueOnce(new Error("Network error"));
+
+    const screen = renderProfile();
+
+    await waitFor(() => {
+      expect(screen.getByText("Impossible de charger votre profil")).toBeTruthy();
+      expect(screen.getByText("Network error")).toBeTruthy();
+    });
   });
 
   it("calls useAuth logout and redirects to login", async () => {

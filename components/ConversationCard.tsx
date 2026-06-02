@@ -3,26 +3,29 @@ import AppText from "./AppText";
 import { card } from "../theme/styles";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 
-type ConversationLivraison = {
-  type: "livraison";
-  quartier: string;
-  amountXaf?: number | null;
-};
-
-type ConversationExpedition = {
-  type: "expedition";
-  trajet: string; // "Yaoundé → Douala"
-  agence: string; // "Buca Voyage"
-  amountXaf?: number | null;
-};
-
-export type ConversationItem = {
+type ConversationBase = {
   id: string;
   refLabel: string;
   timeLabel: string;
-  subtitle: string; // last message
+  /** Product name (package_name), aligned with TransactionCard title */
+  title: string;
+  /** Quartier for livraison, trajet for expedition */
+  locationLine?: string;
+  subtitle: string;
   unreadCount?: number;
-} & (ConversationLivraison | ConversationExpedition);
+  amountXaf?: number | null;
+};
+
+export type ConversationLivraisonItem = ConversationBase & {
+  type: "livraison";
+};
+
+export type ConversationExpeditionItem = ConversationBase & {
+  type: "expedition";
+  agence?: string;
+};
+
+export type ConversationItem = ConversationLivraisonItem | ConversationExpeditionItem;
 
 function TypeBadge({ label }: { label: string }) {
   return (
@@ -56,13 +59,14 @@ export default function ConversationCard({
     ? `${item.amountXaf!.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA`
     : null;
 
+  const typeLabel = item.type === "expedition" ? "EXPÉDITION" : "LIVRAISON";
+
   return (
     <Pressable onPress={onPress} style={[card.base, { padding: 16 }]}>
-      {/* Top row: ref + time */}
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <AppText
           variant="dense"
-          style={{ fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 1, textTransform: "uppercase", flex: 1 }}
+          style={{ fontSize: 10, lineHeight: 15, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 1, textTransform: "uppercase", flex: 1, minWidth: 0 }}
           numberOfLines={1}
           ellipsizeMode="tail"
         >
@@ -73,50 +77,43 @@ export default function ConversationCard({
         </AppText>
       </View>
 
-      {/* Type badge + location */}
-      <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {item.type === "livraison" ? (
-          <>
-            <TypeBadge label="LIVRAISON" />
+      <View style={{ marginTop: 10, flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+        <TypeBadge label={typeLabel} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText
+            style={{ fontSize: 15, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {item.title}
+          </AppText>
+          {item.locationLine ? (
             <AppText
-              style={{ fontSize: 15, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text, flex: 1 }}
+              variant="dense"
+              style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
-              {item.quartier}
+              {item.locationLine}
             </AppText>
-          </>
-        ) : (
-          <>
-            <TypeBadge label="EXPÉDITION" />
+          ) : null}
+          {item.type === "expedition" && item.agence ? (
             <AppText
-              style={{ fontSize: 15, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text, flex: 1 }}
+              variant="dense"
+              style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
-              {item.trajet}
+              {item.agence}
             </AppText>
-          </>
-        )}
+          ) : null}
+        </View>
       </View>
 
-      {/* Extra info: agence for expedition */}
-      {item.type === "expedition" ? (
-        <AppText
-          variant="dense"
-          style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, marginTop: 2 }}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {item.agence}
-        </AppText>
-      ) : null}
-
-      {/* Bottom row: last message + amount + unread badge */}
       <View style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <AppText
           variant="dense"
-          style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, flex: 1 }}
+          style={{ ...typography.subtitle, fontSize: 12, lineHeight: 16, flex: 1, minWidth: 0 }}
           numberOfLines={1}
           ellipsizeMode="tail"
         >

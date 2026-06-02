@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { registerPushNotificationsAsync } from "@/lib/push/registerPushNotifications";
-import { logger } from "@/lib/logger";
+import { shouldRegisterPushNotifications } from "@/lib/push/pushConfig";
 import {
   getDataFromNotification,
   parseDeliveryIdFromNotificationData,
@@ -27,7 +27,7 @@ export function usePushNotifications(pathname: string, checking: boolean) {
   const coldStartHandledRef = useRef(false);
 
   useEffect(() => {
-    if (checking) return;
+    if (checking || !shouldRegisterPushNotifications()) return;
 
     let cancelled = false;
     (async () => {
@@ -35,7 +35,7 @@ export function usePushNotifications(pathname: string, checking: boolean) {
       try {
         await registerPushNotificationsAsync();
       } catch (e) {
-        logger.error("push", "registerPushNotificationsAsync failed", e);
+        logger.warn("push", "registerPushNotificationsAsync failed", e);
       }
     })();
 

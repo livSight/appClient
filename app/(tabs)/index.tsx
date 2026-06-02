@@ -15,7 +15,8 @@ import {
   mapTransactionToCardItem,
   sortTransactionsForDisplay,
 } from "@/lib/api/transactionUi";
-import { getCurrentUser, type User } from "@/lib/api/users";
+import type { User } from "@/lib/api/users";
+import { getCurrentUser } from "@/lib/auth/currentUser";
 const CATEGORIES: CategoryItem[] = [
   { title: "Livraison", iconName: "solar:delivery-bold-duotone", onPress: () => router.push("/ma-demande-livraison") },
   { title: "Expédition", iconName: "solar:rocket-bold-duotone", onPress: () => router.push({ pathname: "/ma-demande-expedition", params: { quartier: "" } }) },

@@ -47,10 +47,6 @@ export default function StockScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   useFocusEffect(
     useCallback(() => {
       void load();
