@@ -13,13 +13,14 @@ import {
 import {
   buildOtherTariffs,
   formatSupplementFcfaLabel,
+  isTariffsCatalogEmpty,
   mapZoneToTariffCard,
   pickDefaultCityId,
   resolveDeliveryFeeAmounts,
   zoneDisplayLabel,
 } from "@/lib/api/tariffUi";
 
-const API_BASE = "http://156.67.27.35:8085";
+const API_BASE = "http://localhost:4040";
 
 const mockApiFetch = apiFetch as jest.Mock;
 
@@ -119,6 +120,22 @@ describe("tariffUi", () => {
   it("pickDefaultCityId prefers Yaoundé then first city", () => {
     expect(pickDefaultCityId([{ id: 2, name: "Douala" }, { id: 1, name: "Yaoundé" }])).toBe(1);
     expect(pickDefaultCityId([{ id: 2, name: "Douala" }])).toBe(2);
+  });
+
+  it("isTariffsCatalogEmpty is true when there are no zones and no fee settings", () => {
+    expect(isTariffsCatalogEmpty({ zones: [], settings: null })).toBe(true);
+    expect(
+      isTariffsCatalogEmpty({
+        zones: [],
+        settings: { pickup_fee: 500, express_fee: 1000 },
+      }),
+    ).toBe(false);
+    expect(
+      isTariffsCatalogEmpty({
+        zones: [{ id: 1, city_id: 1, delivery_fee: 1500, sort_order: 1, distance_label: null, eta_label: null }],
+        settings: null,
+      }),
+    ).toBe(false);
   });
 
   it("resolveDeliveryFeeAmounts reads pickup and express from settings", () => {

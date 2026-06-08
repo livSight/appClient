@@ -15,7 +15,7 @@ import {
   type Package,
 } from "@/lib/api/packages";
 
-const API_BASE = "http://156.67.27.35:8085";
+const API_BASE = "http://localhost:4040";
 
 const mockApiFetch = apiFetch as jest.Mock;
 const mockGetCurrentUserId = getCurrentUserId as jest.Mock;

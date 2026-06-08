@@ -1,6 +1,6 @@
 # LivSight — Client mobile (Expo)
 
-Application mobile **client** LivSight : livraisons, expéditions, stock (packages), conversations et profil. UI en **français**. Branchée sur le backend LivSight (`backend_core`) et la passerelle auth Keycloak (`api-gateway`).
+Application mobile **client** LivSight : livraisons, expéditions, stock (packages), conversations et profil. UI en **français**. Branchée sur la passerelle LivSight (`api-gateway`) qui route `/api/*` et `/auth/*`.
 
 **Stack :** React Native · Expo 54 · Expo Router · TypeScript · NativeWind · Jest (TDD)
 
@@ -25,14 +25,12 @@ npm install
 Créer `.env` à la racine (non versionné) :
 
 ```env
-EXPO_PUBLIC_API_BASE_URL=http://localhost:8085
-EXPO_PUBLIC_AUTH_BASE_URL=http://localhost:4000
+EXPO_PUBLIC_GATEWAY_URL=http://localhost:4040
 ```
 
 | Variable | Rôle |
 |----------|------|
-| `EXPO_PUBLIC_API_BASE_URL` | API métier (`backend_core`, port **8085**) |
-| `EXPO_PUBLIC_AUTH_BASE_URL` | Login JWT (`api-gateway`, port **4000**) |
+| `EXPO_PUBLIC_GATEWAY_URL` | Passerelle unique (`api-gateway`, port **4040**) — routes `/api/*` et `/auth/*` |
 
 Sur **appareil physique**, `localhost` pointe vers le téléphone — utiliser l’IP de votre machine ou l’URL du serveur déployé.
 
@@ -155,7 +153,6 @@ lib/
 │   ├── conversationUi.ts       # Cartes inbox
 │   ├── packages.ts             # Stock / packages
 │   ├── users.ts                # Lookup user (keycloakId)
-│   └── transactionImage.ts     # Placeholder image POST
 ├── auth/                       # Session, JWT, login API
 └── config/env.ts               # EXPO_PUBLIC_* URLs
 

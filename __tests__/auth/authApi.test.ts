@@ -1,6 +1,6 @@
 import { login, AuthError, type AuthTokens } from "@/lib/auth/authApi";
 
-const LOGIN_URL = "http://156.67.27.35:4000/auth/login";
+const LOGIN_URL = "http://localhost:4040/auth/login";
 
 function mockFetchJson(status: number, body: unknown) {
   (global.fetch as jest.Mock).mockResolvedValueOnce({

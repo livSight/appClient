@@ -8,17 +8,8 @@ jest.mock("@/lib/auth/session", () => ({
   },
 }));
 
-jest.mock("@/lib/api/transactionImage", () => ({
-  getDefaultTransactionImagePart: jest.fn(() => ({
-    uri: "file://placeholder-transaction.png",
-    name: "placeholder-transaction.png",
-    type: "image/png",
-  })),
-}));
-
 import { apiFetch } from "@/lib/api/client";
 import { authSession } from "@/lib/auth/session";
-import { getDefaultTransactionImagePart } from "@/lib/api/transactionImage";
 import {
   buildPayloadFromPickupResume,
   buildPayloadFromStockResume,
@@ -31,11 +22,10 @@ import {
   type TransactionRequest,
 } from "@/lib/api/transactions";
 
-const API_BASE = "http://156.67.27.35:8085";
+const API_BASE = "http://localhost:4040";
 const KEYCLOAK_ID = "5785160a-6c5c-44d5-96fd-d28aa677d8d4";
 
 const mockGetSessionUser = authSession.getSessionUser as jest.Mock;
-const mockGetDefaultTransactionImagePart = getDefaultTransactionImagePart as jest.Mock;
 
 function mockApiResponse(status: number, body: unknown) {
   const rawText = typeof body === "string" ? body : JSON.stringify(body);
@@ -150,10 +140,6 @@ describe("resolveApiSourceField", () => {
 });
 
 describe("buildTransactionFormData", () => {
-  beforeEach(() => {
-    mockGetDefaultTransactionImagePart.mockClear();
-  });
-
   it("appends source pickup or stock on POST", () => {
     const form = buildTransactionFormData(sampleRequest);
     expect(form.get("source")).toBe("stock");
@@ -161,18 +147,26 @@ describe("buildTransactionFormData", () => {
     expect(form.get("type")).toBe("delivery");
   });
 
-  it("always includes a placeholder image when imageUri is missing", () => {
-    buildTransactionFormData(sampleRequest);
-    expect(mockGetDefaultTransactionImagePart).toHaveBeenCalledTimes(1);
+  it("omits image when imageUri is missing", () => {
+    const form = buildTransactionFormData(sampleRequest);
+    expect(form.get("image")).toBeNull();
   });
 
-  it("uses the provided imageUri instead of the placeholder", () => {
-    mockGetDefaultTransactionImagePart.mockClear();
+  it("appends image when imageUri is provided", () => {
+    const appendSpy = jest.spyOn(FormData.prototype, "append");
     buildTransactionFormData({
       ...sampleRequest,
       imageUri: "file:///data/user/photo.jpg",
     });
-    expect(mockGetDefaultTransactionImagePart).not.toHaveBeenCalled();
+    expect(appendSpy).toHaveBeenCalledWith(
+      "image",
+      expect.objectContaining({
+        uri: "file:///data/user/photo.jpg",
+        name: "photo.jpg",
+        type: "image/jpeg",
+      }),
+    );
+    appendSpy.mockRestore();
   });
 });
 

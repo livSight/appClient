@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, View } from "react-native
 import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import AppText from "@/components/AppText";
+import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { fetchTariffsCatalog } from "@/lib/api/tariffs";
@@ -11,6 +12,7 @@ import {
   buildOtherTariffs,
   cityDisplayLabel,
   formatTariffFcfa,
+  isTariffsCatalogEmpty,
   mapZoneToTariffCard,
   pickDefaultCityId,
   resolveDeliveryFeeAmounts,
@@ -192,6 +194,7 @@ export default function TarifsScreen() {
   );
 
   const cityLabel = activeCity ? cityDisplayLabel(activeCity) : "—";
+  const catalogIsEmpty = catalog != null && isTariffsCatalogEmpty(catalog);
 
   const body = loading ? (
     <View style={{ paddingVertical: 48, alignItems: "center" }}>
@@ -214,6 +217,14 @@ export default function TarifsScreen() {
         </AppText>
       </Pressable>
     </View>
+  ) : catalogIsEmpty ? (
+    <EmptyStateCard
+      label="TARIFICATION"
+      iconName="solar:tag-price-bold-duotone"
+      title="Aucun tarif disponible"
+      subtitle="Les tarifs de livraison n'ont pas encore été configurés. Revenez plus tard ou actualisez la page."
+      ctas={[{ label: "Actualiser", onPress: () => void loadTariffs("refresh") }]}
+    />
   ) : (
     <>
       <View style={{ marginBottom: 18 }}>

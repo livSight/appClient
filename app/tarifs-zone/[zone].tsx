@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, RefreshControl, View } from "react-native
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import AppText from "@/components/AppText";
+import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { getDeliveryFeeZone, listNeighborhoods } from "@/lib/api/tariffs";
@@ -146,13 +147,20 @@ export default function TarifsZoneDetailScreen() {
           </View>
         </View>
 
-        <View style={{ marginTop: 16, flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        <View style={{ marginTop: 16 }}>
           {neighborhoodNames.length === 0 ? (
-            <AppText style={typography.subtitle} numberOfLines={2}>
-              Aucun quartier enregistré pour cette zone.
-            </AppText>
+            <EmptyStateCard
+              label="QUARTIERS"
+              iconName="solar:map-point-bold-duotone"
+              title="Aucun quartier pour cette zone"
+              subtitle="Les quartiers couverts par cette zone tarifaire n'ont pas encore été renseignés."
+            />
           ) : (
-            neighborhoodNames.map((n) => <ZonePill key={n}>{n}</ZonePill>)
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {neighborhoodNames.map((n) => (
+                <ZonePill key={n}>{n}</ZonePill>
+              ))}
+            </View>
           )}
         </View>
       </View>

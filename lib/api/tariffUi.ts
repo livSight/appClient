@@ -1,4 +1,4 @@
-import type { City, DeliveryFeeSettings, DeliveryFeeZone, Neighborhood } from "@/lib/api/tariffs";
+import type { City, DeliveryFeeSettings, DeliveryFeeZone, Neighborhood, TariffsCatalog } from "@/lib/api/tariffs";
 
 export type TariffZoneCard = {
   zoneId: string;
@@ -27,6 +27,13 @@ export function formatTariffAmountLabel(n: number): string {
 export function formatSupplementFcfaLabel(fee: number | null | undefined): string {
   if (fee == null || !Number.isFinite(fee)) return "—";
   return `+${formatTariffFcfa(fee)} FCFA`;
+}
+
+/** True when the API returned no zones and no express/pickup fee settings. */
+export function isTariffsCatalogEmpty(catalog: Pick<TariffsCatalog, "zones" | "settings">): boolean {
+  if (catalog.zones.length > 0) return false;
+  const { pickupFee, expressFee } = resolveDeliveryFeeAmounts(catalog.settings);
+  return pickupFee == null && expressFee == null;
 }
 
 export function resolveDeliveryFeeAmounts(settings: DeliveryFeeSettings | null | undefined): {

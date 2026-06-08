@@ -5,34 +5,11 @@ import SolarIcon from "./SolarIcon";
 
 type Props = {
   locationLabel: string;
-  agencyStatus?: "online" | "offline";
   onProfilePress?: () => void;
   initials?: string;
 };
 
-function StatusBadge({ status }: { status: "online" | "offline" }) {
-  const label = status === "online" ? "EN LIGNE" : "HORS LIGNE";
-  const bg = status === "online" ? "rgba(46,125,50,0.14)" : "rgba(211,47,47,0.14)";
-  const fg = status === "online" ? "#2E7D32" : "#D32F2F";
-  return (
-    <View
-      style={{
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: radii.pill,
-        backgroundColor: bg,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <AppText variant="dense" style={{ fontSize: 11, lineHeight: 14, fontFamily: fonts.bodyBold, color: fg, letterSpacing: 0.6 }} numberOfLines={1}>
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
-export default function HomeTopBar({ locationLabel, agencyStatus, onProfilePress, initials }: Props) {
+export default function HomeTopBar({ locationLabel, onProfilePress, initials }: Props) {
   return (
     <View
       style={{
@@ -72,4 +49,3 @@ export default function HomeTopBar({ locationLabel, agencyStatus, onProfilePress
     </View>
   );
 }
-

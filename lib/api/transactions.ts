@@ -2,7 +2,6 @@ import { API_BASE_URL } from "@/lib/config/api";
 import { logger } from "@/lib/logger";
 import { apiFetch } from "@/lib/api/client";
 import { authSession } from "@/lib/auth/session";
-import { getDefaultTransactionImagePart } from "@/lib/api/transactionImage";
 
 export type UiMode = "stock" | "pickup";
 export type TransactionSource = "pickup" | "stock";
@@ -139,15 +138,10 @@ function appendFormField(form: FormData, key: string, value: string | number | b
 }
 
 function appendTransactionImage(form: FormData, imageUri?: string) {
-  if (imageUri?.trim()) {
-    const uri = imageUri.trim();
-    const name = uri.split("/").pop() || "photo.jpg";
-    form.append("image", { uri, name, type: "image/jpeg" } as unknown as Blob);
-    return;
-  }
-
-  const placeholder = getDefaultTransactionImagePart();
-  form.append("image", placeholder as unknown as Blob);
+  if (!imageUri?.trim()) return;
+  const uri = imageUri.trim();
+  const name = uri.split("/").pop() || "photo.jpg";
+  form.append("image", { uri, name, type: "image/jpeg" } as unknown as Blob);
 }
 
 export function buildTransactionFormData(payload: TransactionRequest): FormData {

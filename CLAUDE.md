@@ -21,11 +21,10 @@ No test framework is configured.
 
 ## Environment
 
-Copy `.env` and set two required vars — the app will throw at startup if either is missing:
+Copy `.env` and set the gateway URL — the app will throw at startup if it is missing:
 
 ```
-EXPO_PUBLIC_API_BASE_URL=https://…   # Backend REST API
-EXPO_PUBLIC_AUTH_BASE_URL=https://…  # Keycloak auth server
+EXPO_PUBLIC_GATEWAY_URL=http://localhost:4040   # api-gateway — /api/* and /auth/*
 ```
 
 ## Architecture

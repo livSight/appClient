@@ -1,6 +1,6 @@
 # Transactions API contract
 
-Verified against `http://156.67.27.35:8085` (May 2026).
+Verified against `http://localhost:4040` (api-gateway, May 2026).
 
 ## Authentication
 
@@ -19,9 +19,10 @@ Verified against `http://156.67.27.35:8085` (May 2026).
 ### Required parts
 
 - All business fields (`package_name`, `description`, `destination_street`, `receiver_name`, `receiver_phone`, `type`, etc.)
-- **`image`** — required. Server returns `Required part 'image' is not present.` without it.
 
-When the UI has no photo yet, the app sends a bundled 1×1 PNG placeholder (`assets/images/placeholder-transaction.png`).
+### Optional parts
+
+- **`image`** — optional multipart file. When omitted, the backend creates the transaction without a package photo. The mobile app only sends `image` when `TransactionRequest.imageUri` is set.
 
 ### `source` field
 
@@ -60,7 +61,6 @@ HTTP **200**
 ### Client implementation
 
 - `lib/api/transactions.ts` — `buildTransactionFormData()`, `createTransaction()`
-- `lib/api/transactionImage.ts` — placeholder image for multipart
 - `resolveApiSourceField()` — passes `pickup` / `stock` through to multipart POST
 
 ## GET list behaviour

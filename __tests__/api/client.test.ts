@@ -29,10 +29,10 @@ describe("apiFetch", () => {
     getAccessToken.mockResolvedValue("access-token-abc");
     mockFetch.mockResolvedValue(mockResponse(200, "{}"));
 
-    await apiFetch("http://156.67.27.35:8085/api/transactions", { method: "GET" });
+    await apiFetch("http://localhost:4040/api/transactions", { method: "GET" });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://156.67.27.35:8085/api/transactions",
+      "http://localhost:4040/api/transactions",
       expect.objectContaining({
         method: "GET",
         headers: expect.any(Headers),
@@ -47,7 +47,7 @@ describe("apiFetch", () => {
     getAccessToken.mockResolvedValue(null);
     mockFetch.mockResolvedValue(mockResponse(200, "{}"));
 
-    await apiFetch("http://156.67.27.35:8085/api/transactions");
+    await apiFetch("http://localhost:4040/api/transactions");
 
     const headers = mockFetch.mock.calls[0][1].headers as Headers;
     expect(headers.get("Authorization")).toBeNull();
@@ -57,7 +57,7 @@ describe("apiFetch", () => {
     getAccessToken.mockResolvedValue(null);
     mockFetch.mockResolvedValue(mockResponse(200, "{}"));
 
-    await apiFetch("http://156.67.27.35:8085/api/transactions");
+    await apiFetch("http://localhost:4040/api/transactions");
 
     const headers = mockFetch.mock.calls[0][1].headers as Headers;
     expect(headers.get("accept")).toBe("application/json");
@@ -67,7 +67,7 @@ describe("apiFetch", () => {
     getAccessToken.mockResolvedValue(null);
     mockFetch.mockResolvedValue(mockResponse(200, "{}"));
 
-    await apiFetch("http://156.67.27.35:8085/api/transactions", {
+    await apiFetch("http://localhost:4040/api/transactions", {
       headers: { accept: "text/plain" },
     });
 
@@ -79,7 +79,7 @@ describe("apiFetch", () => {
     getAccessToken.mockResolvedValue("expired-token");
     mockFetch.mockResolvedValue(mockResponse(401, "Unauthorized"));
 
-    const res = await apiFetch("http://156.67.27.35:8085/api/transactions");
+    const res = await apiFetch("http://localhost:4040/api/transactions");
 
     expect(res.status).toBe(401);
     expect(logout).toHaveBeenCalledTimes(1);
@@ -89,7 +89,7 @@ describe("apiFetch", () => {
     getAccessToken.mockResolvedValue("access-token-abc");
     mockFetch.mockResolvedValue(mockResponse(500, "Server error"));
 
-    const res = await apiFetch("http://156.67.27.35:8085/api/transactions");
+    const res = await apiFetch("http://localhost:4040/api/transactions");
 
     expect(res.status).toBe(500);
     expect(logout).not.toHaveBeenCalled();
@@ -100,13 +100,13 @@ describe("apiFetch", () => {
     mockFetch.mockResolvedValue(mockResponse(200, "{}"));
     const body = new FormData();
 
-    await apiFetch("http://156.67.27.35:8085/api/transactions", {
+    await apiFetch("http://localhost:4040/api/transactions", {
       method: "POST",
       body,
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://156.67.27.35:8085/api/transactions",
+      "http://localhost:4040/api/transactions",
       expect.objectContaining({
         method: "POST",
         body,

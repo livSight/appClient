@@ -99,7 +99,6 @@ export default function AccueilScreen() {
     return first ? mapTransactionToCardItem(first) : null;
   }, [txns]);
   const hasRecent = Boolean(recentUi?.id);
-  const agencyStatus = useMemo<"online" | "offline">(() => (error ? "offline" : "online"), [error]);
 
   return (
     <ScreenLayout
@@ -107,7 +106,6 @@ export default function AccueilScreen() {
         <View style={{ paddingBottom: 20 }}>
           <HomeTopBar
             locationLabel="Yaoundé, Cameroun"
-            agencyStatus={agencyStatus}
             onProfilePress={() => router.push("/profile")}
             initials={initials}
           />
@@ -117,15 +115,6 @@ export default function AccueilScreen() {
         </View>
       }
     >
-
-      {agencyStatus === "offline" ? (
-        <View style={{ marginBottom: spacing.sectionGap, borderRadius: radii.card, backgroundColor: "rgba(211,47,47,0.10)", padding: 16 }}>
-          <AppText style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, color: "#7A1B1B" }} numberOfLines={3}>
-            Agence hors ligne — la prise en charge peut être plus lente.
-          </AppText>
-        </View>
-      ) : null}
-
       {/* Category Grid */}
       <View style={{ marginBottom: spacing.sectionGap }}>
         <SectionHeader title="De quels services avez-vous besoin aujourd'hui ?" style={{ marginBottom: 16 }} />
