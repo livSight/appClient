@@ -1,4 +1,4 @@
-import { ScrollView, View, type ScrollViewProps } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, View, type ScrollViewProps } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { layout } from "../theme/styles";
 import { colors, spacing } from "../theme/tokens";
@@ -32,7 +32,10 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
 
   if (header) {
     return (
-      <View style={[layout.screen, { backgroundColor: background }]}>
+      <KeyboardAvoidingView
+        style={[layout.screen, { backgroundColor: background }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <HeroGridBackground />
         <View
           style={{
@@ -56,7 +59,7 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
           {children}
         </ScrollView>
         {footer}
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -76,7 +79,10 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
 
   if (footer) {
     return (
-      <View style={[layout.screen, { backgroundColor: background }]}>
+      <KeyboardAvoidingView
+        style={[layout.screen, { backgroundColor: background }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <HeroGridBackground />
         <ScrollView
           ref={scrollViewRef}
@@ -88,7 +94,7 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
           {children}
         </ScrollView>
         {footer}
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -98,6 +104,7 @@ export default function ScreenLayout({ children, scrollable = true, header, foot
       style={[layout.screen, { backgroundColor: background }]}
       contentContainerStyle={contentStyle}
       showsVerticalScrollIndicator={false}
+      automaticallyAdjustKeyboardInsets
       {...scrollViewProps}
     >
       <HeroGridBackground />

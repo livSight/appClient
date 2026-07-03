@@ -425,6 +425,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   return (
     <ScreenLayout
       scrollViewRef={scrollRef}
+      scrollViewProps={{ keyboardShouldPersistTaps: "handled" }}
       header={
         <View>
           <CenteredScreenHeader
