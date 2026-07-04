@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import AppText from "@/components/AppText";
@@ -76,9 +77,11 @@ export default function MesInformationsScreen() {
   const initials = useMemo(() => displayInitials(user), [user]);
 
   const rolesLabel = useMemo(() => {
-    const roles = Array.isArray(user?.roles) ? user!.roles!.filter(Boolean) : [];
-    return roles.length ? roles.join(" · ") : "—";
-  }, [user?.roles]);
+    const roles = user?.roles;
+    if (!Array.isArray(roles)) return "—";
+    const filtered = roles.filter(Boolean);
+    return filtered.length ? filtered.join(" · ") : "—";
+  }, [user]);
 
   const load = useCallback(async () => {
     try {
@@ -94,9 +97,7 @@ export default function MesInformationsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useLoadEffect(load);
 
   return (
     <ScreenLayout

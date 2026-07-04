@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Alert, View, Pressable } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import * as Linking from "expo-linking";
@@ -98,9 +99,7 @@ export default function ExpeditionDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    void loadExpedition();
-  }, [loadExpedition]);
+  useLoadEffect(loadExpedition);
 
   usePushRefresh(
     useCallback(

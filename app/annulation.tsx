@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Alert, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "@/components/ScreenLayout";
@@ -118,9 +119,7 @@ export default function AnnulationScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    void checkCancelEligibility();
-  }, [checkCancelEligibility]);
+  useLoadEffect(checkCancelEligibility);
 
   const canConfirm = useMemo(
     () => cancelAllowed && Boolean(reason) && !submitting && !checkingStatus,

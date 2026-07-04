@@ -91,7 +91,7 @@ export default function AccueilScreen() {
     const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
     const s = `${a}${b}`.trim();
     return s.length ? s : "A";
-  }, [user?.first_name, (user as any)?.last_name, user?.name]);
+  }, [user]);
 
   const recentUi = useMemo(() => {
     const sorted = sortTransactionsForDisplay(txns);

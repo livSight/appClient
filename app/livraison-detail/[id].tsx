@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Alert, View, Pressable } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
@@ -250,9 +251,7 @@ export default function LivraisonDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    void loadDelivery();
-  }, [loadDelivery]);
+  useLoadEffect(loadDelivery);
 
   usePushRefresh(
     useCallback(

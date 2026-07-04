@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Alert, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import AppText from "@/components/AppText";
@@ -252,9 +253,7 @@ export default function InboxChatScreen() {
     }
   }, [id, isReportCompose]);
 
-  useEffect(() => {
-    void refreshThread();
-  }, [refreshThread]);
+  useLoadEffect(refreshThread);
 
   const bubbleMessages = useMemo(
     () => mapApiMessages(messages, currentUserId),
