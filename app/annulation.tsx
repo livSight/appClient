@@ -1,10 +1,16 @@
-import { useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import ScreenLayout from "@/components/ScreenLayout";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
 import SolarIcon from "@/components/SolarIcon";
+import {
+  cancelTransaction,
+  canClientCancelTransaction,
+  CLIENT_CANCEL_BLOCKED_MESSAGE,
+  getTransactionById,
+} from "@/lib/api/transactions";
 import { hapticSuccess } from "@/lib/haptics";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
 
@@ -85,8 +91,42 @@ export default function AnnulationScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [reason, setReason] = useState<ReasonId>("unreachable");
   const [details, setDetails] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [cancelAllowed, setCancelAllowed] = useState(false);
 
-  const canConfirm = useMemo(() => Boolean(reason), [reason]);
+  const checkCancelEligibility = useCallback(async () => {
+    const deliveryId = typeof id === "string" ? id.trim() : "";
+    if (!deliveryId) {
+      Alert.alert("Erreur", "Identifiant de livraison manquant.", [{ text: "OK", onPress: () => router.back() }]);
+      setCheckingStatus(false);
+      return;
+    }
+
+    try {
+      const tx = await getTransactionById(deliveryId);
+      const allowed = canClientCancelTransaction(tx.status);
+      setCancelAllowed(allowed);
+      if (!allowed) {
+        Alert.alert("Annulation impossible", CLIENT_CANCEL_BLOCKED_MESSAGE, [{ text: "OK", onPress: () => router.back() }]);
+      }
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Impossible de charger cette livraison.";
+      Alert.alert("Erreur", message, [{ text: "OK", onPress: () => router.back() }]);
+    } finally {
+      setCheckingStatus(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void checkCancelEligibility();
+  }, [checkCancelEligibility]);
+
+  const canConfirm = useMemo(
+    () => cancelAllowed && Boolean(reason) && !submitting && !checkingStatus,
+    [cancelAllowed, reason, submitting, checkingStatus],
+  );
+  const reasonLabel = useMemo(() => REASONS.find((r) => r.id === reason)?.label ?? reason, [reason]);
 
   return (
     <ScreenLayout
@@ -118,14 +158,33 @@ export default function AnnulationScreen() {
             disabled={!canConfirm}
             onPress={() => {
               void (async () => {
-                await hapticSuccess();
-                // UI-only: in real app we'd call API with { id, reason, details }
-                router.replace({
-                  pathname: "/annulation-confirmee",
-                  params: {
-                    id: typeof id === "string" ? id : "",
-                  },
-                });
+                const deliveryId = typeof id === "string" ? id.trim() : "";
+                if (!deliveryId) {
+                  Alert.alert("Erreur", "Identifiant de livraison manquant.");
+                  return;
+                }
+                if (!cancelAllowed) {
+                  Alert.alert("Annulation impossible", CLIENT_CANCEL_BLOCKED_MESSAGE);
+                  return;
+                }
+                setSubmitting(true);
+                try {
+                  await hapticSuccess();
+                  await cancelTransaction(deliveryId, {
+                    reason: reasonLabel,
+                    details: details.trim() || undefined,
+                  });
+                  router.replace({
+                    pathname: "/annulation-confirmee",
+                    params: { id: deliveryId },
+                  });
+                } catch (e: unknown) {
+                  const message =
+                    e instanceof Error ? e.message : "Impossible d'annuler cette livraison.";
+                  Alert.alert("Erreur", message);
+                } finally {
+                  setSubmitting(false);
+                }
               })();
             }}
             style={{
@@ -144,7 +203,7 @@ export default function AnnulationScreen() {
             }}
           >
             <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={1}>
-              Confirmer l&apos;annulation
+              {submitting ? "Annulation…" : "Confirmer l'annulation"}
             </AppText>
           </Pressable>
         </View>

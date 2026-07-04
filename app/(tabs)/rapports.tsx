@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Pressable, RefreshControl, ActivityIndicator, useWindowDimensions } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import ScreenLayout from "../../components/ScreenLayout";
 import MetricCard from "../../components/MetricCard";
 import SolarIcon from "../../components/SolarIcon";

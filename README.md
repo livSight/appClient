@@ -40,7 +40,7 @@ Redémarrer Metro après modification du `.env` :
 npx expo start --clear
 ```
 
-**Push (dev)** : l’enregistrement du token Expo est **désactivé** en `__DEV__` par défaut. Pour tester sur appareil réel : `EXPO_PUBLIC_ENABLE_PUSH=true` dans `.env`.
+**Push (dev)** : l’enregistrement du token Expo est **désactivé** en `__DEV__` par défaut. Pour tester sur appareil réel : `EXPO_PUBLIC_ENABLE_PUSH=true` dans `.env`. Guide implémentation : [`docs/push-notifications-implementation.md`](docs/push-notifications-implementation.md).
 
 ### Commandes
 
@@ -51,7 +51,7 @@ npm run ios            # Simulateur iOS
 npm run android        # Émulateur Android
 npm run lint           # ESLint
 
-npm test               # Jest (146+ tests)
+npm test               # Jest (255+ tests)
 npm run test:watch
 npm run test:coverage
 ```
@@ -100,6 +100,15 @@ Pastilles : **Livraison** / **Expédition**, **En stock** / **Ramassage**, **Exp
 - Cartes **`ConversationCard`** : titre = **`package_name`** (produit), sous-titre = quartier ou trajet
 - Chat : `app/inbox/[id].tsx` (bannière transaction + messages mock)
 - Mapping : `lib/api/conversationUi.ts` → `mapTransactionToConversationItem()`
+- Push `ticket_message` → tap ouvre le chat ; refresh liste au foreground — voir [`docs/push-notifications-implementation.md`](docs/push-notifications-implementation.md)
+
+### Push notifications
+
+- Enregistrement token au login, re-sync au retour app, suppression au logout
+- Routage tap : détail livraison/expédition ou inbox selon `data.type`
+- Refresh foreground sur liste livraisons, conversations et écrans détail ouverts
+- **Hors scope :** suivi GPS live, polling `driver-location`
+- Fichiers : `lib/push/*`, `lib/api/pushTokens.ts` — doc : [`docs/push-notifications-implementation.md`](docs/push-notifications-implementation.md)
 
 ### Profil & divers
 

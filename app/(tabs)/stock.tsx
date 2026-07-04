@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Pressable, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
 import { colors, fonts, radii, typography } from "../../theme/tokens";

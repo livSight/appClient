@@ -106,7 +106,13 @@ function collectMetaPills(item: TransactionCardItem): { label: string; variant: 
   return pills;
 }
 
-export default function TransactionCard({ item }: { item: TransactionCardItem }) {
+export default function TransactionCard({
+  item,
+  onPress,
+}: {
+  item: TransactionCardItem;
+  onPress?: () => void | Promise<void>;
+}) {
   const iconName = useMemo(() => {
     const t = String(item.title ?? "").toLowerCase();
     if (t.includes("vêt") || t.includes("vet")) return "solar:t-shirt-bold-duotone";
@@ -138,6 +144,10 @@ export default function TransactionCard({ item }: { item: TransactionCardItem })
       accessibilityLabel={accessibilityLabel}
       onPress={async () => {
         await hapticLight();
+        if (onPress) {
+          await onPress();
+          return;
+        }
         router.push(detailPath);
       }}
       style={[card.base, { padding: 16 }]}

@@ -1,50 +1,124 @@
-import { useEffect, useMemo, useState } from "react";
-import { View, Pressable } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { View, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
+import { useFocusEffect } from "expo-router/react-navigation";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
-import ConversationCard, { type ConversationItem } from "@/components/ConversationCard";
+import TransactionCard from "@/components/TransactionCard";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, spacing, typography } from "@/theme/tokens";
-import { conversationSearchText, mapTransactionToConversationItem } from "@/lib/api/conversationUi";
-import { listTransactions } from "@/lib/api/transactions";
+import { conversationSearchText, mapConversationToTransactionCardItem, mapTransactionToConversationItem } from "@/lib/api/conversationUi";
+import {
+  listClientTicketForTransaction,
+  listTicketMessages,
+  resolveNumericTransactionId,
+  type TicketMessage,
+  type TicketResponse,
+} from "@/lib/api/tickets";
+import {
+  enrichConversationWithTicket,
+  filterConversationsWithTickets,
+  lastMessageFromList,
+  pickClientTicket,
+  sortConversationsByActivity,
+  type EnrichedConversationItem,
+} from "@/lib/api/ticketUi";
+import { getTransactionNavigationId, listTransactions } from "@/lib/api/transactions";
+import { getCurrentUserId } from "@/lib/auth/currentUser";
+import { shouldRefreshConversations } from "@/lib/push/notificationRouting";
+import { usePushRefresh } from "@/lib/push/usePushRefresh";
+
+type TicketMeta = {
+  ticket: TicketResponse;
+  lastMessage: TicketMessage | null;
+  unreadCount: number;
+};
+
+async function loadClientTicketsByNavId(
+  txns: Awaited<ReturnType<typeof listTransactions>>,
+  currentUserId: number | null,
+): Promise<Map<string, TicketMeta>> {
+  const entries = await Promise.all(
+    txns.map(async (tx) => {
+      const navId = getTransactionNavigationId(tx);
+      const numericId = resolveNumericTransactionId(tx);
+      if (!navId || !numericId) return null;
+      try {
+        const tickets = await listClientTicketForTransaction(numericId);
+        const ticket = pickClientTicket(tickets);
+        if (!ticket) return null;
+        const messages = await listTicketMessages(ticket.id);
+        const unreadCount = ticket.isMessageRead
+          ? 0
+          : Math.max(1, messages.filter((m) => m.senderId !== currentUserId).length);
+        return [navId, { ticket, lastMessage: lastMessageFromList(messages), unreadCount }] as const;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return new Map(entries.filter((e): e is [string, TicketMeta] => e != null));
+}
 
 export default function ConversationsScreen() {
   const [query, setQuery] = useState("");
 
   const [txns, setTxns] = useState<Awaited<ReturnType<typeof listTransactions>>>([]);
+  const [ticketsByNavId, setTicketsByNavId] = useState<Map<string, TicketMeta>>(new Map());
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await listTransactions();
-        if (!mounted) return;
-        setTxns(data);
-      } catch (e: any) {
-        if (!mounted) return;
-        setError(String(e?.message ?? e ?? "Erreur"));
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
+  const loadConversations = useCallback(async (mode: "initial" | "refresh" = "initial") => {
+    try {
+      if (mode === "initial") setLoading(true);
+      if (mode === "refresh") setRefreshing(true);
+      setError(null);
 
-    return () => {
-      mounted = false;
-    };
+      const [data, userId] = await Promise.all([listTransactions(), getCurrentUserId()]);
+      const ticketMap = await loadClientTicketsByNavId(data, userId);
+      setTxns(data);
+      setTicketsByNavId(ticketMap);
+      setCurrentUserId(userId);
+    } catch (e: unknown) {
+      setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const all = useMemo<ConversationItem[]>(
-    () => txns.map(mapTransactionToConversationItem).filter(Boolean) as ConversationItem[],
-    [txns],
+  useFocusEffect(
+    useCallback(() => {
+      void loadConversations("initial");
+    }, [loadConversations]),
   );
+
+  usePushRefresh(
+    useCallback((payload) => shouldRefreshConversations(payload), []),
+    useCallback(() => {
+      void loadConversations("refresh");
+    }, [loadConversations]),
+  );
+
+  const all = useMemo<EnrichedConversationItem[]>(() => {
+    const items = txns
+      .map(mapTransactionToConversationItem)
+      .filter(Boolean)
+      .map((item) => {
+        const ticketMeta = ticketsByNavId.get(item!.id) ?? null;
+        if (!ticketMeta) return null;
+        return enrichConversationWithTicket(item!, ticketMeta.ticket, ticketMeta.lastMessage, {
+          currentUserId,
+          unreadCount: ticketMeta.unreadCount,
+        });
+      })
+      .filter((item): item is EnrichedConversationItem => item != null);
+    return sortConversationsByActivity(filterConversationsWithTickets(items));
+  }, [txns, ticketsByNavId, currentUserId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -54,6 +128,18 @@ export default function ConversationsScreen() {
 
   return (
     <ScreenLayout
+      scrollViewProps={{
+        refreshControl: (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void loadConversations("refresh");
+            }}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        ),
+      }}
       header={
         <View style={{ paddingBottom: 14 }}>
           <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={1}>
@@ -97,7 +183,7 @@ export default function ConversationsScreen() {
         </View>
       }
     >
-      <View style={{ gap: spacing.screenPaddingX / 2, marginTop: 6 }}>
+      <View style={{ gap: 24, marginTop: 6, paddingBottom: 8 }}>
         {loading ? (
           <View style={{ paddingVertical: 8 }}>
             <AppText style={{ ...typography.subtitle, fontFamily: fonts.bodySemi }} numberOfLines={2}>
@@ -111,18 +197,7 @@ export default function ConversationsScreen() {
             </AppText>
             <Pressable
               onPress={() => {
-                setLoading(true);
-                setError(null);
-                void (async () => {
-                  try {
-                    const data = await listTransactions();
-                    setTxns(data);
-                  } catch (e: any) {
-                    setError(String(e?.message ?? e ?? "Erreur"));
-                  } finally {
-                    setLoading(false);
-                  }
-                })();
+                void loadConversations("initial");
               }}
               style={{ marginTop: 12, alignSelf: "flex-start" }}
               hitSlop={10}
@@ -140,26 +215,19 @@ export default function ConversationsScreen() {
             subtitle={
               query.trim().length > 0
                 ? "Essayez avec une autre référence ou un autre mot-clé."
-                : "Créez une livraison ou une expédition pour commencer à échanger avec votre coursier."
+                : "Les conversations apparaissent ici une fois qu'un échange a été ouvert sur une commande."
             }
             ctas={
               query.trim().length > 0
                 ? []
-                : [
-                    { label: "Livraison", onPress: () => router.push("/ma-demande-livraison") },
-                    {
-                      label: "Expédition",
-                      variant: "white",
-                      onPress: () => router.push({ pathname: "/ma-demande-expedition", params: { quartier: "" } }),
-                    },
-                  ]
+                : [{ label: "Voir mes livraisons", onPress: () => router.push("/(tabs)/livraison") }]
             }
           />
         ) : (
           filtered.map((c) => (
-            <ConversationCard
+            <TransactionCard
               key={c.id}
-              item={c}
+              item={mapConversationToTransactionCardItem(c)}
               onPress={() => router.push({ pathname: "/inbox/[id]", params: { id: c.id } })}
             />
           ))

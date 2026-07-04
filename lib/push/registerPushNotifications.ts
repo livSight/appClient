@@ -1,9 +1,15 @@
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
+import { registerPushToken, deletePushToken } from "@/lib/api/pushTokens";
 import { getEASProjectId } from "@/lib/config/expoProject";
 import { logger } from "@/lib/logger";
 import { shouldRegisterPushNotifications } from "@/lib/push/pushConfig";
+import {
+  clearRegisteredPushToken,
+  getRegisteredPushToken,
+  rememberRegisteredPushToken,
+} from "@/lib/push/pushTokenStore";
 
 const ANDROID_CHANNEL_ID = "default";
 
@@ -11,7 +17,7 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
   }),
@@ -28,8 +34,7 @@ async function ensureAndroidChannel() {
 }
 
 /**
- * Requests permission, obtains Expo push token, and registers it with the vendor API.
- * No-ops on simulator / denied permission / missing EAS project id (with console warning).
+ * Requests permission, obtains Expo push token, and registers it with backend_core via gateway.
  */
 export async function registerPushNotificationsAsync(): Promise<void> {
   if (!shouldRegisterPushNotifications()) {
@@ -37,7 +42,6 @@ export async function registerPushNotificationsAsync(): Promise<void> {
     return;
   }
 
-  logger.debug("push", "device info", { isDevice: Device.isDevice, brand: Device.brand, modelName: Device.modelName });
   if (!Device.isDevice) {
     logger.info("push", "Not a physical device, skipping.");
     return;
@@ -62,9 +66,22 @@ export async function registerPushNotificationsAsync(): Promise<void> {
     return;
   }
 
-  logger.info("push", "Getting Expo push token", { projectId });
   const expoPushToken = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-  logger.debug("push", "Got token", expoPushToken);
-  // UI-only mode: do not register token with any backend.
-  logger.info("push", "UI-only mode: skipping backend token registration.");
+  logger.debug("push", "Got Expo push token");
+
+  await registerPushToken(expoPushToken);
+  rememberRegisteredPushToken(expoPushToken);
+  logger.info("push", "Push token registered with backend");
+}
+
+/** Best-effort removal of push token on logout (errors ignored). */
+export async function unregisterPushNotificationsAsync(): Promise<void> {
+  const token = getRegisteredPushToken();
+  try {
+    await deletePushToken(token ?? undefined);
+  } catch (e) {
+    logger.warn("push", "unregisterPushNotificationsAsync failed", e);
+  } finally {
+    clearRegisteredPushToken();
+  }
 }

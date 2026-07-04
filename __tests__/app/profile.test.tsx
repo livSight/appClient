@@ -38,7 +38,7 @@ jest.mock("@/lib/auth/currentUser", () => ({
   resetCurrentUserIdCache: jest.fn(),
 }));
 
-jest.mock("@react-navigation/native", () => ({
+jest.mock("expo-router/react-navigation", () => ({
   useFocusEffect: (cb: () => void) => {
     const React = require("react");
     React.useEffect(() => cb(), [cb]);

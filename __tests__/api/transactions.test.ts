@@ -14,6 +14,8 @@ import {
   buildPayloadFromPickupResume,
   buildPayloadFromStockResume,
   buildTransactionFormData,
+  cancelTransaction,
+  canClientCancelTransaction,
   createTransaction,
   getTransactionById,
   listTransactions,
@@ -321,6 +323,106 @@ describe("transactions API", () => {
       mockApiResponse(404, "Not found");
 
       await expect(getTransactionById("999")).rejects.toThrow("Not found");
+    });
+  });
+
+  describe("canClientCancelTransaction", () => {
+    it("allows cancel only when status is pending", () => {
+      expect(canClientCancelTransaction("pending")).toBe(true);
+      expect(canClientCancelTransaction("PENDING")).toBe(true);
+    });
+
+    it("blocks cancel for in-progress and terminal statuses", () => {
+      expect(canClientCancelTransaction("processing")).toBe(false);
+      expect(canClientCancelTransaction("assigned")).toBe(false);
+      expect(canClientCancelTransaction("delivered")).toBe(false);
+      expect(canClientCancelTransaction("failed")).toBe(false);
+      expect(canClientCancelTransaction("cancelled")).toBe(false);
+      expect(canClientCancelTransaction(null)).toBe(false);
+      expect(canClientCancelTransaction("")).toBe(false);
+    });
+  });
+
+  describe("cancelTransaction", () => {
+    beforeEach(() => {
+      mockGetSessionUser.mockResolvedValue({ keycloakId: KEYCLOAK_ID });
+    });
+
+    it("PUTs status failed to /api/transactions/:id with X-User-Id", async () => {
+      mockApiResponse(200, { id: 42, status: "failed", package_name: "Colis", type: "delivery" });
+
+      const tx = await cancelTransaction(42, { reason: "Client injoignable" });
+
+      expect(apiFetch).toHaveBeenCalledWith(`${API_BASE}/api/transactions/42`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": KEYCLOAK_ID,
+        },
+        body: JSON.stringify({ status: "failed" }),
+      });
+      expect(tx.status).toBe("failed");
+    });
+
+    it("resolves LVS reference via GET before PUT on numeric id", async () => {
+      (apiFetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              id: 7,
+              transactionReference: "LVS-ABC123",
+              package_name: "Ref txn",
+              type: "delivery",
+              status: "pending",
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              id: 7,
+              transactionReference: "LVS-ABC123",
+              status: "failed",
+              package_name: "Ref txn",
+              type: "delivery",
+            }),
+        });
+
+      await cancelTransaction("LVS-ABC123", { reason: "Autre motif", details: "Test" });
+
+      expect(apiFetch).toHaveBeenNthCalledWith(
+        1,
+        `${API_BASE}/api/transactions/reference?transactionReference=LVS-ABC123`,
+        { method: "GET" },
+      );
+      expect(apiFetch).toHaveBeenNthCalledWith(
+        2,
+        `${API_BASE}/api/transactions/7`,
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ status: "failed" }),
+        }),
+      );
+    });
+
+    it("throws when session is missing", async () => {
+      mockGetSessionUser.mockResolvedValue(null);
+
+      await expect(cancelTransaction(1, { reason: "Client injoignable" })).rejects.toThrow(
+        "Session expirée",
+      );
+      expect(apiFetch).not.toHaveBeenCalled();
+    });
+
+    it("throws when cancel PUT fails", async () => {
+      mockApiResponse(400, "Invalid status: cancelled");
+
+      await expect(cancelTransaction(1, { reason: "Client injoignable" })).rejects.toThrow(
+        "Invalid status: cancelled",
+      );
     });
   });
 });

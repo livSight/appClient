@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import ScreenLayout from "../../components/ScreenLayout";
 import SectionHeader from "../../components/SectionHeader";
