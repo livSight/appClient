@@ -107,4 +107,59 @@ export async function login(credentials: LoginCredentials): Promise<AuthTokens> 
   return parseAuthTokens(data);
 }
 
-/** Refresh flow — add when backend refresh endpoint is confirmed (see docs/auth-tdd-phases.md). */
+/**
+ * POST /auth/refresh?refreshToken=... (query param, no JSON body).
+ * Throws AuthError with a status for definitive rejections (4xx = refresh token
+ * invalid/expired) and without a status for transient network failures.
+ * Never log the URL — it contains the refresh token.
+ */
+export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
+  const url = `${AUTH_BASE_URL}/auth/refresh?refreshToken=${encodeURIComponent(refreshToken)}`;
+
+  logger.info("authApi", "POST /auth/refresh");
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { accept: "application/json" },
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e ?? "Network error");
+    logger.info("authApi", "POST /auth/refresh network error", { message });
+    throw new AuthError(message);
+  }
+
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (!res.ok) {
+    const message = errorMessageFrom(res.status, data, rawText);
+    logger.info("authApi", "POST /auth/refresh failed", { status: res.status });
+    throw new AuthError(message, res.status);
+  }
+
+  return parseAuthTokens(data);
+}
+
+/** POST /auth/logout?refreshToken=... — revokes the Keycloak session. */
+export async function revokeRefreshToken(refreshToken: string): Promise<void> {
+  const url = `${AUTH_BASE_URL}/auth/logout?refreshToken=${encodeURIComponent(refreshToken)}`;
+
+  logger.info("authApi", "POST /auth/logout");
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { accept: "application/json" },
+    });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e ?? "Network error");
+    throw new AuthError(message);
+  }
+
+  if (!res.ok) {
+    throw new AuthError(`HTTP ${res.status}`, res.status);
+  }
+}

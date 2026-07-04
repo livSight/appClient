@@ -11,16 +11,16 @@ function mockResponse(status: number, body = "") {
 describe("apiFetch", () => {
   let mockFetch: jest.Mock;
   let getAccessToken: jest.Mock;
-  let logout: jest.Mock;
+  let forceRefreshAccessToken: jest.Mock;
   let apiFetch: ReturnType<typeof createApiFetch>;
 
   beforeEach(() => {
     mockFetch = jest.fn();
     getAccessToken = jest.fn();
-    logout = jest.fn(async () => undefined);
+    forceRefreshAccessToken = jest.fn(async () => null);
     apiFetch = createApiFetch({
       getAccessToken,
-      logout,
+      forceRefreshAccessToken,
       fetchFn: mockFetch,
     });
   });
@@ -75,24 +75,53 @@ describe("apiFetch", () => {
     expect(headers.get("accept")).toBe("text/plain");
   });
 
-  it("calls logout on 401 responses", async () => {
+  it("refreshes and retries once on 401", async () => {
     getAccessToken.mockResolvedValue("expired-token");
+    forceRefreshAccessToken.mockResolvedValue("fresh-token");
+    mockFetch
+      .mockResolvedValueOnce(mockResponse(401, "Unauthorized"))
+      .mockResolvedValueOnce(mockResponse(200, "{}"));
+
+    const res = await apiFetch("http://localhost:4040/api/transactions");
+
+    expect(res.status).toBe(200);
+    expect(forceRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const retryHeaders = mockFetch.mock.calls[1][1].headers as Headers;
+    expect(retryHeaders.get("Authorization")).toBe("Bearer fresh-token");
+  });
+
+  it("returns the original 401 when refresh fails", async () => {
+    getAccessToken.mockResolvedValue("expired-token");
+    forceRefreshAccessToken.mockResolvedValue(null);
     mockFetch.mockResolvedValue(mockResponse(401, "Unauthorized"));
 
     const res = await apiFetch("http://localhost:4040/api/transactions");
 
     expect(res.status).toBe(401);
-    expect(logout).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("does not call logout on non-401 errors", async () => {
+  it("does not retry more than once when the retry also gets 401", async () => {
+    getAccessToken.mockResolvedValue("expired-token");
+    forceRefreshAccessToken.mockResolvedValue("fresh-token");
+    mockFetch.mockResolvedValue(mockResponse(401, "Unauthorized"));
+
+    const res = await apiFetch("http://localhost:4040/api/transactions");
+
+    expect(res.status).toBe(401);
+    expect(forceRefreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not refresh on non-401 errors", async () => {
     getAccessToken.mockResolvedValue("access-token-abc");
     mockFetch.mockResolvedValue(mockResponse(500, "Server error"));
 
     const res = await apiFetch("http://localhost:4040/api/transactions");
 
     expect(res.status).toBe(500);
-    expect(logout).not.toHaveBeenCalled();
+    expect(forceRefreshAccessToken).not.toHaveBeenCalled();
   });
 
   it("forwards method and body unchanged", async () => {
