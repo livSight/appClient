@@ -230,7 +230,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     (parseExpeditionClient(typeof expeditionClientRaw === "string" ? expeditionClientRaw : undefined)?.phone ?? "")
   );
 
-  const [expStockSearch, setExpStockSearch] = useState("");
   const [expStockOpen, setExpStockOpen] = useState(false);
   const expSelectedFromParams = useMemo(() => {
     if (typeof expSelectedItemsParam !== "string" || !expSelectedItemsParam.length) return null;
@@ -250,11 +249,9 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
   const [expSelectedStockItemId, setExpSelectedStockItemId] = useState<string | null>(() => expSelectedFromParams?.id ?? null);
   const [expStockQty, setExpStockQty] = useState(() => expSelectedFromParams?.qty ?? "1");
-  useEffect(() => {
-    if (!isExpedition) return;
-    if (!expSelectedFromParams?.name) return;
-    setExpStockSearch((prev) => (prev.trim().length ? prev : expSelectedFromParams.name));
-  }, [expSelectedFromParams?.name, isExpedition]);
+  const [expStockSearch, setExpStockSearch] = useState(() =>
+    isExpedition ? expSelectedFromParams?.name ?? "" : ""
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -301,7 +298,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
 
   const scrollRef = useRef<RNScrollView>(null);
   const sectionY = useRef<Record<string, number>>({});
-  const setSectionLayout = (key: string) => (e: any) => {
+  const recordSectionLayout = (key: string, e: any) => {
     sectionY.current[key] = e?.nativeEvent?.layout?.y ?? 0;
   };
 
@@ -434,7 +431,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             showBack
           />
 
-          <View onLayout={setSectionLayout("mode")} />
+          <View onLayout={(e) => recordSectionLayout("mode", e)} />
           <View style={{ marginTop: 14, flexDirection: "row", gap: 16 }}>
             <ModeCard label="Ramassage" active={mode === "pickup"} onPress={() => setMode("pickup")} iconName="solar:hand-shake-bold" />
             <ModeCard label="Colis en stock" active={mode === "stock"} onPress={() => setMode("stock")} iconName="solar:box-bold" />
@@ -585,7 +582,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           <View style={{ marginTop: 22, gap: 20 }}>
             <View>
               <RamassageFieldLabel>Colis en stock</RamassageFieldLabel>
-              <View onLayout={setSectionLayout("items")} />
+              <View onLayout={(e) => recordSectionLayout("items", e)} />
               <View
                 style={{
                   minHeight: 56,
@@ -692,11 +689,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             </View>
 
             <FormInput label="Quantité" keyboardType="number-pad" value={expStockQty} onChangeText={(t) => setExpStockQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
-            <View onLayout={setSectionLayout("pickupAddress")} />
+            <View onLayout={(e) => recordSectionLayout("pickupAddress", e)} />
             <FormInput label="Ville de l'expédition" value={expVille} onChangeText={setExpVille} placeholder="Ex. Douala" />
             <FormInput label="Agence de l'expédition" value={expAgence} onChangeText={setExpAgence} placeholder="Ex. Agence Liv Sight" />
             <FormInput label="Adresse de ramassage" value={expPickupAddress} onChangeText={setExpPickupAddress} placeholder="Ex. Rue, repère, quartier…" />
-            <View onLayout={setSectionLayout("recipient")} />
+            <View onLayout={(e) => recordSectionLayout("recipient", e)} />
             <FormInput label="Nom du destinataire" value={expNomDestinataire} onChangeText={setExpNomDestinataire} placeholder="Nom complet" autoCapitalize="words" />
             <FormInput label="Numéro de téléphone du destinataire" keyboardType="phone-pad" value={expTelephoneDestinataire} onChangeText={setExpTelephoneDestinataire} placeholder="6XXXXXX" />
           </View>
@@ -705,7 +702,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             <View style={{ marginTop: 22, gap: 20 }}>
               <View>
                 <RamassageFieldLabel>Sélectionner un produit</RamassageFieldLabel>
-                <View onLayout={setSectionLayout("items")} />
+                <View onLayout={(e) => recordSectionLayout("items", e)} />
                 <View
                   style={{
                     minHeight: 56,
@@ -902,10 +899,10 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   </Pressable>
                 </View>
               </View>
-              <View onLayout={setSectionLayout("recipient")} />
+              <View onLayout={(e) => recordSectionLayout("recipient", e)} />
               <FormInput label="Numéro destinataire" keyboardType="phone-pad" value={livPhone} onChangeText={setLivPhone} placeholder="6XXXXXXX" />
               <View>
-                <View onLayout={setSectionLayout("address")} />
+                <View onLayout={(e) => recordSectionLayout("address", e)} />
                 <RamassageFieldLabel>Quartier de livraison</RamassageFieldLabel>
                 <View
                   style={{
@@ -988,7 +985,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               />
 
               <View>
-                <View onLayout={setSectionLayout("deliveryType")} />
+                <View onLayout={(e) => recordSectionLayout("deliveryType", e)} />
                 <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
                 <ExpressToggleCard
                   value={livExpress === "yes"}
@@ -997,11 +994,11 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                 />
               </View>
 
-              <View onLayout={setSectionLayout("notes")} />
+              <View onLayout={(e) => recordSectionLayout("notes", e)} />
               <FormInput label="Instructions (optionnel)" multiline value={livNotes} onChangeText={setLivNotes} placeholder="Ex: appeler avant d'arriver, laisser au gardien..." />
 
               <View>
-                <View onLayout={setSectionLayout("payment")} />
+                <View onLayout={(e) => recordSectionLayout("payment", e)} />
                 <RamassageFieldLabel>Y a-t-il de l&apos;argent à récupérer ?</RamassageFieldLabel>
                 <View style={{ flexDirection: "row", gap: 12 }}>
                   <Pressable
@@ -1063,17 +1060,17 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
         )
       ) : isExpedition ? (
         <View style={{ marginTop: 22, gap: 20 }}>
-          <View onLayout={setSectionLayout("pickupAddress")} />
+          <View onLayout={(e) => recordSectionLayout("pickupAddress", e)} />
           <FormInput label="Ville de l'expédition" value={expVille} onChangeText={setExpVille} placeholder="Ex. Douala" />
           <FormInput label="Agence de l'expédition" value={expAgence} onChangeText={setExpAgence} placeholder="Ex. Agence Liv Sight" />
           <FormInput label="Adresse de ramassage" value={expPickupAddress} onChangeText={setExpPickupAddress} placeholder="Ex. Rue, repère, quartier…" />
-          <View onLayout={setSectionLayout("recipient")} />
+          <View onLayout={(e) => recordSectionLayout("recipient", e)} />
           <FormInput label="Nom du destinataire" value={expNomDestinataire} onChangeText={setExpNomDestinataire} placeholder="Nom complet" autoCapitalize="words" />
           <FormInput label="Numéro de téléphone du destinataire" keyboardType="phone-pad" value={expTelephoneDestinataire} onChangeText={setExpTelephoneDestinataire} placeholder="6XXXXXX" />
         </View>
       ) : (
         <View style={{ marginTop: 22, gap: 24 }}>
-          <View onLayout={setSectionLayout("pickupAddress")} />
+          <View onLayout={(e) => recordSectionLayout("pickupAddress", e)} />
           <FormInput
             label="Quartier de ramassage"
             value={pickupPickupQuartierQuery}
@@ -1087,7 +1084,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             placeholder="Ex: Bastos, face à la pharmacie"
           />
 
-          <View onLayout={setSectionLayout("deliveryAddress")} />
+          <View onLayout={(e) => recordSectionLayout("deliveryAddress", e)} />
           <FormInput
             label="Quartier de livraison"
             value={pickupDropoffQuartierQuery}
@@ -1131,7 +1128,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           </View>
 
           <View>
-            <View onLayout={setSectionLayout("deliveryType")} />
+            <View onLayout={(e) => recordSectionLayout("deliveryType", e)} />
             <RamassageFieldLabel>Type de livraison</RamassageFieldLabel>
             <ExpressToggleCard
               value={pickupExpress === "yes"}
@@ -1140,7 +1137,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
             />
           </View>
 
-          <View onLayout={setSectionLayout("items")} />
+          <View onLayout={(e) => recordSectionLayout("items", e)} />
           <FormInput
             label="Description du colis"
             leadingIconName="solar:box-outline"
@@ -1153,7 +1150,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           <FormInput label="Quantité" leadingIconName="solar:hashtag-outline" leadingIconSize={24} keyboardType="number-pad" value={pickupQty} onChangeText={(t) => setPickupQty(t.replace(/[^\d]/g, ""))} placeholder="1" />
 
           <View>
-            <View onLayout={setSectionLayout("payment")} />
+            <View onLayout={(e) => recordSectionLayout("payment", e)} />
             <RamassageFieldLabel>Y a-t-il de l&apos;argent à récupérer ?</RamassageFieldLabel>
             <View style={{ flexDirection: "row", gap: 12 }}>
               <Pressable

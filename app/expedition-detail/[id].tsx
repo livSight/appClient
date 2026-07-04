@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Alert, View, Pressable } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import * as Linking from "expo-linking";
@@ -12,6 +13,8 @@ import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../../components/AppText";
 import { getTransactionById, getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
+import { isTransactionPushType, matchesOpenTransaction } from "@/lib/push/notificationRouting";
+import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
 type Expedition = {
   id: string;
@@ -81,29 +84,32 @@ export default function ExpeditionDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!id) return;
-      try {
-        setLoading(true);
-        setLoadError(null);
-        const data = await getTransactionById(String(id));
-        if (!mounted) return;
-        setTx(data);
-      } catch (e: any) {
-        if (!mounted) return;
-        setTx(null);
-        setLoadError(String(e?.message ?? e ?? "Impossible de charger l'expédition."));
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+  const loadExpedition = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      setLoadError(null);
+      const data = await getTransactionById(String(id));
+      setTx(data);
+    } catch (e: unknown) {
+      setTx(null);
+      setLoadError(String(e instanceof Error ? e.message : e ?? "Impossible de charger l'expédition."));
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useLoadEffect(loadExpedition);
+
+  usePushRefresh(
+    useCallback(
+      (payload) => isTransactionPushType(String(payload.type)) && matchesOpenTransaction(payload, id),
+      [id],
+    ),
+    useCallback(() => {
+      void loadExpedition();
+    }, [loadExpedition]),
+  );
 
   const expedition = useMemo(() => (tx ? mapTransactionToExpedition(tx) : null), [tx]);
   const referenceTitle = useMemo(() => {
@@ -223,6 +229,30 @@ export default function ExpeditionDetailScreen() {
               ]}
               showCollectCashBadge={expedition.collectCash}
             />
+
+            <Pressable
+              onPress={() => {
+                if (!expedition?.id) return;
+                void hapticLight();
+                router.push({ pathname: "/inbox/[id]", params: { id: String(expedition.id), intent: "report" } });
+              }}
+              style={{
+                minHeight: 56,
+                borderRadius: radii.pill,
+                backgroundColor: "#E5E7EB",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 10,
+                paddingVertical: 14,
+              }}
+              hitSlop={10}
+            >
+              <SolarIcon name="solar:dialog-bold" size={24} color={colors.text} />
+              <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
+                Signaler un problème
+              </AppText>
+            </Pressable>
 
             <Pressable
               onPress={() => Alert.alert("Reçu PDF", "Télécharger le reçu (UI-only).")}

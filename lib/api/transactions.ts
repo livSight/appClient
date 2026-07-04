@@ -278,6 +278,14 @@ export function mapTxnStatusToUi(status?: string): UiStatusBucket {
   return "En cours";
 }
 
+/** Client may cancel only while the order is still `pending` (not yet in delivery). */
+export function canClientCancelTransaction(status?: string | null): boolean {
+  return String(status ?? "").trim().toLowerCase() === "pending";
+}
+
+export const CLIENT_CANCEL_BLOCKED_MESSAGE =
+  "Cette livraison est déjà en cours. Seules les commandes en attente peuvent être annulées depuis l'application.";
+
 export type StockResumePayloadInput = {
   forExpedition: boolean;
   itemsLine: string;
@@ -453,4 +461,72 @@ export async function getTransactionById(id: string | number) {
   }
 
   return parseTransaction(data?.data ?? data);
+}
+
+export type CancelTransactionInput = {
+  reason: string;
+  details?: string;
+};
+
+async function resolveTransactionUpdateId(id: string | number): Promise<string> {
+  const idStr = String(id).trim();
+  if (!idStr.length) {
+    throw new Error("Identifiant de livraison manquant.");
+  }
+  if (isTransactionReference(idStr)) {
+    const tx = await getTransactionById(idStr);
+    if (tx.id == null || !String(tx.id).trim().length) {
+      throw new Error("Transaction introuvable.");
+    }
+    return String(tx.id);
+  }
+  return idStr;
+}
+
+/** Marks a transaction as cancelled (gateway status `failed`, shown as Annulé in UI). */
+export async function cancelTransaction(id: string | number, input: CancelTransactionInput): Promise<Transaction> {
+  const sessionUser = await authSession.getSessionUser();
+  if (!sessionUser?.keycloakId) {
+    throw new Error("Session expirée. Reconnectez-vous pour annuler cette livraison.");
+  }
+
+  const updateId = await resolveTransactionUpdateId(id);
+  const url = `${API_BASE_URL}/api/transactions/${encodeURIComponent(updateId)}`;
+
+  logger.info("cancelTransaction", "PUT /api/transactions/:id", {
+    url,
+    id: updateId,
+    reason: input.reason,
+    details: input.details,
+    keycloakId: sessionUser.keycloakId,
+  });
+
+  const res = await apiFetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": sessionUser.keycloakId,
+    },
+    body: JSON.stringify({ status: "failed" }),
+  });
+
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (!res.ok) {
+    logger.info("cancelTransaction", "PUT /api/transactions/:id failed", { status: res.status, body: data ?? rawText });
+    throw new Error(errorMessageFrom(res.status, data, rawText));
+  }
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>;
+    if (record.data && typeof record.data === "object") {
+      return parseTransaction(record.data);
+    }
+    if ("id" in record || "transactionReference" in record || "status" in record) {
+      return parseTransaction(record);
+    }
+  }
+
+  return getTransactionById(updateId);
 }

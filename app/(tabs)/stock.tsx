@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { View, Pressable, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
@@ -54,10 +55,11 @@ export default function StockScreen() {
     }, [load]),
   );
 
-  useEffect(() => {
-    if (!addedName) return;
-    void load();
-  }, [addedName, load]);
+  useLoadEffect(
+    useCallback(() => {
+      if (addedName) void load();
+    }, [addedName, load]),
+  );
 
   return (
     <View style={{ flex: 1 }}>

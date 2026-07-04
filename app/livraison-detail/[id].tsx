@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Alert, View, Pressable } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import ScreenLayout from "../../components/ScreenLayout";
@@ -10,7 +11,9 @@ import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import AppText from "../../components/AppText";
-import { getTransactionById, getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
+import { getTransactionById, getTransactionNavigationId, canClientCancelTransaction, CLIENT_CANCEL_BLOCKED_MESSAGE, type Transaction } from "@/lib/api/transactions";
+import { isTransactionPushType, matchesOpenTransaction } from "@/lib/push/notificationRouting";
+import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
 const WARNING_AMBER = "#F59E0B";
 
@@ -228,37 +231,40 @@ export default function LivraisonDetailScreen() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadDelivery = useCallback(async () => {
     if (!id) {
       setDelivery(null);
       setLoadError(null);
       return;
     }
 
-    (async () => {
-      try {
-        setLoading(true);
-        setLoadError(null);
-        const tx = await getTransactionById(String(id));
-        if (!mounted) return;
-        setDelivery(mapTransactionToDelivery(tx));
-      } catch (e: any) {
-        if (!mounted) return;
-        setDelivery(null);
-        setLoadError(String(e?.message ?? e ?? "Impossible de charger la livraison."));
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
+    try {
+      setLoading(true);
+      setLoadError(null);
+      const tx = await getTransactionById(String(id));
+      setDelivery(mapTransactionToDelivery(tx));
+    } catch (e: unknown) {
+      setDelivery(null);
+      setLoadError(String(e instanceof Error ? e.message : e ?? "Impossible de charger la livraison."));
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
+  useLoadEffect(loadDelivery);
+
+  usePushRefresh(
+    useCallback(
+      (payload) => isTransactionPushType(String(payload.type)) && matchesOpenTransaction(payload, id),
+      [id],
+    ),
+    useCallback(() => {
+      void loadDelivery();
+    }, [loadDelivery]),
+  );
+
   const statusChip = useMemo(() => mapBackendStatusToChip(delivery?.status), [delivery?.status]);
+  const canCancel = useMemo(() => canClientCancelTransaction(delivery?.status), [delivery?.status]);
   const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
   const referenceTitle = useMemo(() => {
     if (!delivery) return null;
@@ -509,7 +515,9 @@ export default function LivraisonDetailScreen() {
           <View style={{ marginTop: 16 }}>
             <Pressable
               onPress={() => {
-                Alert.alert("Signaler un problème", "Signaler un problème avec cette livraison (UI-only).");
+                if (!delivery?.id) return;
+                void hapticLight();
+                router.push({ pathname: "/inbox/[id]", params: { id: String(delivery.id), intent: "report" } });
               }}
               style={{
                 minHeight: 56,
@@ -586,28 +594,46 @@ export default function LivraisonDetailScreen() {
             </AppText>
           </Pressable>
 
-          <Pressable
-            onPress={() => {
-              void hapticLight();
-              router.push({
-                pathname: "/annulation",
-                params: { id: String(delivery.id) },
-              });
-            }}
-            style={{
-              marginTop: 18,
-              minHeight: 56,
-              borderRadius: radii.pill,
-              backgroundColor: "#DC2626",
-              alignItems: "center",
-              justifyContent: "center",
-              paddingVertical: 14,
-            }}
-          >
-            <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={2} ellipsizeMode="tail">
-              Annuler la livraison
-            </AppText>
-          </Pressable>
+          {canCancel ? (
+            <Pressable
+              onPress={() => {
+                void hapticLight();
+                router.push({
+                  pathname: "/annulation",
+                  params: { id: String(delivery.id) },
+                });
+              }}
+              style={{
+                marginTop: 18,
+                minHeight: 56,
+                borderRadius: radii.pill,
+                backgroundColor: "#DC2626",
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 14,
+              }}
+            >
+              <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.white }} numberOfLines={2} ellipsizeMode="tail">
+                Annuler la livraison
+              </AppText>
+            </Pressable>
+          ) : (
+            <View
+              style={{
+                marginTop: 18,
+                borderRadius: 18,
+                backgroundColor: "rgba(14,165,233,0.06)",
+                borderWidth: 1,
+                borderColor: "rgba(14,165,233,0.14)",
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+              }}
+            >
+              <AppText style={{ ...typography.subtitle, fontFamily: fonts.bodySemi }} numberOfLines={4}>
+                {CLIENT_CANCEL_BLOCKED_MESSAGE}
+              </AppText>
+            </View>
+          )}
 
         </>
       )}

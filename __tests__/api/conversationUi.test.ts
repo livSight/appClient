@@ -1,4 +1,4 @@
-import { mapTransactionToConversationItem } from "@/lib/api/conversationUi";
+import { mapConversationToTransactionCardItem, mapTransactionToConversationItem } from "@/lib/api/conversationUi";
 import type { Transaction } from "@/lib/api/transactions";
 
 const baseTx = (overrides: Partial<Transaction> = {}): Transaction => ({
@@ -47,12 +47,64 @@ describe("mapTransactionToConversationItem", () => {
     );
 
     expect(item?.title).toBe("Colis fragile");
-    expect(item?.locationLine).toBe("Yaoundé → Douala");
-    expect(item?.agence).toBe("Buca Voyage");
+    expect(item?.locationLine).toBe("Yaoundé → Douala · Buca Voyage");
     expect(item?.type).toBe("expedition");
   });
 
   it("returns null when transaction has no navigation id", () => {
     expect(mapTransactionToConversationItem(baseTx({ transactionReference: undefined, id: undefined }))).toBeNull();
+  });
+});
+
+describe("mapConversationToTransactionCardItem", () => {
+  it("maps conversation list rows to TransactionCard fields", () => {
+    const card = mapConversationToTransactionCardItem({
+      id: "1001",
+      refLabel: "REF: LVS-1",
+      timeLabel: "il y a 2 h",
+      type: "livraison",
+      title: "Sac x2",
+      locationLine: "Akwa",
+      subtitle: "Support : Le coursier arrive",
+      isUnread: true,
+      unreadCount: 1,
+    });
+
+    expect(card.ref).toBe("LVS-1");
+    expect(card.title).toBe("Sac x2");
+    expect(card.quartier).toBe("Akwa");
+    expect(card.dateLabel).toBe("il y a 2 h");
+    expect(card.statusLabel).toBe("1 NON LU");
+    expect(card.paymentLabel).toBe("Support : Le coursier arrive");
+    expect(card.serviceLabel).toBe("Livraison");
+  });
+
+  it("shows plural count when multiple unread messages", () => {
+    const card = mapConversationToTransactionCardItem({
+      id: "1001",
+      refLabel: "REF: LVS-1",
+      timeLabel: "il y a 2 h",
+      type: "livraison",
+      title: "Sac x2",
+      locationLine: "Akwa",
+      subtitle: "Support : Le coursier arrive",
+      isUnread: true,
+      unreadCount: 3,
+    });
+    expect(card.statusLabel).toBe("3 NON LUS");
+  });
+
+  it("shows MESSAGES when read", () => {
+    const card = mapConversationToTransactionCardItem({
+      id: "1001",
+      refLabel: "REF: LVS-1",
+      timeLabel: "il y a 2 h",
+      type: "livraison",
+      title: "Sac x2",
+      locationLine: "Akwa",
+      subtitle: "Vous : Mon colis est prêt",
+      isUnread: false,
+    });
+    expect(card.statusLabel).toBe("MESSAGES");
   });
 });

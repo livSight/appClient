@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Pressable, RefreshControl, ScrollView } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
@@ -13,6 +13,8 @@ import {
   transactionsToCardItems,
   type TransactionStatusFilter,
 } from "@/lib/api/transactionUi";
+import { shouldRefreshLivraisonList } from "@/lib/push/notificationRouting";
+import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
 function Chip({ label, active }: { label: TransactionStatusFilter; active?: boolean }) {
   return (
@@ -75,6 +77,17 @@ export default function LivraisonScreen() {
   useFocusEffect(
     useCallback(() => {
       void loadTransactions("initial");
+    }, [loadTransactions]),
+  );
+
+  const shouldRefreshFromPush = useCallback((payload: Parameters<typeof shouldRefreshLivraisonList>[0]) => {
+    return shouldRefreshLivraisonList(payload);
+  }, []);
+
+  usePushRefresh(
+    shouldRefreshFromPush,
+    useCallback(() => {
+      void loadTransactions("refresh");
     }, [loadTransactions]),
   );
 

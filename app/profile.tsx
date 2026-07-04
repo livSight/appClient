@@ -1,7 +1,7 @@
 import { Alert, View, Pressable, ActivityIndicator } from "react-native";
 import { useCallback, useState } from "react";
 import { router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
 import { card } from "../theme/styles";
