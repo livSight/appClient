@@ -38,7 +38,7 @@ flowchart LR
 |-------|-------------|-----------|------------|
 | **CI qualité** | push, PR, manuel | Non | — |
 | **CI build staging** | push sur `staging` | `preview` | Android APK |
-| **CI build prod** | push sur `main` | `production` | Android APK |
+| **CI build prod** | push sur `main` | `production` | Android AAB |
 | **Local dev** | manuel (`npm run eas:build:dev:*`) | `development` | Android / iOS |
 
 **Non couvert par la CI actuelle :**
@@ -133,7 +133,8 @@ Déclenché par la CI sur push `main`.
 | `EXPO_PUBLIC_GATEWAY_URL` | `https://gateway.livsight.com` |
 | `EXPO_PUBLIC_ENABLE_PUSH` | `true` |
 
-- Distribution : **internal** (APK téléchargeable ; pas encore config store public)
+- Distribution : **store** — Android produit un **AAB** (`buildType: "app-bundle"`) destiné au Play Store (les pistes de test Play n'acceptent que les AAB, pas les APK)
+- Pour un APK sideloadable (testeurs hors Play), utiliser le profil `preview`
 
 ```bash
 npm run eas:build:preview:android
@@ -150,7 +151,7 @@ npm run eas:build:production   # Android + iOS, manuel
 | Champ | Production | Staging |
 |-------|------------|---------|
 | Nom affiché | livsight | livsight Staging |
-| Package Android | `com.ericdt17.livsightclient` | `com.ericdt17.livsightclient.staging` |
+| Package Android | `com.livsight.client` | `com.livsight.client.staging` |
 | URL scheme | `livsight` | `livsight-staging` |
 | Bundle iOS | `com.ericdt17.livsightclient` | inchangé (même bundle id) |
 
@@ -241,7 +242,7 @@ Les profils `preview` et `production` utilisent `distribution: internal` : EAS g
 
 1. Merger `staging` → `main`
 2. CI : quality → `eas build --profile production`
-3. Récupérer l’APK prod sur expo.dev
+3. Récupérer l’AAB prod sur expo.dev (destiné au Play Store, non sideloadable)
 4. *(Futur)* `eas submit` pour Play Store — profil `submit.production` encore vide
 
 ### Build iOS manuel
@@ -294,7 +295,6 @@ npm run start:dev -- -c
 - Build iOS dans GitHub Actions (`eas build --platform ios`)
 - Build sur `workflow_dispatch` avec choix de profil
 - `eas build --wait` pour faire échouer la CI si le build EAS échoue
-- `buildType: app-bundle` pour Play Store
 - `eas submit` automatisé sur tag / release
 
 ---

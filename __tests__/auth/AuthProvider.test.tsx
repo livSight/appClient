@@ -15,6 +15,7 @@ function createMockSession(overrides: Partial<AuthSession> = {}): AuthSession {
     login: jest.fn(),
     getValidAccessToken: jest.fn(),
     getAccessToken: jest.fn(),
+    forceRefreshAccessToken: jest.fn(),
     logout: jest.fn(),
     getSessionUser: jest.fn(),
     ...overrides,

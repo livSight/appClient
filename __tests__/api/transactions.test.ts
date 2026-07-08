@@ -107,6 +107,30 @@ describe("buildPayloadFromStockResume", () => {
     expect(payload.type).toBe("delivery");
     expect(payload.source).toBe("stock");
   });
+
+  it("maps lineItems to indexed items and total quantity", () => {
+    const payload = buildPayloadFromStockResume({
+      forExpedition: false,
+      lineItems: [
+        { package_name: "Prod A", quantity: 2 },
+        { package_name: "Prod B", quantity: 1 },
+      ],
+      description: "Notes",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      destinationQuartier: "Akwa",
+      destinationLandmark: "",
+      departureStreet: "Agence",
+    });
+    expect(payload.package_name).toBe("Prod A");
+    expect(payload.quantity).toBe(3);
+    expect(payload.items).toEqual([
+      { package_name: "Prod A", quantity: 2 },
+      { package_name: "Prod B", quantity: 1 },
+    ]);
+  });
 });
 
 describe("parseTransaction mode inference", () => {
@@ -147,6 +171,24 @@ describe("buildTransactionFormData", () => {
     expect(form.get("source")).toBe("stock");
     expect(form.get("package_name")).toBe("Colis test");
     expect(form.get("type")).toBe("delivery");
+  });
+
+  it("appends indexed items fields for multi-product POST", () => {
+    const appendSpy = jest.spyOn(FormData.prototype, "append");
+    buildTransactionFormData({
+      ...sampleRequest,
+      package_name: "Prod A",
+      quantity: 3,
+      items: [
+        { package_name: "Prod A", quantity: 2 },
+        { package_name: "Prod B", quantity: 1 },
+      ],
+    });
+    expect(appendSpy).toHaveBeenCalledWith("items[0].package_name", "Prod A");
+    expect(appendSpy).toHaveBeenCalledWith("items[0].quantity", "2");
+    expect(appendSpy).toHaveBeenCalledWith("items[1].package_name", "Prod B");
+    expect(appendSpy).toHaveBeenCalledWith("items[1].quantity", "1");
+    appendSpy.mockRestore();
   });
 
   it("omits image when imageUri is missing", () => {
