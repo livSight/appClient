@@ -6,6 +6,13 @@ import { authSession } from "@/lib/auth/session";
 export type UiMode = "stock" | "pickup";
 export type TransactionSource = "pickup" | "stock";
 
+/** One product line on POST /api/transactions (multipart: items[i].package_name, items[i].quantity). */
+export type TransactionLineItem = {
+  package_name: string;
+  quantity: number;
+  description?: string;
+};
+
 /** Request body for POST /api/transactions (matches backend TransactionRequest). */
 export type TransactionRequest = {
   package_name: string;
@@ -16,6 +23,7 @@ export type TransactionRequest = {
   source: TransactionSource;
   type?: string;
   quantity?: number;
+  items?: TransactionLineItem[];
   amount?: number;
   status?: string;
   cash_collect?: boolean;
@@ -42,6 +50,7 @@ export type Transaction = {
   weight?: string;
   type?: string;
   quantity?: number;
+  items?: TransactionLineItem[];
   user_id?: number;
   status?: string;
   transactionReference?: string;
@@ -144,6 +153,26 @@ function appendTransactionImage(form: FormData, imageUri?: string) {
   form.append("image", { uri, name, type: "image/jpeg" } as unknown as Blob);
 }
 
+function appendTransactionLineItems(form: FormData, items: TransactionLineItem[] | undefined) {
+  if (!items?.length) return;
+  items.forEach((item, index) => {
+    appendFormField(form, `items[${index}].package_name`, item.package_name);
+    appendFormField(form, `items[${index}].quantity`, item.quantity);
+    appendFormField(form, `items[${index}].description`, item.description);
+  });
+}
+
+export function formatTransactionItemsLine(items: TransactionLineItem[]): string {
+  return items
+    .filter((item) => item.package_name.trim() && item.quantity > 0)
+    .map((item) => `${item.package_name.trim()} x${item.quantity}`)
+    .join(", ");
+}
+
+export function sumTransactionItemQuantities(items: TransactionLineItem[]): number {
+  return items.reduce((sum, item) => sum + (item.quantity > 0 ? item.quantity : 0), 0);
+}
+
 export function buildTransactionFormData(payload: TransactionRequest): FormData {
   const form = new FormData();
   appendFormField(form, "package_name", payload.package_name);
@@ -154,6 +183,7 @@ export function buildTransactionFormData(payload: TransactionRequest): FormData 
   appendFormField(form, "source", resolveApiSourceField(payload.source));
   appendFormField(form, "type", payload.type);
   appendFormField(form, "quantity", payload.quantity);
+  appendTransactionLineItems(form, payload.items);
   appendFormField(form, "amount", payload.amount);
   appendFormField(form, "status", payload.status);
   appendFormField(form, "cash_collect", payload.cash_collect);
@@ -288,14 +318,17 @@ export const CLIENT_CANCEL_BLOCKED_MESSAGE =
 
 export type StockResumePayloadInput = {
   forExpedition: boolean;
-  itemsLine: string;
+  /** @deprecated use lineItems */
+  itemsLine?: string;
+  lineItems?: TransactionLineItem[];
   description: string;
   phone: string;
   receiverName?: string;
   express: "yes" | "no";
   collectCash: "yes" | "no";
   amount: number;
-  quantity: number;
+  /** @deprecated derived from lineItems */
+  quantity?: number;
   destinationQuartier: string;
   destinationLandmark: string;
   departureCity?: string;
@@ -306,9 +339,16 @@ export type StockResumePayloadInput = {
 };
 
 export function buildPayloadFromStockResume(input: StockResumePayloadInput): TransactionRequest {
+  const lineItems = (input.lineItems ?? []).filter((item) => item.package_name.trim() && item.quantity > 0);
+  const itemsLine =
+    input.itemsLine?.trim() ||
+    (lineItems.length ? formatTransactionItemsLine(lineItems) : "");
+  const first = lineItems[0];
+  const totalQty =
+    lineItems.length > 0 ? sumTransactionItemQuantities(lineItems) : Math.max(1, input.quantity ?? 1);
   const destination_street = input.destinationQuartier.trim() || "—";
   return {
-    package_name: input.itemsLine.trim() || "Colis",
+    package_name: first?.package_name.trim() || itemsLine.split(",")[0]?.trim() || "Colis",
     description: input.description.trim() || "Aucune description donnée",
     destination_street,
     destination_landmark: input.destinationLandmark.trim() || undefined,
@@ -316,7 +356,8 @@ export function buildPayloadFromStockResume(input: StockResumePayloadInput): Tra
     receiver_phone: input.phone.trim(),
     source: "stock",
     type: input.forExpedition ? "expedition" : "delivery",
-    quantity: input.quantity,
+    quantity: totalQty,
+    items: lineItems.length ? lineItems : undefined,
     amount: input.amount,
     status: "pending",
     cash_collect: input.collectCash === "yes",

@@ -1,6 +1,54 @@
 import type { TransactionCardItem } from "@/components/TransactionCard";
 import { getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
+import type { TicketInboxItem, TicketMessage, TicketResponse } from "@/lib/api/tickets";
 import { formatTransactionRef, isExpeditionType } from "@/lib/api/transactionUi";
+
+export type UnreadState = {
+  isUnread: boolean;
+  unreadCount: number;
+};
+
+export function messageTimeMs(iso: string): number {
+  return new Date(iso).getTime();
+}
+
+/**
+ * Derives unread badge state from the full message list and local read timestamp.
+ * Uses isMessageRead only when localReadAt is absent (fresh install / cache miss).
+ */
+export function computeUnreadState(
+  messages: TicketMessage[],
+  currentUserId: number | null,
+  ticket: TicketResponse,
+  localReadAt: string | null,
+): UnreadState {
+  if (currentUserId == null) {
+    const fallbackUnread = !ticket.isMessageRead;
+    return { isUnread: fallbackUnread, unreadCount: fallbackUnread ? 1 : 0 };
+  }
+
+  const lastUserMsg = [...messages].reverse().find((m) => m.senderId === currentUserId);
+  const cutoffMs = lastUserMsg ? messageTimeMs(lastUserMsg.createdAt) : null;
+  const incomingAfterReply = messages.filter(
+    (m) =>
+      m.senderId !== currentUserId &&
+      (cutoffMs == null || messageTimeMs(m.createdAt) > cutoffMs),
+  );
+
+  const readAtMs = localReadAt ? messageTimeMs(localReadAt) : null;
+  const trulyUnread =
+    readAtMs != null
+      ? incomingAfterReply.filter((m) => messageTimeMs(m.createdAt) > readAtMs)
+      : incomingAfterReply;
+
+  const lastUnread = trulyUnread.at(-1);
+  const isUnread = lastUnread != null && (readAtMs != null ? true : !ticket.isMessageRead);
+
+  return {
+    isUnread,
+    unreadCount: isUnread ? trulyUnread.length : 0,
+  };
+}
 
 export type ConversationBase = {
   id: string;
@@ -117,8 +165,51 @@ export function mapTransactionToConversationItem(tx: Transaction): ConversationI
   };
 }
 
+/**
+ * Card item built from one inbox row alone (no listTransactions call).
+ * timeLabel/subtitle are placeholders — enrichConversationWithTicket
+ * overrides both from the ticket and last message.
+ */
+export function mapInboxItemToConversationItem(item: TicketInboxItem): ConversationItem | null {
+  const tx = item.transaction;
+  if (!Number.isFinite(tx.id) || tx.id <= 0) return null;
+
+  const id = String(tx.id);
+  const ref = tx.transactionReference ?? `TR-${tx.id}`;
+  const base = {
+    id,
+    refLabel: `REF: ${ref}`,
+    timeLabel: "—",
+    title: tx.packageName ?? "Colis",
+    amountXaf: tx.amountDue,
+    subtitle: "",
+  };
+
+  if (isExpeditionType(tx.type ?? undefined)) {
+    const trajet = tx.routeLabel ?? [tx.departureLabel, tx.destinationLabel].filter(Boolean).join(" → ");
+    return {
+      ...base,
+      type: "expedition",
+      locationLine: trajet.length ? trajet : undefined,
+    };
+  }
+
+  return {
+    ...base,
+    type: "livraison",
+    locationLine: tx.neighborhoodLabel ?? undefined,
+  };
+}
+
 export function conversationSearchText(item: ConversationItem): string {
-  return [item.refLabel, item.metaLine, item.title, item.locationLine, item.subtitle, item.agence]
+  return [
+    item.refLabel,
+    item.metaLine,
+    item.title,
+    item.locationLine,
+    item.subtitle,
+    item.type === "expedition" ? item.agence : undefined,
+  ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();

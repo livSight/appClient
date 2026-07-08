@@ -116,7 +116,7 @@ function assertValidTicketId(ticketId: number, context: string): void {
 }
 
 function parseMessage(data: unknown): TicketMessage | null {
-  const r = data as TicketMessage & { ticket_id?: unknown; sender_id?: unknown };
+  const r = data as TicketMessage & { ticket_id?: unknown; sender_id?: unknown; created_at?: unknown };
   const ticketId = parseNumericId(r.ticketId ?? r.ticket_id);
   if (ticketId == null) return null;
 
@@ -161,6 +161,124 @@ export async function resolveNumericTransactionIdFromRoute(id: string | number):
     throw new Error("Identifiant de commande invalide.");
   }
   return n;
+}
+
+export type TicketInboxTransaction = {
+  id: number;
+  transactionReference: string | null;
+  /** Full display name (first + last, or email fallback). */
+  clientName: string | null;
+  /** Null when no driver is assigned. */
+  driverName: string | null;
+  /** Delivery order status (pending, processing, completed, …). */
+  status: string | null;
+  /** delivery | pickup | expedition */
+  type: string | null;
+  /** Quartier (neighborhood, else destination landmark/street/city). */
+  neighborhoodLabel: string | null;
+  departureLabel: string | null;
+  destinationLabel: string | null;
+  /** Pre-formatted `departure → destination` when both exist. */
+  routeLabel: string | null;
+  packageName: string | null;
+  /** Gross amount the customer owes (XAF). */
+  amountDue: number | null;
+  clientPhone: string | null;
+  driverPhone: string | null;
+};
+
+export type TicketInboxItem = {
+  ticket: TicketResponse;
+  transaction: TicketInboxTransaction;
+  lastMessage: TicketMessage | null;
+  messageCount: number;
+};
+
+/** Thrown when the gateway doesn't serve /api/tickets/inbox yet — callers fall back to the legacy fan-out. */
+export class InboxEndpointUnavailableError extends Error {
+  constructor() {
+    super("GET /api/tickets/inbox unavailable");
+    this.name = "InboxEndpointUnavailableError";
+  }
+}
+
+function parseInboxItem(data: unknown): TicketInboxItem | null {
+  if (!data || typeof data !== "object") return null;
+  const r = data as Record<string, any>;
+
+  const ticket = parseTicket(r.ticket);
+  if (!ticket) return null;
+
+  const txId = Number(r.transaction?.id);
+  if (!Number.isFinite(txId) || txId <= 0) return null;
+  const optionalString = (value: unknown): string | null =>
+    typeof value === "string" && value.trim().length ? value.trim() : null;
+  const tr = r.transaction ?? {};
+  const amountRaw = Number(tr.amountDue);
+  const transaction: TicketInboxTransaction = {
+    id: txId,
+    transactionReference: optionalString(tr.transactionReference),
+    clientName: optionalString(tr.clientName),
+    driverName: optionalString(tr.driverName),
+    status: optionalString(tr.status),
+    type: optionalString(tr.type),
+    neighborhoodLabel: optionalString(tr.neighborhoodLabel),
+    departureLabel: optionalString(tr.departureLabel),
+    destinationLabel: optionalString(tr.destinationLabel),
+    routeLabel: optionalString(tr.routeLabel),
+    packageName: optionalString(tr.packageName),
+    amountDue: Number.isFinite(amountRaw) ? Math.max(0, Math.round(amountRaw)) : null,
+    clientPhone: optionalString(tr.clientPhone),
+    driverPhone: optionalString(tr.driverPhone),
+  };
+
+  let lastMessage: TicketMessage | null = null;
+  const lm = r.lastMessage;
+  if (lm && typeof lm === "object" && typeof lm.content === "string" && typeof lm.createdAt === "string") {
+    const senderId = Number(lm.senderId);
+    if (Number.isFinite(senderId)) {
+      lastMessage = {
+        id: Number.isFinite(Number(lm.id)) ? Number(lm.id) : undefined,
+        content: lm.content,
+        ticketId: ticket.id,
+        senderId,
+        createdAt: lm.createdAt,
+      };
+    }
+  }
+
+  const countRaw = Number(r.messageCount);
+  const messageCount = Number.isFinite(countRaw) ? Math.max(0, Math.floor(countRaw)) : 0;
+
+  return {
+    ticket,
+    transaction,
+    lastMessage,
+    messageCount,
+  };
+}
+
+/** One-request Conversations list: tickets + last message + count (docs/inbox-endpoint-proposal.md). */
+export async function fetchTicketInbox(): Promise<TicketInboxItem[]> {
+  await requireSessionUser();
+  const url = `${API_BASE_URL}/api/tickets/inbox`;
+  logger.info("fetchTicketInbox", "GET /api/tickets/inbox", { url });
+
+  const res = await apiFetch(url, { method: "GET" });
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (res.status === 404 || res.status === 405) {
+    throw new InboxEndpointUnavailableError();
+  }
+  if (!res.ok) {
+    logger.info("fetchTicketInbox", "GET failed", { status: res.status, body: data ?? rawText });
+    throw new Error(errorMessageFrom(res.status, data, rawText));
+  }
+
+  return normalizeListResponse<unknown>(data)
+    .map((item) => parseInboxItem(item))
+    .filter((item): item is TicketInboxItem => item != null);
 }
 
 export async function listTicketsForTransaction(

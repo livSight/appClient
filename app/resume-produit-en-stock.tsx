@@ -10,7 +10,9 @@ import { card } from "../theme/styles";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
-import { createTransaction, buildPayloadFromStockResume } from "@/lib/api/transactions";
+import { createTransaction, buildPayloadFromStockResume, type TransactionLineItem } from "@/lib/api/transactions";
+import DeliveryFeeTotalCard from "../components/DeliveryFeeTotalCard";
+import { useDeliveryFeeEstimate } from "@/lib/hooks/useDeliveryFeeEstimate";
 
 type SelectedItem = { id: string; name: string; qty: number };
 
@@ -137,9 +139,11 @@ export default function ResumeProduitEnStockScreen() {
     }
   }, [selectedItemsRaw]);
 
-  const deliveryFeeXaf = 1500;
-  const expressSupplementXaf = express === "yes" ? 1000 : 0;
-  const totalXaf = deliveryFeeXaf + expressSupplementXaf;
+  const destinationQuartier = useMemo(
+    () => (deliveryQuartier || deliveryAddress || quartier || "").trim(),
+    [deliveryQuartier, deliveryAddress, quartier],
+  );
+  const { estimate: deliveryFeeEstimate, loading: deliveryFeeLoading } = useDeliveryFeeEstimate(destinationQuartier, express);
 
   function goEdit(editSection: string) {
     router.push({
@@ -169,87 +173,99 @@ export default function ResumeProduitEnStockScreen() {
               livNotes: notes,
               deliveryQuartier,
               deliveryLandmark,
-              stockItemId: items[0]?.id ?? "",
-              stockQty: items[0]?.qty ? String(items[0].qty) : "",
+              selectedItems: typeof params.selectedItems === "string" ? params.selectedItems : "[]",
             }),
       },
     });
   }
 
+  // No useCallback: the React Compiler memoizes this; manual deps with member
+  // expressions (deliveryFeeEstimate.total, expeditionClient?.address) block compilation.
+  const handleConfirm = async () => {
+    await hapticSuccess();
+    const lineItems: TransactionLineItem[] = items.map((it) => ({
+      package_name: it.name,
+      quantity: it.qty,
+    }));
+    const itemsLine = lineItems.map((it) => `${it.package_name} x${it.quantity}`).join(", ");
+    const quartierLine = (deliveryQuartier || deliveryAddress || quartier || "").trim();
+    const amountDueNumber =
+      collectCash === "yes" && Number.isFinite(amountDue) ? Math.max(0, Math.round(amountDue)) : 0;
+    const amountDueFallback =
+      deliveryFeeEstimate.available && deliveryFeeEstimate.total != null
+        ? Math.max(0, Math.round(deliveryFeeEstimate.total))
+        : 0;
+    const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
+    const descriptionToSend = notes.trim().length ? notes.trim() : "Aucune description donnée";
+    const departureStreet = forExpedition
+      ? [expAgence.trim(), expPickupAddress.trim()].filter(Boolean).join(" — ") || expeditionClient?.address?.trim() || "—"
+      : "Agence | Ongola Express";
+    const city = forExpedition ? quartier.trim() || "Yaoundé" : "Yaoundé";
+
+    try {
+      const created = await createTransaction(
+        buildPayloadFromStockResume({
+          forExpedition,
+          lineItems,
+          itemsLine,
+          description: forExpedition ? "Aucune description donnée" : descriptionToSend,
+          phone: phone.trim(),
+          receiverName: expeditionClient?.clientName,
+          express: forExpedition ? "no" : express,
+          collectCash: forExpedition ? "no" : collectCash,
+          amount: forExpedition ? 0 : amountDueToSend,
+          destinationQuartier: quartierLine || "—",
+          destinationLandmark: deliveryLandmark.trim(),
+          departureCity: city,
+          departureStreet,
+          destinationCity: city,
+        }),
+      );
+      const createdId = created?.id ?? created?.data?.id ?? created?.transactionReference;
+      router.push({
+        pathname: "/confirmee",
+        params: {
+          id: createdId ? String(createdId) : "",
+          ...(forExpedition ? { flow: "expedition" } : {}),
+        },
+      });
+    } catch (e: any) {
+      Alert.alert(
+        "Erreur",
+        String(e?.message ?? e ?? (forExpedition ? "Impossible de créer l'expédition." : "Impossible de créer la livraison.")),
+      );
+    }
+  };
+
   return (
     <ScreenLayout
+      headerCompact
       header={
         <CenteredScreenHeader
           title={forExpedition ? "Résumé expédition (stock)" : "Résumé produit en stock"}
-          subtitle="Vérifiez les informations avant de confirmer"
           showBack
+          compact
         />
       }
-      footer={
-        <View
-          style={{
-            backgroundColor: "transparent",
-            paddingHorizontal: 24,
-            paddingTop: 14,
-            paddingBottom: 28,
-          }}
-        >
-          <FormButton
-            label="Confirmer la commande"
-            onPress={async () => {
-              await hapticSuccess();
-              const first = items[0];
-              const itemsLine = first ? `${first.name} x${first.qty}` : "";
-              const quartierLine = (deliveryQuartier || deliveryAddress || quartier || "").trim();
-              const amountDueNumber =
-                collectCash === "yes" && Number.isFinite(amountDue) ? Math.max(0, Math.round(amountDue)) : 0;
-              const amountDueFallback = Math.max(0, Math.round(totalXaf));
-              const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
-              const descriptionToSend = notes.trim().length ? notes.trim() : "Aucune description donnée";
-              const departureStreet = forExpedition
-                ? [expAgence.trim(), expPickupAddress.trim()].filter(Boolean).join(" — ") || expeditionClient?.address?.trim() || "—"
-                : "Agence | Ongola Express";
-              const city = forExpedition ? quartier.trim() || "Yaoundé" : "Yaoundé";
-
-              try {
-                const created = await createTransaction(
-                  buildPayloadFromStockResume({
-                    forExpedition,
-                    itemsLine,
-                    description: forExpedition ? "Aucune description donnée" : descriptionToSend,
-                    phone: phone.trim(),
-                    receiverName: expeditionClient?.clientName,
-                    express: forExpedition ? "no" : express,
-                    collectCash: forExpedition ? "no" : collectCash,
-                    amount: forExpedition ? 0 : amountDueToSend,
-                    quantity: first?.qty ?? 1,
-                    destinationQuartier: quartierLine || "—",
-                    destinationLandmark: deliveryLandmark.trim(),
-                    departureCity: city,
-                    departureStreet,
-                    destinationCity: city,
-                  }),
-                );
-                const createdId = created?.id ?? created?.data?.id ?? created?.transactionReference;
-                router.push({
-                  pathname: "/confirmee",
-                  params: {
-                    id: createdId ? String(createdId) : "",
-                    ...(forExpedition ? { flow: "expedition" } : {}),
-                  },
-                });
-              } catch (e: any) {
-                Alert.alert(
-                  "Erreur",
-                  String(e?.message ?? e ?? (forExpedition ? "Impossible de créer l'expédition." : "Impossible de créer la livraison.")),
-                );
-              }
-            }}
-          />
-        </View>
-      }
     >
-      <View style={{ marginTop: 18, gap: 18 }}>
+      <AppText
+        variant="dense"
+        style={{
+          fontSize: 10,
+          lineHeight: 15,
+          fontFamily: fonts.bodyBold,
+          color: "rgba(60,74,60,0.7)",
+          letterSpacing: 1,
+          textTransform: "uppercase",
+          textAlign: "center",
+        }}
+        numberOfLines={2}
+        ellipsizeMode="tail"
+      >
+        Vérifiez les informations avant de confirmer
+      </AppText>
+
+      <View style={{ marginTop: 16, gap: 18 }}>
         {forExpedition && expeditionClient ? (
           <View>
             <SectionRow label="CLIENT EXPÉDITION" />
@@ -420,37 +436,13 @@ export default function ResumeProduitEnStockScreen() {
         <View>
           <SectionRow label="TOTAL" />
           <Card>
-            <View style={{ gap: 10 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
-                  Frais de livraison
-                </AppText>
-                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
-                  {deliveryFeeXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                </AppText>
-              </View>
-              {expressSupplementXaf > 0 ? (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
-                    Supplément express
-                  </AppText>
-                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
-                    {expressSupplementXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                  </AppText>
-                </View>
-              ) : null}
-              <View style={{ height: 1, backgroundColor: "#EDEEEF", marginTop: 2 }} />
-              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 2 }}>
-                <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  Total
-                </AppText>
-                <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  {totalXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                </AppText>
-              </View>
-            </View>
+            <DeliveryFeeTotalCard estimate={deliveryFeeEstimate} loading={deliveryFeeLoading} />
           </Card>
         </View>
+      </View>
+
+      <View style={{ marginTop: 24 }}>
+        <FormButton label="Confirmer la commande" onPress={handleConfirm} />
       </View>
     </ScreenLayout>
   );

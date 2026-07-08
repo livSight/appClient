@@ -10,6 +10,7 @@ import RecipientCard from "../../components/RecipientCard";
 import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
+import { featureFlags } from "@/lib/featureFlags";
 import AppText from "../../components/AppText";
 import { getTransactionById, getTransactionNavigationId, canClientCancelTransaction, CLIENT_CANCEL_BLOCKED_MESSAGE, type Transaction } from "@/lib/api/transactions";
 import { isTransactionPushType, matchesOpenTransaction } from "@/lib/push/notificationRouting";
@@ -517,6 +518,10 @@ export default function LivraisonDetailScreen() {
               onPress={() => {
                 if (!delivery?.id) return;
                 void hapticLight();
+                if (!featureFlags.messagingEnabled) {
+                  Alert.alert("Bientôt disponible", "La messagerie n’est pas disponible pour le moment.");
+                  return;
+                }
                 router.push({ pathname: "/inbox/[id]", params: { id: String(delivery.id), intent: "report" } });
               }}
               style={{

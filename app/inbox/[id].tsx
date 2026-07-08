@@ -1,16 +1,20 @@
-import { useCallback, useMemo, useState } from "react";
-import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
-import { Alert, Pressable, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, FlatList, KeyboardAvoidingView, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "expo-router/react-navigation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
-import ScreenLayout from "@/components/ScreenLayout";
+import HeroGridBackground from "@/components/HeroGridBackground";
 import SolarIcon from "@/components/SolarIcon";
 import { getCurrentUserId } from "@/lib/auth/currentUser";
 import { getTransactionById, type Transaction } from "@/lib/api/transactions";
+import { setLocalReadAt } from "@/lib/api/localReadStore";
+import { featureFlags } from "@/lib/featureFlags";
 import {
   formatMessageMeta,
   formatMessageTime,
+  lastMessageFromList,
   messageSideForSender,
 } from "@/lib/api/ticketUi";
 import {
@@ -199,6 +203,18 @@ function Bubble({ msg }: { msg: BubbleMessage }) {
   );
 }
 
+function ConversationPill() {
+  return (
+    <View style={{ alignItems: "center" }}>
+      <View style={{ minHeight: 24, borderRadius: radii.pill, backgroundColor: "#F3F4F5", paddingHorizontal: 16, paddingVertical: 4 }}>
+        <AppText variant="dense" style={{ fontSize: 11, lineHeight: 16.5, fontFamily: fonts.bodyBold, color: "#3C4A3C", letterSpacing: 1.1, textTransform: "uppercase" }} numberOfLines={1}>
+          Conversation
+        </AppText>
+      </View>
+    </View>
+  );
+}
+
 function mapApiMessages(messages: TicketMessage[], currentUserId: number | null): BubbleMessage[] {
   return messages.map((m, index) => {
     const side = messageSideForSender(m.senderId, currentUserId);
@@ -212,7 +228,92 @@ function mapApiMessages(messages: TicketMessage[], currentUserId: number | null)
   });
 }
 
+function ChatInputFooter({
+  draft,
+  inputPlaceholder,
+  canSend,
+  sending,
+  refLabel,
+  bottomPadding,
+  onChangeText,
+  onSend,
+}: {
+  draft: string;
+  inputPlaceholder: string;
+  canSend: boolean;
+  sending: boolean;
+  refLabel: string;
+  bottomPadding: number;
+  onChangeText: (text: string) => void;
+  onSend: () => void;
+}) {
+  return (
+    <View
+      testID="inbox-chat-input"
+      style={{
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: bottomPadding,
+        backgroundColor: "rgba(255,255,255,0.92)",
+      }}
+    >
+      <View style={{ minHeight: 56, borderRadius: 24, backgroundColor: "#F3F4F5", paddingLeft: 16, paddingRight: 8, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Pressable
+          onPress={() => {}}
+          hitSlop={10}
+          style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }}
+          accessibilityLabel="Joindre un fichier"
+        >
+          <SolarIcon name="solar:add-square-outline" size={20} color={colors.text} />
+        </Pressable>
+
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppTextInput
+            value={draft}
+            onChangeText={onChangeText}
+            placeholder={inputPlaceholder}
+            placeholderTextColor={"rgba(60,74,60,0.50)"}
+            style={{
+              fontSize: 15,
+              fontFamily: fonts.bodyMedium,
+              color: colors.text,
+              paddingVertical: 8,
+            }}
+            editable={!sending}
+            onSubmitEditing={onSend}
+            returnKeyType="send"
+          />
+        </View>
+
+        <Pressable
+          onPress={onSend}
+          disabled={!canSend}
+          hitSlop={10}
+          accessibilityLabel="Envoyer le message"
+          accessibilityState={{ disabled: !canSend }}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 16,
+            backgroundColor: colors.primary,
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: canSend ? 1 : 0.5,
+          }}
+        >
+          <SolarIcon name="solar:alt-arrow-right-outline" size={20} color={colors.white} />
+        </Pressable>
+      </View>
+
+      <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 10, lineHeight: 14, marginTop: 8, opacity: 0.6 }} numberOfLines={1}>
+        Ref: {refLabel}
+      </AppText>
+    </View>
+  );
+}
+
 export default function InboxChatScreen() {
+  const insets = useSafeAreaInsets();
   const { id, intent } = useLocalSearchParams<{ id?: string; intent?: string }>();
   const isReportCompose = intent === "report";
   const [draft, setDraft] = useState("");
@@ -224,11 +325,20 @@ export default function InboxChatScreen() {
   const [sending, setSending] = useState(false);
   const [transactionNumericId, setTransactionNumericId] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (featureFlags.messagingEnabled) return;
+    router.replace("/(tabs)");
+  }, []);
+
+  const topPadding = Math.max(spacing.screenPaddingX, insets.top + spacing.screenPaddingX);
+  const bottomPadding = Math.max(24, insets.bottom + 8);
+
   const refreshThread = useCallback(async () => {
     if (!id) {
       setLoading(false);
       return;
     }
+    setLocalReadAt(String(id));
     setLoading(true);
     try {
       const [numericId, userId] = await Promise.all([
@@ -245,6 +355,9 @@ export default function InboxChatScreen() {
       setTx(mapTransactionToTxInfo(txData));
       setTicketId(isReportCompose ? null : (thread.ticket?.id ?? null));
       setMessages(thread.messages);
+      // Re-stamp with the newest loaded message so a device clock lagging the
+      // server can't leave a just-viewed message permanently "unread".
+      setLocalReadAt(String(id), lastMessageFromList(thread.messages)?.createdAt ?? null);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Impossible de charger la conversation.";
       Alert.alert("Erreur", message);
@@ -253,12 +366,18 @@ export default function InboxChatScreen() {
     }
   }, [id, isReportCompose]);
 
-  useLoadEffect(refreshThread);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshThread();
+    }, [refreshThread]),
+  );
 
   const bubbleMessages = useMemo(
     () => mapApiMessages(messages, currentUserId),
     [messages, currentUserId],
   );
+
+  const reversedMessages = useMemo(() => [...bubbleMessages].reverse(), [bubbleMessages]);
 
   const canSend = draft.trim().length > 0 && !sending && transactionNumericId != null;
   const inputPlaceholder = isReportCompose ? "Décrivez votre problème..." : "Écrire un message...";
@@ -282,6 +401,7 @@ export default function InboxChatScreen() {
         const thread = await loadClientThread(transactionNumericId);
         setMessages(thread.messages);
         setTicketId(thread.ticket?.id ?? updatedTicket.id);
+        if (id) setLocalReadAt(String(id), lastMessageFromList(thread.messages)?.createdAt ?? null);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Impossible d'envoyer le message.";
         Alert.alert("Erreur", message);
@@ -291,73 +411,17 @@ export default function InboxChatScreen() {
     })();
   };
 
-  const footerNode = (
-    <View
-      style={{
-        paddingHorizontal: 16,
-        paddingTop: 16,
-        paddingBottom: 24,
-        backgroundColor: "rgba(255,255,255,0.92)",
-      }}
-    >
-      <View style={{ minHeight: 56, borderRadius: 24, backgroundColor: "#F3F4F5", paddingLeft: 16, paddingRight: 8, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Pressable
-          onPress={() => {}}
-          hitSlop={10}
-          style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }}
-          accessibilityLabel="Joindre un fichier"
-        >
-          <SolarIcon name="solar:add-square-outline" size={20} color={colors.text} />
-        </Pressable>
-
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <AppTextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder={inputPlaceholder}
-            placeholderTextColor={"rgba(60,74,60,0.50)"}
-            style={{
-              fontSize: 15,
-              fontFamily: fonts.bodyMedium,
-              color: colors.text,
-              paddingVertical: 8,
-            }}
-            editable={!sending}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-          />
-        </View>
-
-        <Pressable
-          onPress={handleSend}
-          disabled={!canSend}
-          hitSlop={10}
-          accessibilityLabel="Envoyer le message"
-          accessibilityState={{ disabled: !canSend }}
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.white }}>
+      <HeroGridBackground />
+      <KeyboardAvoidingView testID="inbox-chat-kav" style={{ flex: 1 }} behavior="padding">
+        <View
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 16,
-            backgroundColor: colors.primary,
-            alignItems: "center",
-            justifyContent: "center",
-            opacity: canSend ? 1 : 0.5,
+            paddingTop: topPadding,
+            paddingHorizontal: spacing.screenPaddingX,
+            backgroundColor: "transparent",
           }}
         >
-          <SolarIcon name="solar:alt-arrow-right-outline" size={20} color={colors.white} />
-        </Pressable>
-      </View>
-
-      <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 10, lineHeight: 14, marginTop: 8, opacity: 0.6 }} numberOfLines={1}>
-        Ref: {id ?? "—"}
-      </AppText>
-    </View>
-  );
-
-  return (
-    <ScreenLayout
-      header={
-        <View>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
             <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 36, height: 44, justifyContent: "center" }}>
               <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
@@ -408,36 +472,49 @@ export default function InboxChatScreen() {
             />
           ) : null}
         </View>
-      }
-      footer={footerNode}
-    >
-      <View style={{ paddingTop: 18, paddingBottom: 24, gap: 24 }}>
+
         {loading ? (
-          <AppText style={{ ...typography.subtitle, fontFamily: fonts.bodySemi }} numberOfLines={2}>
-            Chargement…
-          </AppText>
+          <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: spacing.screenPaddingX }}>
+            <AppText style={{ ...typography.subtitle, fontFamily: fonts.bodySemi }} numberOfLines={2}>
+              Chargement…
+            </AppText>
+          </View>
         ) : bubbleMessages.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 24 }}>
+          <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: spacing.screenPaddingX }}>
             <AppText style={{ ...typography.subtitle, textAlign: "center" }} numberOfLines={4}>
               {emptyStateText}
             </AppText>
           </View>
         ) : (
-          <>
-            <View style={{ alignItems: "center" }}>
-              <View style={{ minHeight: 24, borderRadius: radii.pill, backgroundColor: "#F3F4F5", paddingHorizontal: 16, paddingVertical: 4 }}>
-                <AppText variant="dense" style={{ fontSize: 11, lineHeight: 16.5, fontFamily: fonts.bodyBold, color: "#3C4A3C", letterSpacing: 1.1, textTransform: "uppercase" }} numberOfLines={1}>
-                  Conversation
-                </AppText>
-              </View>
-            </View>
-
-            {bubbleMessages.map((m) => (
-              <Bubble key={m.id} msg={m} />
-            ))}
-          </>
+          <FlatList
+            testID="inbox-message-list"
+            data={reversedMessages}
+            inverted
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <Bubble msg={item} />}
+            ItemSeparatorComponent={() => <View style={{ height: 24 }} />}
+            ListFooterComponent={ConversationPill}
+            contentContainerStyle={{
+              paddingHorizontal: spacing.screenPaddingX,
+              paddingVertical: 8,
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+          />
         )}
-      </View>
-    </ScreenLayout>
+
+        <ChatInputFooter
+          draft={draft}
+          inputPlaceholder={inputPlaceholder}
+          canSend={canSend}
+          sending={sending}
+          refLabel={id ?? "—"}
+          bottomPadding={bottomPadding}
+          onChangeText={setDraft}
+          onSend={handleSend}
+        />
+      </KeyboardAvoidingView>
+    </View>
   );
 }

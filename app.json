@@ -25,7 +25,7 @@
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "package": "com.ericdt17.livsightclient",
+      "package": "com.livsight.client",
       "minSdkVersion": 23,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

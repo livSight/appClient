@@ -53,9 +53,10 @@ export function ticketListSubtitle(
   ticket: TicketResponse | null,
   lastMessage: TicketMessage | null,
   currentUserId?: number | null,
+  isUnread?: boolean,
 ): string {
   if (!ticket) return "Ouvrir la conversation";
-  if (!ticket.isMessageRead) return "Nouveau message";
+  if (isUnread ?? !ticket.isMessageRead) return "Nouveau message";
 
   const preview = String(lastMessage?.content ?? "").trim();
   if (!preview.length) return "Ouvrir la conversation";
@@ -68,6 +69,7 @@ export function ticketListSubtitle(
 type EnrichOptions = {
   currentUserId?: number | null;
   now?: Date;
+  isUnread?: boolean;
   unreadCount?: number;
 };
 
@@ -77,14 +79,15 @@ export function enrichConversationWithTicket(
   lastMessage: TicketMessage | null,
   options?: EnrichOptions,
 ): EnrichedConversationItem {
-  const isUnread = Boolean(ticket && !ticket.isMessageRead);
+  const isUnread = options?.isUnread ?? Boolean(ticket && !ticket.isMessageRead);
+  const unreadCount = isUnread ? Math.max(1, options?.unreadCount ?? 1) : undefined;
   return {
     ...item,
     ticketId: ticket?.id ?? null,
     metaLine: conversationMetaLine(item),
     isUnread,
-    unreadCount: isUnread ? (options?.unreadCount ?? 1) : undefined,
-    subtitle: ticket ? ticketListSubtitle(ticket, lastMessage, options?.currentUserId) : item.subtitle,
+    unreadCount,
+    subtitle: ticket ? ticketListSubtitle(ticket, lastMessage, options?.currentUserId, isUnread) : item.subtitle,
     timeLabel: ticket ? formatRelativeActivityTime(ticket.lastUpdatedAt, options?.now) : item.timeLabel,
     lastActivityAt: ticket?.lastUpdatedAt ?? null,
   };

@@ -34,19 +34,25 @@ jest.mock("@/components/AppTextInput", () => {
   };
 });
 
-jest.mock("@/components/ScreenLayout", () => {
+jest.mock("expo-router/react-navigation", () => ({
+  useFocusEffect: (callback: () => void) => {
+    const React = require("react");
+    React.useEffect(() => {
+      callback();
+    }, [callback]);
+  },
+}));
+
+jest.mock("@/lib/api/localReadStore", () => ({
+  setLocalReadAt: jest.fn(),
+  getLocalReadAt: jest.fn(() => null),
+  hydrateLocalReadStore: jest.fn(async () => undefined),
+}));
+
+jest.mock("@/components/HeroGridBackground", () => {
   const React = require("react");
   const { View } = require("react-native");
-  return {
-    __esModule: true,
-    default: ({ children, footer, header }: { children: React.ReactNode; footer?: React.ReactNode; header?: React.ReactNode }) => (
-      <View>
-        {header}
-        {children}
-        {footer}
-      </View>
-    ),
-  };
+  return { __esModule: true, default: () => <View testID="hero-grid" /> };
 });
 
 import React from "react";
@@ -56,6 +62,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import InboxChatScreen from "@/app/inbox/[id]";
 import { getTransactionById } from "@/lib/api/transactions";
 import { loadClientThread, sendClientMessage, resolveNumericTransactionIdFromRoute } from "@/lib/api/tickets";
+import { setLocalReadAt } from "@/lib/api/localReadStore";
 import { getCurrentUserId } from "@/lib/auth/currentUser";
 
 const mockLoadClientThread = loadClientThread as jest.Mock;
@@ -130,9 +137,25 @@ describe("InboxChatScreen", () => {
     jest.restoreAllMocks();
   });
 
+  it("marks conversation read locally before loading the thread", async () => {
+    renderScreen();
+    await waitFor(() => {
+      expect(setLocalReadAt).toHaveBeenCalledWith("1001");
+    });
+  });
+
   it("renders messages from the ticket API", async () => {
     const { findByText } = renderScreen();
     expect(await findByText("Bonjour depuis le support")).toBeTruthy();
+  });
+
+  it("uses keyboard-safe chat layout with sticky input and inverted message list", async () => {
+    const { findByTestId, findByPlaceholderText } = renderScreen();
+    expect(await findByTestId("inbox-chat-kav")).toBeTruthy();
+    const list = await findByTestId("inbox-message-list");
+    expect(list.props.inverted).toBe(true);
+    expect(await findByPlaceholderText("Écrire un message...")).toBeTruthy();
+    expect(await findByTestId("inbox-chat-input")).toBeTruthy();
   });
 
   it("sends a message when the user submits", async () => {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Pressable, RefreshControl } from "react-native";
 import { router } from "expo-router";
 import { useFocusEffect } from "expo-router/react-navigation";
@@ -9,65 +9,24 @@ import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { colors, fonts, spacing, typography } from "@/theme/tokens";
-import { conversationSearchText, mapConversationToTransactionCardItem, mapTransactionToConversationItem } from "@/lib/api/conversationUi";
-import {
-  listClientTicketForTransaction,
-  listTicketMessages,
-  resolveNumericTransactionId,
-  type TicketMessage,
-  type TicketResponse,
-} from "@/lib/api/tickets";
-import {
-  enrichConversationWithTicket,
-  filterConversationsWithTickets,
-  lastMessageFromList,
-  pickClientTicket,
-  sortConversationsByActivity,
-  type EnrichedConversationItem,
-} from "@/lib/api/ticketUi";
-import { getTransactionNavigationId, listTransactions } from "@/lib/api/transactions";
-import { getCurrentUserId } from "@/lib/auth/currentUser";
+import { conversationSearchText, mapConversationToTransactionCardItem } from "@/lib/api/conversationUi";
+import { loadConversationList } from "@/lib/api/inbox";
+import { type EnrichedConversationItem } from "@/lib/api/ticketUi";
 import { shouldRefreshConversations } from "@/lib/push/notificationRouting";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
-
-type TicketMeta = {
-  ticket: TicketResponse;
-  lastMessage: TicketMessage | null;
-  unreadCount: number;
-};
-
-async function loadClientTicketsByNavId(
-  txns: Awaited<ReturnType<typeof listTransactions>>,
-  currentUserId: number | null,
-): Promise<Map<string, TicketMeta>> {
-  const entries = await Promise.all(
-    txns.map(async (tx) => {
-      const navId = getTransactionNavigationId(tx);
-      const numericId = resolveNumericTransactionId(tx);
-      if (!navId || !numericId) return null;
-      try {
-        const tickets = await listClientTicketForTransaction(numericId);
-        const ticket = pickClientTicket(tickets);
-        if (!ticket) return null;
-        const messages = await listTicketMessages(ticket.id);
-        const unreadCount = ticket.isMessageRead
-          ? 0
-          : Math.max(1, messages.filter((m) => m.senderId !== currentUserId).length);
-        return [navId, { ticket, lastMessage: lastMessageFromList(messages), unreadCount }] as const;
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return new Map(entries.filter((e): e is [string, TicketMeta] => e != null));
-}
+import { useUnreadCount } from "@/lib/unreadCount";
+import { featureFlags } from "@/lib/featureFlags";
 
 export default function ConversationsScreen() {
+  const { setTotalUnread } = useUnreadCount();
   const [query, setQuery] = useState("");
 
-  const [txns, setTxns] = useState<Awaited<ReturnType<typeof listTransactions>>>([]);
-  const [ticketsByNavId, setTicketsByNavId] = useState<Map<string, TicketMeta>>(new Map());
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  useEffect(() => {
+    if (featureFlags.messagingEnabled) return;
+    router.replace("/(tabs)");
+  }, []);
+
+  const [conversations, setConversations] = useState<EnrichedConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,18 +37,16 @@ export default function ConversationsScreen() {
       if (mode === "refresh") setRefreshing(true);
       setError(null);
 
-      const [data, userId] = await Promise.all([listTransactions(), getCurrentUserId()]);
-      const ticketMap = await loadClientTicketsByNavId(data, userId);
-      setTxns(data);
-      setTicketsByNavId(ticketMap);
-      setCurrentUserId(userId);
+      const { items, totalUnread } = await loadConversationList();
+      setConversations(items);
+      setTotalUnread(totalUnread);
     } catch (e: unknown) {
       setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [setTotalUnread]);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,27 +61,11 @@ export default function ConversationsScreen() {
     }, [loadConversations]),
   );
 
-  const all = useMemo<EnrichedConversationItem[]>(() => {
-    const items = txns
-      .map(mapTransactionToConversationItem)
-      .filter(Boolean)
-      .map((item) => {
-        const ticketMeta = ticketsByNavId.get(item!.id) ?? null;
-        if (!ticketMeta) return null;
-        return enrichConversationWithTicket(item!, ticketMeta.ticket, ticketMeta.lastMessage, {
-          currentUserId,
-          unreadCount: ticketMeta.unreadCount,
-        });
-      })
-      .filter((item): item is EnrichedConversationItem => item != null);
-    return sortConversationsByActivity(filterConversationsWithTickets(items));
-  }, [txns, ticketsByNavId, currentUserId]);
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter((c) => conversationSearchText(c).includes(q));
-  }, [all, query]);
+    if (!q) return conversations;
+    return conversations.filter((c) => conversationSearchText(c).includes(q));
+  }, [conversations, query]);
 
   return (
     <ScreenLayout
