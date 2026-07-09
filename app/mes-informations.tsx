@@ -1,23 +1,54 @@
 import { useCallback, useMemo, useState } from "react";
 import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
-import { Pressable, View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import AppText from "@/components/AppText";
+import FormInput from "@/components/FormInput";
+import PillButton from "@/components/PillButton";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
 import { card } from "@/theme/styles";
 import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
 import type { User } from "@/lib/api/users";
-import { getCurrentUser } from "@/lib/auth/currentUser";
+import { updateCurrentUser } from "@/lib/api/users";
+import { getCurrentUser, resetCurrentUserIdCache } from "@/lib/auth/currentUser";
 import { displayFullName, displayInitials } from "@/lib/userDisplay";
+import { logger } from "@/lib/logger";
 
-type UserDetails = User & {
-  city?: string;
-  region?: string;
-  street?: string;
-  roles?: string[];
-  dateOfBird?: string;
+type FormState = {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  dateOfBird: string;
+  city: string;
+  region: string;
+  street: string;
 };
+
+const EMPTY_FORM: FormState = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  phone: "",
+  dateOfBird: "",
+  city: "",
+  region: "",
+  street: "",
+};
+
+function formFromUser(user: User | null): FormState {
+  return {
+    first_name: String(user?.first_name ?? "").trim(),
+    last_name: String(user?.last_name ?? "").trim(),
+    email: String(user?.email ?? "").trim(),
+    phone: String(user?.phone ?? "").trim(),
+    dateOfBird: String(user?.dateOfBird ?? "").trim().slice(0, 10),
+    city: String(user?.city ?? "").trim(),
+    region: String(user?.region ?? "").trim(),
+    street: String(user?.street ?? "").trim(),
+  };
+}
 
 function InfoRow({ label, value, iconName }: { label: string; value?: string | null; iconName?: string }) {
   return (
@@ -69,29 +100,31 @@ function formatDateFr(iso?: string) {
 }
 
 export default function MesInformationsScreen() {
-  const [user, setUser] = useState<UserDetails | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
 
   const fullName = useMemo(() => displayFullName(user), [user]);
   const initials = useMemo(() => displayInitials(user), [user]);
-
-  const rolesLabel = useMemo(() => {
-    const roles = user?.roles;
-    if (!Array.isArray(roles)) return "—";
-    const filtered = roles.filter(Boolean);
-    return filtered.length ? filtered.join(" · ") : "—";
-  }, [user]);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await getCurrentUser();
-      setUser(data as UserDetails);
-    } catch (e: any) {
+      if (!data) {
+        setUser(null);
+        setError("Vos informations sont introuvables. Veuillez vous reconnecter.");
+        return;
+      }
+      setUser(data);
+    } catch (e: unknown) {
+      logger.warn("mesInformations", "load failed", e);
       setUser(null);
-      setError(String(e?.message ?? e ?? "Erreur"));
+      setError("Vérifiez votre connexion internet et réessayez.");
     } finally {
       setLoading(false);
     }
@@ -99,11 +132,72 @@ export default function MesInformationsScreen() {
 
   useLoadEffect(load);
 
+  function setField(key: keyof FormState) {
+    return (value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function startEditing() {
+    setForm(formFromUser(user));
+    setEditing(true);
+  }
+
+  async function onSave() {
+    if (saving) return;
+
+    const payload = {
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      dateOfBird: form.dateOfBird.trim(),
+      city: form.city.trim(),
+      region: form.region.trim(),
+      street: form.street.trim(),
+    };
+
+    if (!payload.first_name || !payload.last_name) {
+      Alert.alert("Champs requis", "Le prénom et le nom sont obligatoires.");
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(payload.email)) {
+      Alert.alert("Email invalide", "Veuillez saisir une adresse email valide.");
+      return;
+    }
+    if (payload.dateOfBird && !/^\d{4}-\d{2}-\d{2}$/.test(payload.dateOfBird)) {
+      Alert.alert("Date invalide", "La date de naissance doit être au format AAAA-MM-JJ.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateCurrentUser(payload);
+      resetCurrentUserIdCache();
+      await load();
+      setEditing(false);
+    } catch (e: unknown) {
+      logger.warn("mesInformations", "update failed", e);
+      Alert.alert(
+        "Enregistrement impossible",
+        "Vos informations n'ont pas pu être enregistrées. Vérifiez votre connexion et réessayez.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <ScreenLayout
+      scrollViewProps={{ keyboardShouldPersistTaps: "handled" }}
       header={
         <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8, marginBottom: 12 }}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/(tabs)");
+            }}
+            hitSlop={10}
+            style={{ width: 44, height: 44, justifyContent: "center" }}
+          >
             <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
           </Pressable>
           <View style={{ flex: 1, alignItems: "center" }}>
@@ -111,7 +205,18 @@ export default function MesInformationsScreen() {
               Mes informations
             </AppText>
           </View>
-          <View style={{ width: 44, height: 44 }} />
+          {!editing && !loading && !error && user ? (
+            <Pressable
+              testID="mes-informations-edit"
+              onPress={startEditing}
+              hitSlop={10}
+              style={{ width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" }}
+            >
+              <SolarIcon name="solar:pen-outline" size={22} color={colors.primary} />
+            </Pressable>
+          ) : (
+            <View style={{ width: 44, height: 44 }} />
+          )}
         </View>
       }
     >
@@ -149,6 +254,59 @@ export default function MesInformationsScreen() {
             </AppText>
           </Pressable>
         </View>
+      ) : editing ? (
+        <View style={{ gap: 16 }}>
+          <View style={[card.base, { padding: 20 }]}>
+            <SectionHeading iconName="solar:user-id-bold-duotone" title="Identité" />
+            <View style={{ marginTop: 16, gap: 14 }}>
+              <FormInput label="Prénom" value={form.first_name} onChangeText={setField("first_name")} autoCapitalize="words" testID="input-first-name" />
+              <FormInput label="Nom" value={form.last_name} onChangeText={setField("last_name")} autoCapitalize="words" testID="input-last-name" />
+              <FormInput
+                label="Email"
+                value={form.email}
+                onChangeText={setField("email")}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                testID="input-email"
+              />
+              <FormInput label="Téléphone" value={form.phone} onChangeText={setField("phone")} keyboardType="phone-pad" testID="input-phone" />
+              <FormInput
+                label="Date de naissance"
+                value={form.dateOfBird}
+                onChangeText={setField("dateOfBird")}
+                placeholder="AAAA-MM-JJ"
+                autoCapitalize="none"
+                autoCorrect={false}
+                testID="input-date-of-birth"
+              />
+            </View>
+          </View>
+
+          <View style={[card.base, { padding: 20 }]}>
+            <SectionHeading iconName="solar:map-point-bold-duotone" title="Adresse" />
+            <View style={{ marginTop: 16, gap: 14 }}>
+              <FormInput label="Ville" value={form.city} onChangeText={setField("city")} autoCapitalize="words" testID="input-city" />
+              <FormInput label="Région" value={form.region} onChangeText={setField("region")} autoCapitalize="words" testID="input-region" />
+              <FormInput label="Rue" value={form.street} onChangeText={setField("street")} autoCapitalize="words" testID="input-street" />
+            </View>
+          </View>
+
+          <PillButton
+            label={saving ? "Enregistrement…" : "Enregistrer"}
+            onPress={saving ? undefined : () => void onSave()}
+            style={{ alignSelf: "center" }}
+          />
+          <Pressable
+            testID="mes-informations-cancel"
+            onPress={saving ? undefined : () => setEditing(false)}
+            style={{ minHeight: 44, alignItems: "center", justifyContent: "center" }}
+          >
+            <AppText style={{ fontSize: 15, lineHeight: 22, fontFamily: fonts.bodySemi, color: colors.muted }} numberOfLines={1}>
+              Annuler
+            </AppText>
+          </Pressable>
+        </View>
       ) : (
         <View style={{ gap: 16 }}>
           <View style={[card.base, { padding: 20, flexDirection: "row", alignItems: "center", gap: 16 }]}>
@@ -171,7 +329,7 @@ export default function MesInformationsScreen() {
                 {fullName}
               </AppText>
               <AppText style={{ ...typography.subtitle, marginTop: 4 }} numberOfLines={2} ellipsizeMode="tail">
-                {rolesLabel}
+                {String(user?.email ?? "").trim() || "—"}
               </AppText>
             </View>
           </View>
@@ -182,17 +340,16 @@ export default function MesInformationsScreen() {
               <InfoRow iconName="solar:user-outline" label="Nom" value={fullName} />
               <InfoRow iconName="solar:letter-outline" label="Email" value={String(user?.email ?? "")} />
               <InfoRow iconName="solar:phone-outline" label="Téléphone" value={String(user?.phone ?? "")} />
-              <InfoRow iconName="solar:tag-outline" label="Rôles" value={rolesLabel} />
-              <InfoRow iconName="solar:calendar-outline" label="Date de naissance" value={formatDateFr(String((user as any)?.dateOfBird ?? ""))} />
+              <InfoRow iconName="solar:calendar-outline" label="Date de naissance" value={formatDateFr(String(user?.dateOfBird ?? ""))} />
             </View>
           </View>
 
           <View style={[card.base, { padding: 20 }]}>
             <SectionHeading iconName="solar:map-point-bold-duotone" title="Adresse" />
             <View style={{ marginTop: 10 }}>
-              <InfoRow iconName="solar:map-point-outline" label="Ville" value={String((user as any)?.city ?? "")} />
-              <InfoRow iconName="solar:map-point-outline" label="Région" value={String((user as any)?.region ?? "")} />
-              <InfoRow iconName="solar:map-point-outline" label="Rue" value={String((user as any)?.street ?? "")} />
+              <InfoRow iconName="solar:map-point-outline" label="Ville" value={String(user?.city ?? "")} />
+              <InfoRow iconName="solar:map-point-outline" label="Région" value={String(user?.region ?? "")} />
+              <InfoRow iconName="solar:map-point-outline" label="Rue" value={String(user?.street ?? "")} />
             </View>
           </View>
         </View>
@@ -202,4 +359,3 @@ export default function MesInformationsScreen() {
     </ScreenLayout>
   );
 }
-

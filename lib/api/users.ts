@@ -1,5 +1,6 @@
 import { API_BASE_URL } from "@/lib/config/api";
 import { apiFetch } from "@/lib/api/client";
+import { authSession } from "@/lib/auth/session";
 import { logger } from "@/lib/logger";
 
 type ApiError = { success?: false; error?: string; message?: string };
@@ -96,6 +97,48 @@ export async function getUserByKeycloakId(keycloakId: string): Promise<User | nu
 
   const users = normalizeUserList(data);
   return findUserByKeycloakId(users, keycloakId);
+}
+
+/** Fields a client may update on their own profile (PUT /api/users/:keycloakId). */
+export type UpdateUserInput = {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  dateOfBird?: string;
+  city?: string;
+  region?: string;
+  street?: string;
+};
+
+export async function updateCurrentUser(input: UpdateUserInput): Promise<User> {
+  const sessionUser = await authSession.getSessionUser();
+  if (!sessionUser?.keycloakId) {
+    throw new Error("Session expirée. Reconnectez-vous pour modifier vos informations.");
+  }
+
+  const keycloakId = sessionUser.keycloakId.trim();
+  const url = `${API_BASE_URL}/api/users/${encodeURIComponent(keycloakId)}`;
+  logger.info("updateUser", "PUT /api/users/:keycloakId", { url });
+
+  const res = await apiFetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": keycloakId,
+    },
+    body: JSON.stringify(input),
+  });
+
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (!res.ok) {
+    logger.info("updateUser", "PUT /api/users/:keycloakId failed", { status: res.status, body: data ?? rawText });
+    throw new Error(errorMessageFrom(res.status, data, rawText));
+  }
+
+  return normalizeUser(data);
 }
 
 export async function getUserById(id: string | number) {
