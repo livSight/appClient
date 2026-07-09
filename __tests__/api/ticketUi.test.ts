@@ -71,7 +71,7 @@ describe("ticketListSubtitle", () => {
       senderId: 5,
       createdAt: "2026-06-14T12:00:00.000Z",
     };
-    expect(ticketListSubtitle({ ...ticket, isMessageRead: true }, last, 3)).toBe("Support : Le coursier arrive");
+    expect(ticketListSubtitle({ ...ticket, isMessageRead: true }, last, 3)).toBe("Agent : Le coursier arrive");
   });
 
   it("prefixes user messages when read", () => {
