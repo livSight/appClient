@@ -15,6 +15,8 @@ export type TransactionCardItem = {
   title: string;
   quartier: string;
   dateLabel: string;
+  /** Creation timestamp (ms) used for date filtering; null when the API date is missing/invalid */
+  createdAtMs?: number | null;
   status: StatusBucket;
   statusLabel: string;
   amountLabel?: string;

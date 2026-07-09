@@ -8,6 +8,33 @@ import {
 
 export type TransactionStatusFilter = "Tout" | "En cours" | "Livré" | "Annulé";
 
+export type TransactionDateFilter = "Toutes dates" | "Aujourd'hui" | "7 derniers jours" | "30 derniers jours";
+
+export const TRANSACTION_DATE_FILTERS: TransactionDateFilter[] = [
+  "Toutes dates",
+  "Aujourd'hui",
+  "7 derniers jours",
+  "30 derniers jours",
+];
+
+export function filterCardItemsByDate(
+  items: TransactionCardItem[],
+  filter: TransactionDateFilter,
+  now: number = Date.now(),
+): TransactionCardItem[] {
+  if (filter === "Toutes dates") return items;
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const start =
+    filter === "Aujourd'hui"
+      ? new Date(now).setHours(0, 0, 0, 0)
+      : filter === "7 derniers jours"
+        ? now - 7 * DAY_MS
+        : now - 30 * DAY_MS;
+
+  return items.filter((item) => item.createdAtMs != null && item.createdAtMs >= start);
+}
+
 export function formatTransactionDateLabel(iso?: string): string {
   if (!iso) return "";
   try {
@@ -134,6 +161,7 @@ export function mapTransactionToCardItem(tx: Transaction): TransactionCardItem {
     title,
     quartier,
     dateLabel: dateLabel || "—",
+    createdAtMs: transactionSortTimestamp(tx),
     status,
     statusLabel: statusLabelFromBucket(status),
     amountLabel: collectingCash ? formatTransactionAmountLabel(amount) : undefined,

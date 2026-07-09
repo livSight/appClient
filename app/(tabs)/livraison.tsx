@@ -1,46 +1,147 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Pressable, RefreshControl, ScrollView } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { Modal, View, Pressable, RefreshControl } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "expo-router/react-navigation";
 import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
+import SolarIcon from "../../components/SolarIcon";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
 import { listTransactions } from "@/lib/api/transactions";
 import {
+  filterCardItemsByDate,
   filterCardItemsByStatus,
   transactionsToCardItems,
+  TRANSACTION_DATE_FILTERS,
+  type TransactionDateFilter,
   type TransactionStatusFilter,
 } from "@/lib/api/transactionUi";
 import { shouldRefreshLivraisonList } from "@/lib/push/notificationRouting";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
-function Chip({ label, active }: { label: TransactionStatusFilter; active?: boolean }) {
+function FilterDropdown<T extends string>({
+  title,
+  iconName,
+  value,
+  options,
+  defaultValue,
+  onSelect,
+}: {
+  title: string;
+  iconName: string;
+  value: T;
+  options: readonly T[];
+  defaultValue: T;
+  onSelect: (value: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const isActive = value !== defaultValue;
+
   return (
-    <View
-      style={{
-        minHeight: 56,
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: radii.pill,
-        backgroundColor: active ? colors.primary : "#E9E9EA",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <AppText
-        variant="dense"
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
         style={{
-          ...(typography.bodyRegular as object),
-          fontFamily: fonts.bodySemi,
-          color: active ? colors.white : colors.text,
+          flex: 1,
+          minHeight: 48,
+          borderRadius: radii.pill,
+          backgroundColor: isActive ? "rgba(48,144,192,0.10)" : colors.white,
+          borderWidth: 1,
+          borderColor: isActive ? colors.primary : "#E5E7EB",
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 14,
+          gap: 8,
         }}
-        numberOfLines={1}
       >
-        {label}
-      </AppText>
-    </View>
+        <SolarIcon name={iconName} size={18} color={isActive ? colors.primary : "rgba(60,74,60,0.55)"} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <AppText
+            variant="dense"
+            style={{
+              fontSize: 13,
+              lineHeight: 18,
+              fontFamily: fonts.bodySemi,
+              color: isActive ? colors.primary : colors.text,
+            }}
+            numberOfLines={1}
+          >
+            {value}
+          </AppText>
+        </View>
+        <SolarIcon
+          name="solar:alt-arrow-right-outline"
+          size={16}
+          color={isActive ? colors.primary : "rgba(60,74,60,0.45)"}
+          style={{ transform: [{ rotate: "90deg" }] }}
+        />
+      </Pressable>
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(15,23,42,0.35)", justifyContent: "flex-end" }}
+          onPress={() => setOpen(false)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: colors.white,
+              borderTopLeftRadius: 28,
+              borderTopRightRadius: 28,
+              paddingHorizontal: 24,
+              paddingTop: 20,
+              paddingBottom: 36,
+            }}
+          >
+            <AppText
+              variant="dense"
+              style={{
+                fontSize: 12,
+                lineHeight: 16,
+                fontFamily: fonts.bodyBold,
+                letterSpacing: 1.2,
+                textTransform: "uppercase",
+                color: "rgba(60,74,60,0.55)",
+                marginBottom: 6,
+              }}
+              numberOfLines={1}
+            >
+              {title}
+            </AppText>
+            {options.map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => {
+                  onSelect(option);
+                  setOpen(false);
+                }}
+                style={{
+                  minHeight: 52,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <AppText
+                  style={{
+                    fontSize: 15,
+                    lineHeight: 22,
+                    fontFamily: option === value ? fonts.bodyBold : fonts.bodyRegular,
+                    color: option === value ? colors.primary : colors.text,
+                  }}
+                  numberOfLines={1}
+                >
+                  {option}
+                </AppText>
+                {option === value ? <SolarIcon name="solar:check-circle-bold" size={20} color={colors.primary} /> : null}
+              </Pressable>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -52,6 +153,8 @@ export default function LivraisonScreen() {
     if (filter === "Annulé") return "Annulé";
     return "Tout";
   });
+  // Defaults to today's orders; "Toutes dates" is opt-in via the dropdown or the reset action.
+  const [dateFilter, setDateFilter] = useState<TransactionDateFilter>("Aujourd'hui");
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -91,7 +194,10 @@ export default function LivraisonScreen() {
     }, [loadTransactions]),
   );
 
-  const orders = useMemo(() => filterCardItemsByStatus(allOrders, active), [active, allOrders]);
+  const orders = useMemo(
+    () => filterCardItemsByDate(filterCardItemsByStatus(allOrders, active), dateFilter),
+    [active, allOrders, dateFilter],
+  );
   const hasAnyOrders = allOrders.length > 0;
   const isFilteredEmpty = hasAnyOrders && orders.length === 0;
 
@@ -121,18 +227,24 @@ export default function LivraisonScreen() {
       }
     >
       {hasAnyOrders ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 12, paddingBottom: spacing.sectionGap / 2 }}
-          style={{ marginBottom: 0, flexGrow: 0 }}
-        >
-          {(["Tout", "En cours", "Livré", "Annulé"] as const).map((label) => (
-            <Pressable key={label} onPress={() => setActive(label)}>
-              <Chip label={label} active={active === label} />
-            </Pressable>
-          ))}
-        </ScrollView>
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 14 }}>
+          <FilterDropdown<TransactionStatusFilter>
+            title="Statut"
+            iconName="solar:widget-5-outline"
+            value={active}
+            options={["Tout", "En cours", "Livré", "Annulé"] as const}
+            defaultValue="Tout"
+            onSelect={setActive}
+          />
+          <FilterDropdown<TransactionDateFilter>
+            title="Période"
+            iconName="solar:calendar-outline"
+            value={dateFilter}
+            options={TRANSACTION_DATE_FILTERS}
+            defaultValue="Toutes dates"
+            onSelect={setDateFilter}
+          />
+        </View>
       ) : null}
 
       {hasAnyOrders ? (
@@ -193,18 +305,23 @@ export default function LivraisonScreen() {
       {isFilteredEmpty ? (
         <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
           <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
-            Aucune course « {active} »
+            Aucune course trouvée
           </AppText>
           <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
-            Essayez un autre filtre ou consultez toutes vos courses.
+            {dateFilter === "Toutes dates"
+              ? `Aucune course « ${active} ». Essayez un autre filtre.`
+              : `Aucune course ne correspond à vos filtres (${active === "Tout" ? "toutes" : active.toLowerCase()} · ${dateFilter.toLowerCase()}).`}
           </AppText>
           <Pressable
-            onPress={() => setActive("Tout")}
+            onPress={() => {
+              setActive("Tout");
+              setDateFilter("Toutes dates");
+            }}
             style={{ marginTop: 14, alignSelf: "flex-start" }}
             hitSlop={10}
           >
             <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-              Voir tout
+              Réinitialiser les filtres
             </AppText>
           </Pressable>
         </View>
