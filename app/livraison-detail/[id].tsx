@@ -6,6 +6,7 @@ import ScreenLayout from "../../components/ScreenLayout";
 import SolarIcon from "../../components/SolarIcon";
 import LivraisonDetailHeader from "../../components/LivraisonDetailHeader";
 import TransactionDetailCardLivaison from "../../components/TransactionDetailCardLivaison";
+import { formatTariffAmountLabel } from "@/lib/api/tariffUi";
 import RecipientCard from "../../components/RecipientCard";
 import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
@@ -14,11 +15,10 @@ import { featureFlags } from "@/lib/featureFlags";
 import AppText from "../../components/AppText";
 import { getTransactionById, getTransactionNavigationId, canClientCancelTransaction, CLIENT_CANCEL_BLOCKED_MESSAGE, type Transaction } from "@/lib/api/transactions";
 import { isTransactionPushType, matchesOpenTransaction } from "@/lib/push/notificationRouting";
+import { logger } from "@/lib/logger";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
 const WARNING_AMBER = "#F59E0B";
-
-type Chip = { label: string; color: string; bg: string };
 
 type DeliveryMode = "pickup" | "stock";
 type DeliveryType = "express" | "normal";
@@ -40,7 +40,15 @@ type Delivery = {
   deliveryAddress?: string | null;
   notes?: string | null;
   created_at?: string;
+  deliveryFeeXaf: number | null;
+  deliveryFeePending: boolean;
 };
+
+function toFeeXaf(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
 
 function mapTransactionToDelivery(tx: Transaction): Delivery {
   const id = getTransactionNavigationId(tx);
@@ -50,6 +58,15 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
     (typeof tx.receiverData?.phone === "string" ? tx.receiverData.phone.trim() : "");
   const qty = Number.isFinite(Number(tx.quantity)) ? Math.max(1, Math.floor(Number(tx.quantity))) : 1;
   const packageName = String(tx.package_name ?? "Colis");
+  const lineItems: DeliveryItem[] = Array.isArray(tx.items)
+    ? tx.items
+        .filter((it) => String(it?.package_name ?? "").trim().length)
+        .map((it) => ({
+          name: String(it.package_name).trim(),
+          qty: Number.isFinite(Number(it.quantity)) ? Math.max(1, Math.floor(Number(it.quantity))) : 1,
+        }))
+    : [];
+  const items = lineItems.length ? lineItems : [{ name: packageName, qty }];
   const typeRaw = String(tx.type ?? "").trim().toLowerCase();
   const service: ServiceKind = typeRaw === "expedition" ? "expedition" : "livraison";
   const mode: DeliveryMode = tx.mode === "pickup" ? "pickup" : "stock";
@@ -70,8 +87,12 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
   const deliveryAddress = destinationStreet.length ? destinationStreet : null;
   const notes = typeof tx.description === "string" ? tx.description : null;
   const amount = Number(tx.amount ?? 0);
-  const collectCash = typeof tx.cash_collect === "boolean" ? tx.cash_collect : typeof tx.collect_cash === "boolean" ? tx.collect_cash : amount > 0;
+  // Only the API's explicit flag counts — a positive amount alone is not proof of cash collection.
+  const collectCash = tx.cash_collect === true || tx.collect_cash === true;
   const deliveryType: DeliveryType = tx.express ? "express" : "normal";
+  const deliveryFeeXaf = toFeeXaf(tx.delivery_fee);
+  // The fee is set later by an agent/the backend; treat a missing total as still pending.
+  const deliveryFeePending = tx.delivery_fee_pending === true || deliveryFeeXaf == null;
 
   return {
     id,
@@ -81,13 +102,15 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
     mode,
     deliveryType,
     pickupAddress,
-    items: [{ name: packageName, qty }],
+    items,
     collectCash,
     amountDueXaf: Number.isFinite(amount) ? Math.max(0, Math.round(amount)) : null,
     status: typeof tx.status === "string" ? tx.status : null,
     deliveryAddress,
     notes,
     created_at: typeof tx.created_at === "string" ? tx.created_at : undefined,
+    deliveryFeeXaf,
+    deliveryFeePending,
   };
 }
 
@@ -98,35 +121,6 @@ function formatFcfa(n: number): string {
 
 function normalizeStatus(status?: string | null): string {
   return (status ?? "").trim().toLowerCase();
-}
-
-function mapBackendStatusToChip(status?: string | null): Chip {
-  const s = normalizeStatus(status);
-
-  if (s === "delivered" || s === "completed") return { label: "LIVRÉ", color: "#2E7D32", bg: "#EAF7EE" };
-  if (s === "processing") return { label: "EN COURS", color: colors.primary, bg: "#E0F2FE" };
-  if (s === "pickup")
-    return {
-      label: "AU BUREAU",
-      color: colors.primary,
-      bg: "#E0F2FE",
-    };
-  if (s === "failed" || s === "cancelled" || s === "canceled") return { label: "ANNULÉ", color: "#D32F2F", bg: "#FCECEC" };
-
-  // Issue / warning states
-  if (
-    s === "client_absent" ||
-    s === "unreachable" ||
-    s === "postponed" ||
-    s === "no_answer" ||
-    s === "present_ne_decroche_zone1" ||
-    s === "present_ne_decroche_zone2"
-  ) {
-    return { label: "PROBLÈME", color: WARNING_AMBER, bg: "#FEF3C7" };
-  }
-
-  // Default / pending / unknown → in progress
-  return { label: "EN COURS", color: colors.primary, bg: "#E9F4FB" };
 }
 
 type StepState = "completed" | "active" | "warning" | "cancelled" | "upcoming";
@@ -245,8 +239,9 @@ export default function LivraisonDetailScreen() {
       const tx = await getTransactionById(String(id));
       setDelivery(mapTransactionToDelivery(tx));
     } catch (e: unknown) {
+      logger.warn("livraisonDetail", "load failed", e);
       setDelivery(null);
-      setLoadError(String(e instanceof Error ? e.message : e ?? "Impossible de charger la livraison."));
+      setLoadError("Impossible de charger la livraison. Vérifiez votre connexion et réessayez.");
     } finally {
       setLoading(false);
     }
@@ -264,7 +259,6 @@ export default function LivraisonDetailScreen() {
     }, [loadDelivery]),
   );
 
-  const statusChip = useMemo(() => mapBackendStatusToChip(delivery?.status), [delivery?.status]);
   const canCancel = useMemo(() => canClientCancelTransaction(delivery?.status), [delivery?.status]);
   const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
   const referenceTitle = useMemo(() => {
@@ -289,14 +283,12 @@ export default function LivraisonDetailScreen() {
   const txDetails = useMemo(() => {
     if (!delivery) return null;
     const totalXaf = typeof delivery.amountDueXaf === "number" ? delivery.amountDueXaf : 0;
-    const paymentMethod = delivery.collectCash ? "Paiement en espèce" : "Mobile Money";
     const serviceType = delivery.service === "expedition" ? "Expédition" : "Livraison";
     const expressLine = delivery.deliveryType === "express" ? "Oui" : "Non";
     const stocked = delivery.mode === "stock" ? "Oui" : "Non";
     return {
       amountHeaderLabel: delivery.collectCash ? "MONTANT À COLLECTER" : "MONTANT TOTAL",
       totalXaf,
-      paymentMethod,
       serviceType,
       zone: delivery.deliveryAddress?.split("—")[0]?.trim() || "—",
       expressLine,
@@ -344,66 +336,6 @@ export default function LivraisonDetailScreen() {
         </View>
       ) : (
         <>
-          {/* Badges */}
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 18 }}>
-            <View
-              style={{
-                minHeight: 36,
-                borderRadius: radii.pill,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                backgroundColor: "rgba(14,165,233,0.10)",
-                borderWidth: 1,
-                borderColor: "rgba(14,165,233,0.20)",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <SolarIcon name="solar:box-bold-duotone" size={24} color={colors.primary} />
-              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.4 }} numberOfLines={1}>
-                {delivery.mode === "pickup" ? "PRODUIT RAMASSÉ" : "PRODUIT EN STOCK"}
-              </AppText>
-            </View>
-
-            <View
-              style={{
-                minHeight: 36,
-                borderRadius: radii.pill,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                backgroundColor: "rgba(245,158,11,0.14)",
-                borderWidth: 1,
-                borderColor: "rgba(245,158,11,0.22)",
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <SolarIcon name="solar:lightning-bold-duotone" size={24} color={"#B45309"} />
-              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: "#92400E", letterSpacing: 0.4 }} numberOfLines={1}>
-                {delivery.deliveryType === "express" ? "EXPRESS" : "NORMAL"}
-              </AppText>
-            </View>
-
-            <View
-              style={{
-                minHeight: 36,
-                borderRadius: radii.pill,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                backgroundColor: statusChip.bg,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <AppText variant="dense" style={{ fontSize: 12, fontFamily: fonts.bodyBold, color: statusChip.color, letterSpacing: 0.4 }} numberOfLines={1}>
-                {statusChip.label}
-              </AppText>
-            </View>
-          </View>
-
           {/* Status card */}
           <View style={[card.base, { padding: 24 }]}>
             {(() => {
@@ -550,8 +482,11 @@ export default function LivraisonDetailScreen() {
                 amountHeaderLabel={txDetails.amountHeaderLabel}
                 amountXaf={txDetails.totalXaf}
                 lines={[
-                  { k: "Nom du produit", v: delivery.items?.[0]?.name?.trim() || "—" },
-                  { k: "Méthode de paiement", v: txDetails.paymentMethod },
+                  {
+                    k: delivery.items.length > 1 ? "Produits" : "Produit",
+                    v: delivery.items.map((it) => `${it.name} x${it.qty}`).join(", ") || "—",
+                  },
+                  ...(delivery.collectCash ? [{ k: "Méthode de paiement", v: "Paiement en espèce" }] : []),
                   { k: "Type de service", v: txDetails.serviceType },
                   { k: "Zone de livraison", v: txDetails.zone },
                   { k: "Express", v: txDetails.expressLine },
@@ -560,6 +495,30 @@ export default function LivraisonDetailScreen() {
                 ]}
                 showCollectCashBadge={delivery.collectCash}
               />
+            ) : null}
+
+            {/* Delivery fee — the backend's final amount only; pending until it is computed */}
+            {delivery.service === "livraison" ? (
+              <View style={[card.base, { padding: 24 }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", flexShrink: 1 }}>
+                    <SolarIcon name="solar:wallet-outline" size={24} color={colors.primary} />
+                    <AppText variant="dense" style={{ marginLeft: 10, fontSize: 14, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                      Frais de livraison
+                    </AppText>
+                  </View>
+                  {!delivery.deliveryFeePending && delivery.deliveryFeeXaf != null ? (
+                    <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
+                      {formatTariffAmountLabel(delivery.deliveryFeeXaf)}
+                    </AppText>
+                  ) : null}
+                </View>
+                {delivery.deliveryFeePending || delivery.deliveryFeeXaf == null ? (
+                  <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 13, lineHeight: 18, marginTop: 10 }} numberOfLines={3}>
+                    Pas encore calculés. Ils seront mis à jour par nos agents.
+                  </AppText>
+                ) : null}
+              </View>
             ) : null}
 
             {/* Pickup address (only for pickup mode) */}
@@ -577,27 +536,6 @@ export default function LivraisonDetailScreen() {
               </View>
             ) : null}
           </View>
-
-          <Pressable
-            onPress={() => Alert.alert("Reçu PDF", "Télécharger le reçu (UI-only).")}
-            style={{
-              marginTop: 16,
-              minHeight: 56,
-              borderRadius: radii.pill,
-              backgroundColor: "#E5E7EB",
-              alignItems: "center",
-              justifyContent: "center",
-              flexDirection: "row",
-              gap: 10,
-              paddingVertical: 14,
-            }}
-            hitSlop={10}
-          >
-            <SolarIcon name="solar:download-outline" size={22} color={colors.text} />
-            <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
-              Reçu PDF
-            </AppText>
-          </Pressable>
 
           {canCancel ? (
             <Pressable

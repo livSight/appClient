@@ -77,6 +77,16 @@ export type Transaction = {
   destination_region?: string;
   destination_street?: string;
   destination_landmark?: string;
+  /** Total delivery fee in XAF (base + pickup + express), set by the backend */
+  delivery_fee?: number | null;
+  /** Base zone/neighborhood fee in XAF */
+  delivery_fee_base?: number | null;
+  /** Pickup surcharge applied in XAF */
+  pickup_fee_applied?: number | null;
+  /** Express surcharge applied in XAF */
+  express_fee_applied?: number | null;
+  /** True while the fee could not be resolved from the destination yet */
+  delivery_fee_pending?: boolean | null;
   /** UI-friendly mode derived from source */
   mode?: UiMode;
   /** UI-friendly express flag derived from serviceLevel */
