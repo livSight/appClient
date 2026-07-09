@@ -140,11 +140,11 @@ type Timeline = {
 function mapBackendStatusToTimeline(status?: string | null): Timeline {
   const s = normalizeStatus(status);
 
-  if (s === "delivered" || s === "pickup") {
+  if (s === "delivered" || s === "completed" || s === "pickup") {
     return { step1: "completed", step2: "completed", step3: "active" };
   }
 
-  if (s === "failed" || s === "cancelled") {
+  if (s === "failed" || s === "cancelled" || s === "canceled") {
     return { step1: "completed", step2: "cancelled", step3: "upcoming", step2Helper: "Livraison annulée." };
   }
 
@@ -427,7 +427,7 @@ export default function LivraisonDetailScreen() {
                   iconName: s2.iconName,
                   iconColor: s2.color,
                   title: "En cours de livraison",
-                  subtitle: "Le livreur est en route.",
+                  subtitle: timeline.step2 === "active" ? "Le livreur est en route." : null,
                   helper:
                     timeline.step2 === "warning" || timeline.step2 === "cancelled"
                       ? (timeline.step2Helper ?? null)
