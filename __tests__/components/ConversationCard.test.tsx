@@ -25,16 +25,18 @@ describe("inbox conversation cards", () => {
       type: "livraison",
       title: "Sac x2",
       locationLine: "Akwa",
-      subtitle: "Support : Le coursier arrive",
+      subtitle: "Agent : Le coursier arrive",
       isUnread: true,
       unreadCount: 1,
     });
 
-    const { getByText } = render(<TransactionCard item={item} />);
-    expect(getByText("REF LVS-1")).toBeTruthy();
+    const { getByText, queryByText } = render(<TransactionCard item={item} />);
+    // WhatsApp-style card: no order reference, no product — quartier + message preview.
+    expect(queryByText(/^REF /)).toBeNull();
+    expect(queryByText(/Sac x2/)).toBeNull();
     expect(getByText("1 NON LU")).toBeTruthy();
-    expect(getByText("Sac x2")).toBeTruthy();
-    expect(getByText(/Akwa/)).toBeTruthy();
+    expect(getByText("Akwa")).toBeTruthy();
+    expect(getByText(/Agent : Le coursier arrive/)).toBeTruthy();
     expect(getByText("LIVRAISON")).toBeTruthy();
   });
 });

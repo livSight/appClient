@@ -21,6 +21,8 @@ export type TransactionRequest = {
   receiver_name: string;
   receiver_phone: string;
   source: TransactionSource;
+  /** ISO date YYYY-MM-DD — required by backend (scheduling.timezone Africa/Douala). */
+  scheduled_delivery_date: string;
   type?: string;
   quantity?: number;
   items?: TransactionLineItem[];
@@ -77,6 +79,19 @@ export type Transaction = {
   destination_region?: string;
   destination_street?: string;
   destination_landmark?: string;
+  /** Planned delivery date (ISO date from backend). */
+  scheduled_delivery_date?: string | null;
+  delivery_attempt?: number | null;
+  rescheduled_at?: string | null;
+  /** Total delivery fee in XAF (base + pickup + express), set by the backend */
+  delivery_fee?: number | null;
+  delivery_fee_base?: number | null;
+  /** Pickup surcharge applied in XAF */
+  pickup_fee_applied?: number | null;
+  /** Express surcharge applied in XAF */
+  express_fee_applied?: number | null;
+  /** True while the fee could not be resolved from the destination yet */
+  delivery_fee_pending?: boolean | null;
   /** UI-friendly mode derived from source */
   mode?: UiMode;
   /** UI-friendly express flag derived from serviceLevel */
@@ -181,6 +196,7 @@ export function buildTransactionFormData(payload: TransactionRequest): FormData 
   appendFormField(form, "receiver_name", payload.receiver_name);
   appendFormField(form, "receiver_phone", payload.receiver_phone);
   appendFormField(form, "source", resolveApiSourceField(payload.source));
+  appendFormField(form, "scheduled_delivery_date", payload.scheduled_delivery_date);
   appendFormField(form, "type", payload.type);
   appendFormField(form, "quantity", payload.quantity);
   appendTransactionLineItems(form, payload.items);
@@ -259,9 +275,25 @@ export function parseTransaction(raw: any): Transaction {
 
   const id = raw?.id ?? (raw?.transactionReference ? undefined : undefined);
 
+  const scheduled_delivery_date =
+    typeof raw?.scheduled_delivery_date === "string" && raw.scheduled_delivery_date.trim()
+      ? raw.scheduled_delivery_date.trim()
+      : null;
+  const delivery_attempt =
+    typeof raw?.delivery_attempt === "number" && Number.isFinite(raw.delivery_attempt)
+      ? raw.delivery_attempt
+      : null;
+  const rescheduled_at =
+    typeof raw?.rescheduled_at === "string" && raw.rescheduled_at.trim()
+      ? raw.rescheduled_at.trim()
+      : null;
+
   return {
     ...raw,
     id,
+    scheduled_delivery_date,
+    delivery_attempt,
+    rescheduled_at,
     receiver_name,
     receiver_phone,
     receiver_gender,
@@ -296,10 +328,11 @@ export function txnModeLabelFromTransaction(tx: Transaction): string {
   return "";
 }
 
-export type UiStatusBucket = "En cours" | "Livré" | "Annulé";
+export type UiStatusBucket = "Planifiée" | "En cours" | "Livré" | "Annulé";
 
 export function mapTxnStatusToUi(status?: string): UiStatusBucket {
   const s = String(status ?? "").trim().toLowerCase();
+  if (s === "scheduled") return "Planifiée";
   if (["delivered", "completed", "complete", "done", "success"].includes(s)) return "Livré";
   if (["cancelled", "canceled", "failed", "rejected", "expired", "aborted"].includes(s)) return "Annulé";
   if (["pending", "processing", "pickup", "in_progress", "inprogress", "assigned", "accepted", "created", "new", "started", ""].includes(s)) {
@@ -336,6 +369,7 @@ export type StockResumePayloadInput = {
   departureStreet: string;
   destinationCity?: string;
   destinationRegion?: string;
+  scheduledDeliveryDate: string;
 };
 
 export function buildPayloadFromStockResume(input: StockResumePayloadInput): TransactionRequest {
@@ -359,7 +393,7 @@ export function buildPayloadFromStockResume(input: StockResumePayloadInput): Tra
     quantity: totalQty,
     items: lineItems.length ? lineItems : undefined,
     amount: input.amount,
-    status: "pending",
+    scheduled_delivery_date: input.scheduledDeliveryDate,
     cash_collect: input.collectCash === "yes",
     serviceLevel: mapExpressToServiceLevel(input.express),
     departure_city: input.departureCity ?? "Yaoundé",
@@ -386,6 +420,7 @@ export type PickupResumePayloadInput = {
   dropoffLandmark?: string;
   city?: string;
   region?: string;
+  scheduledDeliveryDate: string;
 };
 
 export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): TransactionRequest {
@@ -400,7 +435,7 @@ export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): T
     type: input.forExpedition ? "expedition" : "delivery",
     quantity: input.quantity,
     amount: input.amount,
-    status: "pending",
+    scheduled_delivery_date: input.scheduledDeliveryDate,
     cash_collect: input.collectCash === "yes",
     serviceLevel: mapExpressToServiceLevel(input.express),
     departure_city: input.city ?? "Yaoundé",

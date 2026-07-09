@@ -1,57 +1,36 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Pressable, RefreshControl, ScrollView } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { View, Pressable, RefreshControl } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "expo-router/react-navigation";
 import EmptyStateCard from "../../components/EmptyStateCard";
+import FilterDropdown from "../../components/FilterDropdown";
 import ScreenLayout from "../../components/ScreenLayout";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
 import { listTransactions } from "@/lib/api/transactions";
 import {
+  filterCardItemsByDate,
   filterCardItemsByStatus,
   transactionsToCardItems,
+  TRANSACTION_DATE_FILTERS,
+  type TransactionDateFilter,
   type TransactionStatusFilter,
 } from "@/lib/api/transactionUi";
 import { shouldRefreshLivraisonList } from "@/lib/push/notificationRouting";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
-function Chip({ label, active }: { label: TransactionStatusFilter; active?: boolean }) {
-  return (
-    <View
-      style={{
-        minHeight: 56,
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: radii.pill,
-        backgroundColor: active ? colors.primary : "#E9E9EA",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <AppText
-        variant="dense"
-        style={{
-          ...(typography.bodyRegular as object),
-          fontFamily: fonts.bodySemi,
-          color: active ? colors.white : colors.text,
-        }}
-        numberOfLines={1}
-      >
-        {label}
-      </AppText>
-    </View>
-  );
-}
-
 export default function LivraisonScreen() {
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [active, setActive] = useState<TransactionStatusFilter>(() => {
+    if (filter === "Planifiée") return "Planifiée";
     if (filter === "En cours") return "En cours";
     if (filter === "Livré") return "Livré";
     if (filter === "Annulé") return "Annulé";
     return "Tout";
   });
+  // Defaults to today's orders; "Toutes dates" is opt-in via the dropdown or the reset action.
+  const [dateFilter, setDateFilter] = useState<TransactionDateFilter>("Aujourd'hui");
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -91,7 +70,10 @@ export default function LivraisonScreen() {
     }, [loadTransactions]),
   );
 
-  const orders = useMemo(() => filterCardItemsByStatus(allOrders, active), [active, allOrders]);
+  const orders = useMemo(
+    () => filterCardItemsByDate(filterCardItemsByStatus(allOrders, active), dateFilter),
+    [active, allOrders, dateFilter],
+  );
   const hasAnyOrders = allOrders.length > 0;
   const isFilteredEmpty = hasAnyOrders && orders.length === 0;
 
@@ -111,7 +93,7 @@ export default function LivraisonScreen() {
       }}
       header={
         <View style={{ paddingBottom: 10 }}>
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 34 }]} numberOfLines={2}>
             Mes Courses
           </AppText>
           <AppText style={[typography.subtitle, { marginTop: 4 }]}>
@@ -121,18 +103,24 @@ export default function LivraisonScreen() {
       }
     >
       {hasAnyOrders ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 12, paddingBottom: spacing.sectionGap / 2 }}
-          style={{ marginBottom: 0, flexGrow: 0 }}
-        >
-          {(["Tout", "En cours", "Livré", "Annulé"] as const).map((label) => (
-            <Pressable key={label} onPress={() => setActive(label)}>
-              <Chip label={label} active={active === label} />
-            </Pressable>
-          ))}
-        </ScrollView>
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 14 }}>
+          <FilterDropdown<TransactionStatusFilter>
+            title="Statut"
+            iconName="solar:widget-5-outline"
+            value={active}
+            options={["Tout", "Planifiée", "En cours", "Livré", "Annulé"] as const}
+            defaultValue="Tout"
+            onSelect={setActive}
+          />
+          <FilterDropdown<TransactionDateFilter>
+            title="Période"
+            iconName="solar:calendar-outline"
+            value={dateFilter}
+            options={TRANSACTION_DATE_FILTERS}
+            defaultValue="Toutes dates"
+            onSelect={setDateFilter}
+          />
+        </View>
       ) : null}
 
       {hasAnyOrders ? (
@@ -193,18 +181,23 @@ export default function LivraisonScreen() {
       {isFilteredEmpty ? (
         <View style={{ marginTop: 6, borderRadius: radii.card, backgroundColor: colors.white, padding: 20 }}>
           <AppText style={{ ...typography.cardTitle, fontSize: 16, lineHeight: 24 }} numberOfLines={2}>
-            Aucune course « {active} »
+            Aucune course trouvée
           </AppText>
           <AppText style={{ ...typography.subtitle, marginTop: 6 }} numberOfLines={3} ellipsizeMode="tail">
-            Essayez un autre filtre ou consultez toutes vos courses.
+            {dateFilter === "Toutes dates"
+              ? `Aucune course « ${active} ». Essayez un autre filtre.`
+              : `Aucune course ne correspond à vos filtres (${active === "Tout" ? "toutes" : active.toLowerCase()} · ${dateFilter.toLowerCase()}).`}
           </AppText>
           <Pressable
-            onPress={() => setActive("Tout")}
+            onPress={() => {
+              setActive("Tout");
+              setDateFilter("Toutes dates");
+            }}
             style={{ marginTop: 14, alignSelf: "flex-start" }}
             hitSlop={10}
           >
             <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-              Voir tout
+              Réinitialiser les filtres
             </AppText>
           </Pressable>
         </View>
@@ -213,7 +206,9 @@ export default function LivraisonScreen() {
       {!loading && !error && orders.length === 0 && !isFilteredEmpty ? (
         <EmptyStateCard
           label={
-            active === "En cours"
+            active === "Planifiée"
+              ? "PLANIFIÉE"
+              : active === "En cours"
               ? "EN COURS"
               : active === "Livré"
                 ? "LIVRÉ"
@@ -223,7 +218,9 @@ export default function LivraisonScreen() {
           }
           iconName="solar:delivery-bold-duotone"
           title={
-            active === "En cours"
+            active === "Planifiée"
+              ? "Aucune livraison planifiée"
+              : active === "En cours"
               ? "Aucune livraison en cours"
               : active === "Livré"
                 ? "Aucune livraison livrée pour le moment"

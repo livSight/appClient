@@ -5,8 +5,40 @@ import {
   type Transaction,
   type UiStatusBucket,
 } from "@/lib/api/transactions";
+import { formatScheduledDeliveryLabel } from "@/lib/scheduling/deliveryDate";
 
-export type TransactionStatusFilter = "Tout" | "En cours" | "Livré" | "Annulé";
+export type TransactionStatusFilter = "Tout" | "Planifiée" | "En cours" | "Livré" | "Annulé";
+
+export type TransactionDateFilter = "Toutes dates" | "Aujourd'hui" | "7 derniers jours" | "30 derniers jours";
+
+export const TRANSACTION_DATE_FILTERS: TransactionDateFilter[] = [
+  "Toutes dates",
+  "Aujourd'hui",
+  "7 derniers jours",
+  "30 derniers jours",
+];
+
+/** Start of the filter window in ms, or null when the filter keeps everything. */
+export function dateFilterStartMs(filter: TransactionDateFilter, now: number = Date.now()): number | null {
+  if (filter === "Toutes dates") return null;
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  return filter === "Aujourd'hui"
+    ? new Date(now).setHours(0, 0, 0, 0)
+    : filter === "7 derniers jours"
+      ? now - 7 * DAY_MS
+      : now - 30 * DAY_MS;
+}
+
+export function filterCardItemsByDate(
+  items: TransactionCardItem[],
+  filter: TransactionDateFilter,
+  now: number = Date.now(),
+): TransactionCardItem[] {
+  const start = dateFilterStartMs(filter, now);
+  if (start == null) return items;
+  return items.filter((item) => item.createdAtMs != null && item.createdAtMs >= start);
+}
 
 export function formatTransactionDateLabel(iso?: string): string {
   if (!iso) return "";
@@ -17,6 +49,12 @@ export function formatTransactionDateLabel(iso?: string): string {
   } catch {
     return "";
   }
+}
+
+export function scheduledDeliveryLabelFromTransaction(tx: Transaction): string | undefined {
+  const iso = String(tx.scheduled_delivery_date ?? "").trim();
+  if (!iso.length) return undefined;
+  return formatScheduledDeliveryLabel(iso);
 }
 
 export function formatTransactionAmountLabel(amount?: number): string {
@@ -120,6 +158,7 @@ export function mapTransactionToCardItem(tx: Transaction): TransactionCardItem {
   const collectingCash = isCollectingCash(tx);
   const amount = Number(tx.amount ?? 0);
   const dateLabel = formatTransactionDateLabel(tx.created_at);
+  const scheduledLabel = scheduledDeliveryLabelFromTransaction(tx);
 
   let serviceLabel = serviceLabelFromType(tx.type);
   let sourceLabel = sourceLabelFromTransaction(tx);
@@ -134,6 +173,7 @@ export function mapTransactionToCardItem(tx: Transaction): TransactionCardItem {
     title,
     quartier,
     dateLabel: dateLabel || "—",
+    createdAtMs: transactionSortTimestamp(tx),
     status,
     statusLabel: statusLabelFromBucket(status),
     amountLabel: collectingCash ? formatTransactionAmountLabel(amount) : undefined,
@@ -142,6 +182,7 @@ export function mapTransactionToCardItem(tx: Transaction): TransactionCardItem {
     sourceLabel,
     expressLabel: expressLabelFromTransaction(tx),
     isExpedition: isExpeditionType(tx.type),
+    scheduledLabel,
   };
 }
 

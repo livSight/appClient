@@ -121,7 +121,7 @@ export default function InfoProduitEnStockScreen() {
         <View style={{ width: 44 }} />
       </View>
 
-      <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36 }} numberOfLines={2}>
+      <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 40 }} numberOfLines={2}>
         Informations produit en stock
       </AppText>
       <AppText style={{ ...typography.subtitle, lineHeight: 24, marginTop: 10 }}>

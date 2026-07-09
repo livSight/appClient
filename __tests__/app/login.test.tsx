@@ -7,11 +7,30 @@ import { AuthError } from "@/lib/auth/authApi";
 const mockLogin = jest.fn();
 const mockReplace = jest.fn();
 
+const mockExpoConfig = { name: "livsight" };
+
 jest.mock("expo-router", () => ({
   router: {
     replace: (...args: unknown[]) => mockReplace(...args),
   },
 }));
+
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  default: {
+    get expoConfig() {
+      return mockExpoConfig;
+    },
+  },
+}));
+
+jest.mock("expo-image", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  return {
+    Image: (props: Record<string, unknown>) => <View testID="login-logo" {...props} />,
+  };
+});
 
 jest.mock("@/lib/auth/AuthProvider", () => ({
   useAuth: () => ({
@@ -79,16 +98,20 @@ describe("LoginScreen", () => {
     mockLogin.mockReset();
     mockReplace.mockReset();
     mockLogin.mockResolvedValue(undefined);
+    mockExpoConfig.name = "livsight";
   });
 
-  it("renders email and password fields with submit button", () => {
+  it("renders welcome header, email and password fields with submit button", () => {
     const screen = renderLogin();
 
+    expect(screen.getByText("Bienvenue")).toBeTruthy();
+    expect(screen.getByTestId("login-logo")).toBeTruthy();
     expect(screen.getByText("Adresse e-mail")).toBeTruthy();
     expect(screen.getByText("Mot de passe")).toBeTruthy();
     expect(screen.getByText("Se connecter")).toBeTruthy();
     expect(screen.getByTestId("login-email")).toBeTruthy();
     expect(screen.getByTestId("login-password")).toBeTruthy();
+    expect(screen.queryByTestId("login-staging-badge")).toBeNull();
   });
 
   it("calls useAuth login with trimmed form values on submit", async () => {
@@ -106,6 +129,45 @@ describe("LoginScreen", () => {
     });
 
     expect(mockReplace).toHaveBeenCalledWith("/(tabs)");
+  });
+
+  it("submits when the password field fires submitEditing", async () => {
+    const screen = renderLogin();
+
+    fireEvent.changeText(screen.getByTestId("login-email"), "snake123@example.com");
+    fireEvent.changeText(screen.getByTestId("login-password"), "Abc123");
+    fireEvent(screen.getByTestId("login-password"), "submitEditing");
+
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith({
+        username: "snake123@example.com",
+        password: "Abc123",
+      });
+    });
+
+    expect(mockReplace).toHaveBeenCalledWith("/(tabs)");
+  });
+
+  it("toggles password visibility", () => {
+    const screen = renderLogin();
+    const passwordInput = screen.getByTestId("login-password");
+
+    expect(passwordInput.props.secureTextEntry).toBe(true);
+
+    fireEvent.press(screen.getByTestId("login-password-toggle"));
+    expect(passwordInput.props.secureTextEntry).toBe(false);
+
+    fireEvent.press(screen.getByTestId("login-password-toggle"));
+    expect(passwordInput.props.secureTextEntry).toBe(true);
+  });
+
+  it("shows staging badge on staging builds", () => {
+    mockExpoConfig.name = "livsight Staging";
+
+    const screen = renderLogin();
+
+    expect(screen.getByTestId("login-staging-badge")).toBeTruthy();
+    expect(screen.getByText("Staging")).toBeTruthy();
   });
 
   it("shows a French error message on 401", async () => {

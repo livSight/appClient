@@ -13,6 +13,11 @@ import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClie
 import { createTransaction, buildPayloadFromStockResume, type TransactionLineItem } from "@/lib/api/transactions";
 import DeliveryFeeTotalCard from "../components/DeliveryFeeTotalCard";
 import { useDeliveryFeeEstimate } from "@/lib/hooks/useDeliveryFeeEstimate";
+import {
+  formatScheduledDeliveryDisplayLabel,
+  isScheduledDeliveryDateValid,
+  todayIsoInSchedulingTimezone,
+} from "@/lib/scheduling/deliveryDate";
 
 type SelectedItem = { id: string; name: string; qty: number };
 
@@ -31,6 +36,7 @@ type Params = {
   amountDueText?: string;
   service?: string;
   expeditionClient?: string;
+  scheduledDeliveryDate?: string;
 };
 
 function SectionRow({
@@ -114,6 +120,15 @@ export default function ResumeProduitEnStockScreen() {
     () => parseExpeditionClient(typeof params.expeditionClient === "string" ? params.expeditionClient : undefined),
     [params.expeditionClient]
   );
+  const scheduledDeliveryDate = useMemo(() => {
+    const raw = typeof params.scheduledDeliveryDate === "string" ? params.scheduledDeliveryDate.trim() : "";
+    if (raw.length && isScheduledDeliveryDateValid(raw)) return raw;
+    return todayIsoInSchedulingTimezone();
+  }, [params.scheduledDeliveryDate]);
+  const scheduledDeliveryDisplay = useMemo(
+    () => formatScheduledDeliveryDisplayLabel(scheduledDeliveryDate),
+    [scheduledDeliveryDate],
+  );
 
   const amountDue = useMemo(() => {
     const cleaned = amountDueText.replace(/[^\d.,]/g, "").replace(",", ".");
@@ -164,6 +179,7 @@ export default function ResumeProduitEnStockScreen() {
               deliveryLandmark,
               selectedItems: typeof params.selectedItems === "string" ? params.selectedItems : "[]",
               service: typeof params.service === "string" ? params.service : "",
+              scheduledDeliveryDate,
             }
           : {
               livPhone: phone,
@@ -174,6 +190,7 @@ export default function ResumeProduitEnStockScreen() {
               deliveryQuartier,
               deliveryLandmark,
               selectedItems: typeof params.selectedItems === "string" ? params.selectedItems : "[]",
+              scheduledDeliveryDate,
             }),
       },
     });
@@ -219,6 +236,7 @@ export default function ResumeProduitEnStockScreen() {
           departureCity: city,
           departureStreet,
           destinationCity: city,
+          scheduledDeliveryDate,
         }),
       );
       const createdId = created?.id ?? created?.data?.id ?? created?.transactionReference;
@@ -226,6 +244,7 @@ export default function ResumeProduitEnStockScreen() {
         pathname: "/confirmee",
         params: {
           id: createdId ? String(createdId) : "",
+          scheduledDeliveryDate,
           ...(forExpedition ? { flow: "expedition" } : {}),
         },
       });
@@ -266,6 +285,22 @@ export default function ResumeProduitEnStockScreen() {
       </AppText>
 
       <View style={{ marginTop: 16, gap: 18 }}>
+        <View>
+          <SectionRow label="DATE DE LIVRAISON" />
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                <SolarIcon name="solar:calendar-outline" size={24} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
+                  {scheduledDeliveryDisplay}
+                </AppText>
+              </View>
+            </View>
+          </Card>
+        </View>
+
         {forExpedition && expeditionClient ? (
           <View>
             <SectionRow label="CLIENT EXPÉDITION" />

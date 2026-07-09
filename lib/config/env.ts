@@ -1,5 +1,11 @@
 export function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
+  // IMPORTANT: Expo/EAS only inlines EXPO_PUBLIC_* env vars when accessed statically.
+  // Dynamic access like process.env[name] will be undefined in production builds.
+  const raw =
+    name === "EXPO_PUBLIC_GATEWAY_URL"
+      ? process.env.EXPO_PUBLIC_GATEWAY_URL
+      : process.env[name];
+  const value = raw?.trim();
   if (!value) {
     throw new Error(`${name} is not set. Add it to .env (local dev) or eas.json (EAS builds).`);
   }

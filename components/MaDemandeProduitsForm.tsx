@@ -18,10 +18,11 @@ import {
 } from "@/lib/expeditionClient";
 import { hapticSuccess } from "@/lib/haptics";
 import { listPackages, makeClientId, type Package } from "@/lib/api/packages";
-import { formatSupplementFcfaLabel, filterNeighborhoodNames, uniqueNeighborhoodNames } from "@/lib/api/tariffUi";
-import { filterInventoryByName, isAutocompleteQueryReady } from "@/lib/formAutocomplete";
+import { formatSupplementFcfaLabel } from "@/lib/api/tariffUi";
+import { filterInventoryByName } from "@/lib/formAutocomplete";
 import { useDeliveryFeeSettings } from "@/lib/hooks/useDeliveryFeeSettings";
-import { useNeighborhoods } from "@/lib/hooks/useNeighborhoods";
+import DeliveryDateField from "./DeliveryDateField";
+import { isScheduledDeliveryDateValid, todayIsoInSchedulingTimezone } from "@/lib/scheduling/deliveryDate";
 
 export type MaDemandeProduitsFlow = "livraison" | "expedition";
 
@@ -215,21 +216,29 @@ function StockCartList({
 }
 
 function toInventory(items: Package[]): InventoryItem[] {
-  return items
-    .map((p) => {
-      const name = String(p?.package_name ?? "").trim();
-      if (!name) return null;
-      const description = String(p?.description ?? "").trim();
-      const qty = Number.isFinite(Number(p?.quantity)) ? Math.max(0, Math.floor(Number(p.quantity))) : 0;
-      const stockLabel = [description, `STOCK: ${qty}`].filter(Boolean).join(" • ");
-      return {
-        id: makeClientId(p),
-        name,
-        stockLabel,
-        stockAvailable: qty,
-      } satisfies InventoryItem;
-    })
-    .filter(Boolean) as InventoryItem[];
+  // The backend can return several rows with the same package name — merge them
+  // (summed stock) so ids stay unique and the selector shows one line per product.
+  const merged = new Map<string, { id: string; name: string; description: string; qty: number }>();
+  for (const p of items) {
+    const name = String(p?.package_name ?? "").trim();
+    if (!name) continue;
+    const description = String(p?.description ?? "").trim();
+    const qty = Number.isFinite(Number(p?.quantity)) ? Math.max(0, Math.floor(Number(p.quantity))) : 0;
+    const id = makeClientId(p);
+    const existing = merged.get(id);
+    if (existing) {
+      existing.qty += qty;
+      if (!existing.description && description) existing.description = description;
+    } else {
+      merged.set(id, { id, name, description, qty });
+    }
+  }
+  return Array.from(merged.values()).map(({ id, name, description, qty }) => ({
+    id,
+    name,
+    stockLabel: [description, `STOCK: ${qty}`].filter(Boolean).join(" • "),
+    stockAvailable: qty,
+  }));
 }
 
 function parseXaf(input: string): number {
@@ -340,7 +349,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const screenTitle = isExpedition ? "Ma demande d'expédition" : "Ma demande de livraison";
   const modeChoiceHint = isExpedition ? "SOURCE DU COLIS (STOCK OU RAMASSAGE)" : "CHOISIR OÙ RÉCUPÉRER LE COLIS À LIVRER";
   const { expressFee, pickupFee } = useDeliveryFeeSettings();
-  const { neighborhoods, loading: neighborhoodsLoading, error: neighborhoodsError } = useNeighborhoods();
 
   const {
     quartier: quartierParam,
@@ -370,6 +378,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     pickupDropoffQuartier: pickupDropoffQuartierParam,
     pickupDropoffLandmark: pickupDropoffLandmarkParam,
     pickupPhotoUri: pickupPhotoUriParam,
+    scheduledDeliveryDate: scheduledDeliveryDateParam,
   } = useLocalSearchParams<{
     quartier?: string;
     mode?: Mode;
@@ -401,6 +410,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     pickupPickupLandmark?: string;
     pickupDropoffQuartier?: string;
     pickupDropoffLandmark?: string;
+    scheduledDeliveryDate?: string;
   }>();
 
   const quartier = typeof quartierParam === "string" ? quartierParam : "";
@@ -408,6 +418,13 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const editSectionKey = typeof editSection === "string" ? editSection : "";
 
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [scheduledDeliveryDateOverride, setScheduledDeliveryDateOverride] = useState<string | null>(null);
+  const scheduledDeliveryDate = useMemo(() => {
+    if (scheduledDeliveryDateOverride) return scheduledDeliveryDateOverride;
+    const fromParam = typeof scheduledDeliveryDateParam === "string" ? scheduledDeliveryDateParam.trim() : "";
+    if (fromParam.length && isScheduledDeliveryDateValid(fromParam)) return fromParam;
+    return todayIsoInSchedulingTimezone();
+  }, [scheduledDeliveryDateOverride, scheduledDeliveryDateParam]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -492,10 +509,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
   const [livStockOpen, setLivStockOpen] = useState(false);
   const [livPhone, setLivPhone] = useState(() => (typeof livPhoneParam === "string" ? livPhoneParam : ""));
   const [livQuartierQuery, setLivQuartierQuery] = useState(() => (typeof deliveryQuartierParam === "string" ? deliveryQuartierParam : ""));
-  const [livQuartierOpen, setLivQuartierOpen] = useState(false);
-  const [livSelectedQuartier, setLivSelectedQuartier] = useState<string | null>(() =>
-    typeof deliveryQuartierParam === "string" && deliveryQuartierParam.length ? deliveryQuartierParam : null
-  );
   const [livDeliveryLandmark, setLivDeliveryLandmark] = useState(() => (typeof deliveryLandmarkParam === "string" ? deliveryLandmarkParam : ""));
   const [livNotes, setLivNotes] = useState(() => (typeof livNotesParam === "string" ? livNotesParam : ""));
   const [livExpress, setLivExpress] = useState<"yes" | "no">(() => (livExpressParam === "yes" ? "yes" : "no"));
@@ -517,7 +530,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
       scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true });
       if (mode === "stock") {
         if (!isExpedition) {
-          if (editSectionKey === "address") setLivQuartierOpen(true);
           if (editSectionKey === "items") setLivStockOpen(true);
         } else {
           if (editSectionKey === "items") setExpStockOpen(true);
@@ -526,16 +538,10 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     });
   }, [editSectionKey, isExpedition, mode]);
 
-  const expFilteredStock = useMemo(() => filterInventoryByName(inventory, expStockSearch), [expStockSearch, inventory]);
+  // minLength 0: an empty query lists the client's whole catalog (selection UX, not search-only)
+  const expFilteredStock = useMemo(() => filterInventoryByName(inventory, expStockSearch, 0), [expStockSearch, inventory]);
 
-  const livFilteredStock = useMemo(() => filterInventoryByName(inventory, livStockSearch), [livStockSearch, inventory]);
-
-  const livNeighborhoodNames = useMemo(() => uniqueNeighborhoodNames(neighborhoods), [neighborhoods]);
-
-  const livFilteredQuartiers = useMemo(
-    () => filterNeighborhoodNames(livNeighborhoodNames, livQuartierQuery),
-    [livNeighborhoodNames, livQuartierQuery],
-  );
+  const livFilteredStock = useMemo(() => filterInventoryByName(inventory, livStockSearch, 0), [livStockSearch, inventory]);
 
   const expCartValid = useMemo(
     () =>
@@ -577,7 +583,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     }
     if (mode === "stock") {
       const phoneOk = livPhone.trim().length > 0;
-      const addressOk = Boolean(livSelectedQuartier && livSelectedQuartier.trim().length > 0);
+      const addressOk = livQuartierQuery.trim().length > 0;
       if (!livCartValid || !phoneOk || !addressOk) return false;
       if (!livNeedsCashAmount) return true;
       return Number.isFinite(livAmountDue) && livAmountDue > 0;
@@ -604,7 +610,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     expCartValid,
     livCartValid,
     livPhone,
-    livSelectedQuartier,
+    livQuartierQuery,
     livNeedsCashAmount,
     livAmountDue,
     pickupName,
@@ -641,6 +647,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           amountDueText: "",
           service: SERVICE_EXPEDITION,
           expeditionClient,
+          scheduledDeliveryDate,
         },
       });
       return;
@@ -668,6 +675,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           pickupCollectCash: "no",
           pickupAmount: "",
           pickupPhone: expTelephoneDestinataire.trim(),
+          scheduledDeliveryDate,
           ...expeditionPickupParams,
         },
       });
@@ -675,7 +683,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     }
 
     if (mode === "stock" && !isExpedition) {
-      const deliveryQuartier = (livSelectedQuartier ?? livQuartierQuery).trim();
+      const deliveryQuartier = livQuartierQuery.trim();
       const deliveryLandmark = livDeliveryLandmark.trim();
       const deliveryAddress = [deliveryQuartier, deliveryLandmark].filter(Boolean).join(" — ");
       router.push({
@@ -691,6 +699,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           express: livExpress,
           collectCash: livCollectCash,
           amountDueText: livNeedsCashAmount ? livAmountDueText : "",
+          scheduledDeliveryDate,
         },
       });
       return;
@@ -721,6 +730,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
           pickupPickupLandmark: pickupLandmark,
           pickupDropoffQuartier: dropoffQuartier,
           pickupDropoffLandmark: dropoffLandmark,
+          scheduledDeliveryDate,
         },
       });
     }
@@ -734,7 +744,6 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     expPickupAddress,
     quartier,
     expCart,
-    livSelectedQuartier,
     livQuartierQuery,
     livDeliveryLandmark,
     livCart,
@@ -754,6 +763,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
     pickupCollectCash,
     pickupAmount,
     pickupPhone,
+    scheduledDeliveryDate,
   ]);
 
   return (
@@ -763,6 +773,10 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
       headerCompact
       header={<CenteredScreenHeader title={screenTitle} showBack compact />}
     >
+
+      <View style={{ marginBottom: 16 }}>
+        <DeliveryDateField value={scheduledDeliveryDate} onChange={setScheduledDeliveryDateOverride} testID="delivery-date-field" />
+      </View>
 
       <View onLayout={(e) => recordSectionLayout("mode", e)} style={{ marginBottom: 16 }}>
         <ModeChoiceCard hint={modeChoiceHint} value={mode} onChange={setMode} />
@@ -797,7 +811,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                   }}
                   onFocus={() => setExpStockOpen(true)}
                   onBlur={() => setTimeout(() => setExpStockOpen(false), 150)}
-                  placeholder="Rechercher un colis en stock..."
+                  placeholder="Sélectionner ou rechercher un produit..."
                   placeholderTextColor={PH}
                   style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
                 />
@@ -827,7 +841,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                       </AppText>
                     </View>
                   ) : null}
-                  {!inventoryLoading && !inventoryError && isAutocompleteQueryReady(expStockSearch)
+                  {!inventoryLoading && !inventoryError
                     ? expFilteredStock.slice(0, 6).map((it) => (
                         <Pressable
                           key={it.id}
@@ -862,12 +876,12 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                         </Pressable>
                       ))
                     : null}
-                  {!inventoryLoading && !inventoryError && (!isAutocompleteQueryReady(expStockSearch) || expFilteredStock.length === 0) ? (
+                  {!inventoryLoading && !inventoryError && expFilteredStock.length === 0 ? (
                     <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
                       <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                        {!isAutocompleteQueryReady(expStockSearch)
-                          ? "Tapez au moins 2 caractères pour rechercher."
-                          : "Aucun colis trouvé."}
+                        {inventory.length === 0
+                          ? "Aucun produit dans votre stock."
+                          : "Aucun produit trouvé."}
                       </AppText>
                     </View>
                   ) : null}
@@ -912,7 +926,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                     }}
                     onFocus={() => setLivStockOpen(true)}
                     onBlur={() => setTimeout(() => setLivStockOpen(false), 150)}
-                    placeholder="Rechercher dans votre catalogue..."
+                    placeholder="Sélectionner ou rechercher un produit..."
                     placeholderTextColor={PH}
                     style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
                   />
@@ -942,7 +956,7 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                         </AppText>
                       </View>
                     ) : null}
-                    {!inventoryLoading && !inventoryError && isAutocompleteQueryReady(livStockSearch)
+                    {!inventoryLoading && !inventoryError
                       ? livFilteredStock.slice(0, 6).map((it) => (
                           <Pressable
                             key={it.id}
@@ -977,12 +991,12 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
                           </Pressable>
                         ))
                       : null}
-                    {!inventoryLoading && !inventoryError && (!isAutocompleteQueryReady(livStockSearch) || livFilteredStock.length === 0) ? (
+                    {!inventoryLoading && !inventoryError && livFilteredStock.length === 0 ? (
                       <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
                         <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                          {!isAutocompleteQueryReady(livStockSearch)
-                            ? "Tapez au moins 2 caractères pour rechercher."
-                            : "Aucun colis trouvé."}
+                          {inventory.length === 0
+                            ? "Aucun produit dans votre stock."
+                            : "Aucun produit trouvé."}
                         </AppText>
                       </View>
                     ) : null}
@@ -994,94 +1008,12 @@ export default function MaDemandeProduitsForm({ flow }: FormProps) {
               <FormInput label="Numéro destinataire" keyboardType="phone-pad" value={livPhone} onChangeText={setLivPhone} placeholder="6XXXXXXX" />
               <View>
                 <View onLayout={(e) => recordSectionLayout("address", e)} />
-                <RamassageFieldLabel>Quartier de livraison</RamassageFieldLabel>
-                <View
-                  style={{
-                    minHeight: 56,
-                    borderRadius: INPUT_RADIUS,
-                    backgroundColor: INPUT_BG,
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <SolarIcon name="solar:magnifer-outline" size={24} color={"rgba(60,74,60,0.45)"} />
-                  <AppTextInput
-                    value={livQuartierQuery}
-                    onChangeText={(t) => {
-                      setLivQuartierQuery(t);
-                      setLivQuartierOpen(true);
-                      setLivSelectedQuartier(null);
-                    }}
-                    onFocus={() => setLivQuartierOpen(true)}
-                    onBlur={() => setTimeout(() => setLivQuartierOpen(false), 150)}
-                    placeholder="Sélectionner un quartier..."
-                    placeholderTextColor={PH}
-                    style={{ ...typography.bodyRegular, fontSize: 14, lineHeight: 20, flex: 1, color: colors.text }}
-                  />
-                </View>
-
-                {livQuartierOpen ? (
-                  <View
-                    style={{
-                      marginTop: 10,
-                      borderRadius: 16,
-                      backgroundColor: colors.white,
-                      borderWidth: 1,
-                      borderColor: "rgba(187,203,184,0.20)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {neighborhoodsLoading ? (
-                      <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
-                        <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                          Chargement des quartiers…
-                        </AppText>
-                      </View>
-                    ) : neighborhoodsError ? (
-                      <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
-                        <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                          Impossible de charger les quartiers.
-                        </AppText>
-                      </View>
-                    ) : isAutocompleteQueryReady(livQuartierQuery) ? (
-                      livFilteredQuartiers.slice(0, 8).map((q) => (
-                        <Pressable
-                          key={q}
-                          onPress={() => {
-                            setLivSelectedQuartier(q);
-                            setLivQuartierQuery(q);
-                            setLivQuartierOpen(false);
-                          }}
-                          style={{
-                            minHeight: 46,
-                            paddingHorizontal: 14,
-                            paddingVertical: 12,
-                            borderBottomWidth: 1,
-                            borderBottomColor: "rgba(237,238,239,0.9)",
-                            flexDirection: "row",
-                            alignItems: "center",
-                          }}
-                        >
-                          <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-                            {q}
-                          </AppText>
-                        </Pressable>
-                      ))
-                    ) : null}
-                    {!neighborhoodsLoading && !neighborhoodsError && (!isAutocompleteQueryReady(livQuartierQuery) || livFilteredQuartiers.length === 0) ? (
-                      <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
-                        <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: "rgba(60,74,60,0.65)" }} numberOfLines={2}>
-                          {!isAutocompleteQueryReady(livQuartierQuery)
-                            ? "Tapez au moins 2 caractères pour rechercher."
-                            : "Aucun quartier trouvé."}
-                        </AppText>
-                      </View>
-                    ) : null}
-                  </View>
-                ) : null}
+                <FormInput
+                  label="Quartier de livraison"
+                  value={livQuartierQuery}
+                  onChangeText={setLivQuartierQuery}
+                  placeholder="Ex: Bastos"
+                />
               </View>
 
               <FormInput

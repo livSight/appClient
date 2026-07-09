@@ -19,6 +19,7 @@ import {
   createTransaction,
   getTransactionById,
   listTransactions,
+  mapTxnStatusToUi,
   parseTransaction,
   resolveApiSourceField,
   type TransactionRequest,
@@ -38,6 +39,8 @@ function mockApiResponse(status: number, body: unknown) {
   });
 }
 
+const SCHEDULED_DATE = "2026-07-09";
+
 const sampleRequest: TransactionRequest = {
   package_name: "Colis test",
   description: "Description test",
@@ -45,10 +48,10 @@ const sampleRequest: TransactionRequest = {
   receiver_name: "Client",
   receiver_phone: "670000000",
   source: "stock",
+  scheduled_delivery_date: SCHEDULED_DATE,
   type: "delivery",
   quantity: 1,
   amount: 1500,
-  status: "pending",
   cash_collect: false,
   serviceLevel: "standard",
 };
@@ -66,6 +69,7 @@ describe("buildPayloadFromPickupResume", () => {
       quantity: 1,
       pickupStreet: "Mimboman",
       dropoffStreet: "Sac",
+      scheduledDeliveryDate: SCHEDULED_DATE,
     });
     expect(payload.type).toBe("delivery");
     expect(payload.source).toBe("pickup");
@@ -83,6 +87,7 @@ describe("buildPayloadFromPickupResume", () => {
       quantity: 1,
       pickupStreet: "Agence",
       dropoffStreet: "Ville",
+      scheduledDeliveryDate: SCHEDULED_DATE,
     });
     expect(payload.type).toBe("expedition");
     expect(payload.source).toBe("pickup");
@@ -103,6 +108,7 @@ describe("buildPayloadFromStockResume", () => {
       destinationQuartier: "Bastos",
       destinationLandmark: "",
       departureStreet: "Agence | Ongola Express",
+      scheduledDeliveryDate: SCHEDULED_DATE,
     });
     expect(payload.type).toBe("delivery");
     expect(payload.source).toBe("stock");
@@ -123,6 +129,7 @@ describe("buildPayloadFromStockResume", () => {
       destinationQuartier: "Akwa",
       destinationLandmark: "",
       departureStreet: "Agence",
+      scheduledDeliveryDate: SCHEDULED_DATE,
     });
     expect(payload.package_name).toBe("Prod A");
     expect(payload.quantity).toBe(3);
@@ -169,6 +176,7 @@ describe("buildTransactionFormData", () => {
   it("appends source pickup or stock on POST", () => {
     const form = buildTransactionFormData(sampleRequest);
     expect(form.get("source")).toBe("stock");
+    expect(form.get("scheduled_delivery_date")).toBe(SCHEDULED_DATE);
     expect(form.get("package_name")).toBe("Colis test");
     expect(form.get("type")).toBe("delivery");
   });
@@ -376,6 +384,7 @@ describe("transactions API", () => {
 
     it("blocks cancel for in-progress and terminal statuses", () => {
       expect(canClientCancelTransaction("processing")).toBe(false);
+      expect(canClientCancelTransaction("scheduled")).toBe(false);
       expect(canClientCancelTransaction("assigned")).toBe(false);
       expect(canClientCancelTransaction("delivered")).toBe(false);
       expect(canClientCancelTransaction("failed")).toBe(false);
@@ -466,5 +475,89 @@ describe("transactions API", () => {
         "Invalid status: cancelled",
       );
     });
+  });
+});
+
+describe("mapTxnStatusToUi", () => {
+  it("maps scheduled to Planifiée", () => {
+    expect(mapTxnStatusToUi("scheduled")).toBe("Planifiée");
+    expect(mapTxnStatusToUi("SCHEDULED")).toBe("Planifiée");
+  });
+});
+
+describe("parseTransaction scheduled fields", () => {
+  it("maps scheduled_delivery_date, delivery_attempt, rescheduled_at", () => {
+    const tx = parseTransaction({
+      package_name: "Colis",
+      status: "scheduled",
+      scheduled_delivery_date: "2026-07-12",
+      delivery_attempt: 2,
+      rescheduled_at: "2026-07-09T10:00:00Z",
+    });
+    expect(tx.scheduled_delivery_date).toBe("2026-07-12");
+    expect(tx.delivery_attempt).toBe(2);
+    expect(tx.rescheduled_at).toBe("2026-07-09T10:00:00Z");
+  });
+});
+
+describe("buildPayloadFromPickupResume scheduled date", () => {
+  it("includes scheduled_delivery_date and omits client status", () => {
+    const payload = buildPayloadFromPickupResume({
+      forExpedition: false,
+      packageName: "Sac",
+      description: "Test",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      quantity: 1,
+      pickupStreet: "A",
+      dropoffStreet: "B",
+      scheduledDeliveryDate: "2026-07-15",
+    });
+    expect(payload.scheduled_delivery_date).toBe("2026-07-15");
+    expect(payload.status).toBeUndefined();
+  });
+});
+
+describe("mapTxnStatusToUi", () => {
+  it("maps scheduled to Planifiée", () => {
+    expect(mapTxnStatusToUi("scheduled")).toBe("Planifiée");
+    expect(mapTxnStatusToUi("SCHEDULED")).toBe("Planifiée");
+  });
+});
+
+describe("parseTransaction scheduled fields", () => {
+  it("maps scheduled_delivery_date, delivery_attempt, rescheduled_at", () => {
+    const tx = parseTransaction({
+      package_name: "Colis",
+      status: "scheduled",
+      scheduled_delivery_date: "2026-07-12",
+      delivery_attempt: 2,
+      rescheduled_at: "2026-07-09T10:00:00Z",
+    });
+    expect(tx.scheduled_delivery_date).toBe("2026-07-12");
+    expect(tx.delivery_attempt).toBe(2);
+    expect(tx.rescheduled_at).toBe("2026-07-09T10:00:00Z");
+  });
+});
+
+describe("buildPayloadFromPickupResume scheduled date", () => {
+  it("includes scheduled_delivery_date and omits client status", () => {
+    const payload = buildPayloadFromPickupResume({
+      forExpedition: false,
+      packageName: "Sac",
+      description: "Test",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      quantity: 1,
+      pickupStreet: "A",
+      dropoffStreet: "B",
+      scheduledDeliveryDate: "2026-07-15",
+    });
+    expect(payload.scheduled_delivery_date).toBe("2026-07-15");
+    expect(payload.status).toBeUndefined();
   });
 });

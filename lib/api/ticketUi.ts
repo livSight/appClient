@@ -63,7 +63,7 @@ export function ticketListSubtitle(
 
   const isUserMessage =
     currentUserId != null && lastMessage != null && lastMessage.senderId === currentUserId;
-  return `${isUserMessage ? "Vous" : "Support"} : ${preview}`;
+  return `${isUserMessage ? "Vous" : "Agent"} : ${preview}`;
 }
 
 type EnrichOptions = {
@@ -122,7 +122,7 @@ export function formatMessageTime(iso?: string): string {
   }
 }
 
-export function formatMessageMeta(iso?: string, senderLabel = "Support LivSight"): string {
+export function formatMessageMeta(iso?: string, senderLabel = "Agent LivSight"): string {
   const time = formatMessageTime(iso);
   return time ? `${senderLabel} • ${time}` : senderLabel;
 }

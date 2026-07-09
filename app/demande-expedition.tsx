@@ -78,7 +78,7 @@ export default function DemandeExpeditionScreen() {
         </View>
       }
     >
-      <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 36, marginTop: 8 }} numberOfLines={2}>
+      <AppText style={{ ...typography.screenTitle, fontSize: 30, lineHeight: 40, marginTop: 8 }} numberOfLines={2}>
         Nouvelle demande
       </AppText>
       <AppText style={{ ...typography.subtitle, lineHeight: 26, marginTop: 10, color: SUBTITLE_MUTED }}>
