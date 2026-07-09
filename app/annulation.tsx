@@ -209,7 +209,7 @@ export default function AnnulationScreen() {
       }
     >
       <View style={{ marginTop: 14 }}>
-        <AppText style={{ ...typography.screenTitle, fontSize: 34, lineHeight: 40 }} numberOfLines={2} ellipsizeMode="tail">
+        <AppText style={{ ...typography.screenTitle, fontSize: 34, lineHeight: 44 }} numberOfLines={2} ellipsizeMode="tail">
           Dites-nous pourquoi
         </AppText>
         <AppText style={{ ...typography.subtitle, marginTop: 8 }} numberOfLines={2} ellipsizeMode="tail">

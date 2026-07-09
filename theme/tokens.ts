@@ -64,7 +64,8 @@ export const typography = {
     fontFamily: fonts.titleBold,
     fontWeight: "normal" as const,
     fontSize: 36,
-    lineHeight: 40,
+    // Palanquin needs ~1.3x lineHeight or RN clips ascenders/descenders
+    lineHeight: 48,
     letterSpacing: -0.9,
     color: colors.text,
   },
@@ -138,7 +139,7 @@ export const typography = {
     fontFamily: fonts.titleBold,
     fontWeight: "normal" as const,
     fontSize: 24,
-    lineHeight: 30,
+    lineHeight: 32,
     color: colors.white,
   },
 } as const;

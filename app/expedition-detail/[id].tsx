@@ -13,7 +13,9 @@ import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import { featureFlags } from "@/lib/featureFlags";
 import AppText from "../../components/AppText";
-import { getTransactionById, getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
+import { getTransactionById, getTransactionNavigationId, mapTxnStatusToUi, type Transaction } from "@/lib/api/transactions";
+import { scheduledDeliveryLabelFromTransaction } from "@/lib/api/transactionUi";
+import { formatScheduledDeliveryLabel } from "@/lib/scheduling/deliveryDate";
 import { isTransactionPushType, matchesOpenTransaction } from "@/lib/push/notificationRouting";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
@@ -135,6 +137,21 @@ export default function ExpeditionDetailScreen() {
   }, [expedition]);
 
   const amountHeaderLabel = expedition?.collectCash ? "MONTANT À COLLECTER" : "MONTANT TOTAL";
+  const scheduledDeliveryIso =
+    typeof tx?.scheduled_delivery_date === "string" && tx.scheduled_delivery_date.trim().length
+      ? tx.scheduled_delivery_date.trim()
+      : null;
+  const scheduledDeliveryLabel = useMemo(() => {
+    if (!scheduledDeliveryIso) return null;
+    const label = formatScheduledDeliveryLabel(scheduledDeliveryIso);
+    return label === "aujourd'hui" ? "aujourd'hui" : `le ${label}`;
+  }, [scheduledDeliveryIso]);
+  const scheduledCardLabel = useMemo(() => (tx ? scheduledDeliveryLabelFromTransaction(tx) : undefined), [tx]);
+  const isPlannedStatus = String(tx?.status ?? "").trim().toLowerCase() === "scheduled";
+  const statusUiLabel = mapTxnStatusToUi(tx?.status ?? undefined);
+  const deliveryAttempt = Number.isFinite(Number(tx?.delivery_attempt))
+    ? Math.max(1, Math.floor(Number(tx?.delivery_attempt)))
+    : 1;
 
   return (
     <ScreenLayout
@@ -175,6 +192,37 @@ export default function ExpeditionDetailScreen() {
         </View>
       ) : (
         <>
+          {scheduledDeliveryIso ? (
+            <View style={[card.base, { padding: 18, marginBottom: 16 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                {isPlannedStatus ? (
+                  <View
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: radii.pill,
+                      backgroundColor: "rgba(14,165,233,0.10)",
+                      borderWidth: 1,
+                      borderColor: "rgba(14,165,233,0.20)",
+                    }}
+                  >
+                    <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
+                      {statusUiLabel}
+                    </AppText>
+                  </View>
+                ) : null}
+                <AppText style={{ flex: 1, minWidth: 0, fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
+                  Expédition prévue {scheduledDeliveryLabel}
+                </AppText>
+              </View>
+              {deliveryAttempt > 1 ? (
+                <AppText variant="dense" style={{ marginTop: 8, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: colors.muted }} numberOfLines={1}>
+                  Tentative n° {deliveryAttempt}
+                </AppText>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={{ marginTop: 16 }}>
             <View style={[card.base, { padding: 18 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -226,6 +274,7 @@ export default function ExpeditionDetailScreen() {
                 { k: "Adresse destinataire", v: expedition.destinationStreet?.trim() || "—" },
                 { k: "Téléphone", v: expedition.receiverPhone?.trim() || "—" },
                 { k: "Express", v: expedition.express ? "Oui" : "Non" },
+                ...(scheduledCardLabel ? [{ k: "Date de livraison", v: scheduledCardLabel }] : []),
                 { k: "Date", v: createdLabel },
               ]}
               showCollectCashBadge={expedition.collectCash}

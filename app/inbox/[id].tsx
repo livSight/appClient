@@ -450,7 +450,7 @@ export default function InboxChatScreen() {
 
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-                  Support LivSight
+                  Agent LivSight
                 </AppText>
                 <AppText variant="dense" style={{ fontSize: 11, lineHeight: 15, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.55)" }} numberOfLines={1}>
                   Assistance commande

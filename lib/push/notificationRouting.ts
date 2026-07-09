@@ -7,6 +7,8 @@ export type ClientPushType =
   | "driver_cleared"
   | "transaction_status_changed"
   | "delivery_fee_finalized"
+  | "delivery_rescheduled"
+  | "delivery_today_reminder"
   | "ticket_message";
 
 export type ClientPushRoute =
@@ -31,6 +33,8 @@ const TRANSACTION_PUSH_TYPES = new Set<ClientPushType>([
   "driver_cleared",
   "transaction_status_changed",
   "delivery_fee_finalized",
+  "delivery_rescheduled",
+  "delivery_today_reminder",
 ]);
 
 function parseStringId(value: unknown): string | null {
@@ -50,6 +54,8 @@ export function parseClientPushType(data: Record<string, unknown> | null | undef
     type === "driver_cleared" ||
     type === "transaction_status_changed" ||
     type === "delivery_fee_finalized" ||
+    type === "delivery_rescheduled" ||
+    type === "delivery_today_reminder" ||
     type === "ticket_message"
   ) {
     return type;

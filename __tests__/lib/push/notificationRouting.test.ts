@@ -26,6 +26,8 @@ describe("parseClientPushType", () => {
   it("returns known push types", () => {
     expect(parseClientPushType({ type: "driver_assigned" })).toBe("driver_assigned");
     expect(parseClientPushType({ type: "ticket_message" })).toBe("ticket_message");
+    expect(parseClientPushType({ type: "delivery_rescheduled" })).toBe("delivery_rescheduled");
+    expect(parseClientPushType({ type: "delivery_today_reminder" })).toBe("delivery_today_reminder");
   });
 
   it("returns null for unknown types", () => {
@@ -39,6 +41,8 @@ describe("isTransactionPushType", () => {
     expect(isTransactionPushType("transaction_created")).toBe(true);
     expect(isTransactionPushType("transaction_status_changed")).toBe(true);
     expect(isTransactionPushType("delivery_fee_finalized")).toBe(true);
+    expect(isTransactionPushType("delivery_rescheduled")).toBe(true);
+    expect(isTransactionPushType("delivery_today_reminder")).toBe(true);
   });
 
   it("excludes ticket_message", () => {
@@ -54,6 +58,8 @@ describe("resolveClientPushRoute", () => {
     "driver_cleared",
     "transaction_status_changed",
     "delivery_fee_finalized",
+    "delivery_rescheduled",
+    "delivery_today_reminder",
   ] as const)("routes %s to detail", (type) => {
     expect(
       resolveClientPushRoute({

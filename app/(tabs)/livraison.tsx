@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { Modal, View, Pressable, RefreshControl } from "react-native";
+import { View, Pressable, RefreshControl } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useFocusEffect } from "expo-router/react-navigation";
 import EmptyStateCard from "../../components/EmptyStateCard";
+import FilterDropdown from "../../components/FilterDropdown";
 import ScreenLayout from "../../components/ScreenLayout";
-import SolarIcon from "../../components/SolarIcon";
 import TransactionCard, { type TransactionCardItem } from "../../components/TransactionCard";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
@@ -20,134 +20,10 @@ import {
 import { shouldRefreshLivraisonList } from "@/lib/push/notificationRouting";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
-function FilterDropdown<T extends string>({
-  title,
-  iconName,
-  value,
-  options,
-  defaultValue,
-  onSelect,
-}: {
-  title: string;
-  iconName: string;
-  value: T;
-  options: readonly T[];
-  defaultValue: T;
-  onSelect: (value: T) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const isActive = value !== defaultValue;
-
-  return (
-    <>
-      <Pressable
-        onPress={() => setOpen(true)}
-        style={{
-          flex: 1,
-          minHeight: 48,
-          borderRadius: radii.pill,
-          backgroundColor: isActive ? "rgba(48,144,192,0.10)" : colors.white,
-          borderWidth: 1,
-          borderColor: isActive ? colors.primary : "#E5E7EB",
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: 14,
-          gap: 8,
-        }}
-      >
-        <SolarIcon name={iconName} size={18} color={isActive ? colors.primary : "rgba(60,74,60,0.55)"} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <AppText
-            variant="dense"
-            style={{
-              fontSize: 13,
-              lineHeight: 18,
-              fontFamily: fonts.bodySemi,
-              color: isActive ? colors.primary : colors.text,
-            }}
-            numberOfLines={1}
-          >
-            {value}
-          </AppText>
-        </View>
-        <SolarIcon
-          name="solar:alt-arrow-right-outline"
-          size={16}
-          color={isActive ? colors.primary : "rgba(60,74,60,0.45)"}
-          style={{ transform: [{ rotate: "90deg" }] }}
-        />
-      </Pressable>
-
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable
-          style={{ flex: 1, backgroundColor: "rgba(15,23,42,0.35)", justifyContent: "flex-end" }}
-          onPress={() => setOpen(false)}
-        >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: colors.white,
-              borderTopLeftRadius: 28,
-              borderTopRightRadius: 28,
-              paddingHorizontal: 24,
-              paddingTop: 20,
-              paddingBottom: 36,
-            }}
-          >
-            <AppText
-              variant="dense"
-              style={{
-                fontSize: 12,
-                lineHeight: 16,
-                fontFamily: fonts.bodyBold,
-                letterSpacing: 1.2,
-                textTransform: "uppercase",
-                color: "rgba(60,74,60,0.55)",
-                marginBottom: 6,
-              }}
-              numberOfLines={1}
-            >
-              {title}
-            </AppText>
-            {options.map((option) => (
-              <Pressable
-                key={option}
-                onPress={() => {
-                  onSelect(option);
-                  setOpen(false);
-                }}
-                style={{
-                  minHeight: 52,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                }}
-              >
-                <AppText
-                  style={{
-                    fontSize: 15,
-                    lineHeight: 22,
-                    fontFamily: option === value ? fonts.bodyBold : fonts.bodyRegular,
-                    color: option === value ? colors.primary : colors.text,
-                  }}
-                  numberOfLines={1}
-                >
-                  {option}
-                </AppText>
-                {option === value ? <SolarIcon name="solar:check-circle-bold" size={20} color={colors.primary} /> : null}
-              </Pressable>
-            ))}
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </>
-  );
-}
-
 export default function LivraisonScreen() {
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [active, setActive] = useState<TransactionStatusFilter>(() => {
+    if (filter === "Planifiée") return "Planifiée";
     if (filter === "En cours") return "En cours";
     if (filter === "Livré") return "Livré";
     if (filter === "Annulé") return "Annulé";
@@ -217,7 +93,7 @@ export default function LivraisonScreen() {
       }}
       header={
         <View style={{ paddingBottom: 10 }}>
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 34 }]} numberOfLines={2}>
             Mes Courses
           </AppText>
           <AppText style={[typography.subtitle, { marginTop: 4 }]}>
@@ -232,7 +108,7 @@ export default function LivraisonScreen() {
             title="Statut"
             iconName="solar:widget-5-outline"
             value={active}
-            options={["Tout", "En cours", "Livré", "Annulé"] as const}
+            options={["Tout", "Planifiée", "En cours", "Livré", "Annulé"] as const}
             defaultValue="Tout"
             onSelect={setActive}
           />
@@ -330,7 +206,9 @@ export default function LivraisonScreen() {
       {!loading && !error && orders.length === 0 && !isFilteredEmpty ? (
         <EmptyStateCard
           label={
-            active === "En cours"
+            active === "Planifiée"
+              ? "PLANIFIÉE"
+              : active === "En cours"
               ? "EN COURS"
               : active === "Livré"
                 ? "LIVRÉ"
@@ -340,7 +218,9 @@ export default function LivraisonScreen() {
           }
           iconName="solar:delivery-bold-duotone"
           title={
-            active === "En cours"
+            active === "Planifiée"
+              ? "Aucune livraison planifiée"
+              : active === "En cours"
               ? "Aucune livraison en cours"
               : active === "Livré"
                 ? "Aucune livraison livrée pour le moment"

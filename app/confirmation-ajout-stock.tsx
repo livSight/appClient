@@ -50,7 +50,7 @@ export default function ConfirmationAjoutStockScreen() {
           style={{ width: 160, height: 160, marginBottom: 24 }}
         />
 
-        <AppText style={{ ...typography.screenTitle, fontSize: 24, lineHeight: 30, textAlign: "center" }} numberOfLines={2}>
+        <AppText style={{ ...typography.screenTitle, fontSize: 24, lineHeight: 32, textAlign: "center" }} numberOfLines={2}>
           Ajout au stock effectué
         </AppText>
         <AppText

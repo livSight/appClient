@@ -17,6 +17,10 @@ jest.mock("@/lib/logger", () => ({
 process.env.EXPO_PUBLIC_GATEWAY_URL =
   process.env.EXPO_PUBLIC_GATEWAY_URL ?? "http://localhost:4040";
 
+if (typeof global.window !== "undefined" && typeof global.window.dispatchEvent !== "function") {
+  global.window.dispatchEvent = jest.fn();
+}
+
 beforeEach(() => {
   global.fetch = jest.fn() as unknown as typeof fetch;
 });

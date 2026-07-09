@@ -1,7 +1,9 @@
 import {
   filterCardItemsByDate,
+  filterCardItemsByStatus,
   filterTransactionsForUser,
   mapTransactionToCardItem,
+  scheduledDeliveryLabelFromTransaction,
   serviceLabelFromType,
   sourceLabelFromTransaction,
   sortTransactionsForDisplay,
@@ -137,6 +139,60 @@ describe("transactionUi", () => {
     it("formats ref without leading hash", () => {
       const item = mapTransactionToCardItem(baseTx({ transactionReference: "LVS-TEST123456" }));
       expect(item.ref).toBe("LVS-TEST123456");
+    });
+
+    it("maps scheduled status to Planifiée", () => {
+      const item = mapTransactionToCardItem(baseTx({ status: "scheduled" }));
+      expect(item.status).toBe("Planifiée");
+      expect(item.statusLabel).toBe("Planifiée");
+    });
+
+    it("includes scheduledLabel when scheduled_delivery_date is set", () => {
+      const item = mapTransactionToCardItem(
+        baseTx({ status: "scheduled", scheduled_delivery_date: "2026-07-12" }),
+      );
+      expect(item.scheduledLabel).toBe("12 juillet");
+    });
+  });
+
+  describe("scheduledDeliveryLabelFromTransaction", () => {
+    it("returns undefined when date is missing", () => {
+      expect(scheduledDeliveryLabelFromTransaction(baseTx())).toBeUndefined();
+    });
+
+    it("formats scheduled delivery date in French", () => {
+      expect(
+        scheduledDeliveryLabelFromTransaction(baseTx({ scheduled_delivery_date: "2026-07-12" })),
+      ).toBe("12 juillet");
+    });
+  });
+
+  describe("filterCardItemsByStatus", () => {
+    const items: TransactionCardItem[] = [
+      {
+        id: "1",
+        title: "Sac",
+        quartier: "—",
+        dateLabel: "—",
+        status: "Planifiée",
+        statusLabel: "Planifiée",
+        isExpedition: false,
+        createdAtMs: null,
+      },
+      {
+        id: "2",
+        title: "Sac",
+        quartier: "—",
+        dateLabel: "—",
+        status: "En cours",
+        statusLabel: "En cours",
+        isExpedition: false,
+        createdAtMs: null,
+      },
+    ];
+
+    it("keeps only Planifiée items", () => {
+      expect(filterCardItemsByStatus(items, "Planifiée").map((i) => i.id)).toEqual(["1"]);
     });
   });
 

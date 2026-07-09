@@ -150,9 +150,9 @@ describe("mapConversationToTransactionCardItem", () => {
       unreadCount: 1,
     });
 
-    expect(card.ref).toBe("LVS-1");
-    expect(card.title).toBe("Sac x2");
-    expect(card.quartier).toBe("Akwa");
+    expect(card.ref).toBeUndefined();
+    expect(card.title).toBe("Akwa");
+    expect(card.quartier).toBe("—");
     expect(card.dateLabel).toBe("il y a 2 h");
     expect(card.statusLabel).toBe("1 NON LU");
     expect(card.paymentLabel).toBe("Support : Le coursier arrive");

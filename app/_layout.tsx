@@ -1,4 +1,4 @@
-// @@iconify-code-gen
+// @@iconify-code-gen — injects registered Solar icons (see babel.config.js ICONS)
 import { Stack, usePathname } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import "../global.css";

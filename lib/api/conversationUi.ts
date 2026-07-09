@@ -75,14 +75,15 @@ export type ConversationExpeditionItem = ConversationBase & {
 export type ConversationItem = ConversationLivraisonItem | ConversationExpeditionItem;
 
 export function mapConversationToTransactionCardItem(item: ConversationItem): TransactionCardItem {
-  const ref = item.refLabel.replace(/^REF:\s*/i, "").trim() || item.id;
   const isUnread = Boolean(item.isUnread || item.unreadCount);
+  const location = item.locationLine?.trim() || "";
 
   return {
     id: item.id,
-    ref,
-    title: item.title,
-    quartier: item.locationLine?.trim() || "—",
+    // WhatsApp-style card: quartier as headline, last message as preview,
+    // no order reference and no product line.
+    title: location || item.title,
+    quartier: "—",
     dateLabel: item.timeLabel,
     status: "En cours",
     statusLabel: isUnread ? `${item.unreadCount ?? 1} NON LU${(item.unreadCount ?? 1) > 1 ? "S" : ""}` : "MESSAGES",

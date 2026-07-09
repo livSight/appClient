@@ -4,22 +4,49 @@ import { router } from "expo-router";
 import { useFocusEffect } from "expo-router/react-navigation";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
+import FilterDropdown from "@/components/FilterDropdown";
 import TransactionCard from "@/components/TransactionCard";
 import EmptyStateCard from "@/components/EmptyStateCard";
 import ScreenLayout from "@/components/ScreenLayout";
 import SolarIcon from "@/components/SolarIcon";
-import { colors, fonts, spacing, typography } from "@/theme/tokens";
+import { colors, fonts, typography } from "@/theme/tokens";
 import { conversationSearchText, mapConversationToTransactionCardItem } from "@/lib/api/conversationUi";
 import { loadConversationList } from "@/lib/api/inbox";
 import { type EnrichedConversationItem } from "@/lib/api/ticketUi";
+import {
+  dateFilterStartMs,
+  TRANSACTION_DATE_FILTERS,
+  type TransactionDateFilter,
+} from "@/lib/api/transactionUi";
 import { shouldRefreshConversations } from "@/lib/push/notificationRouting";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
 import { useUnreadCount } from "@/lib/unreadCount";
 import { featureFlags } from "@/lib/featureFlags";
 
+type ConversationStatusFilter = "Toutes" | "Non lues" | "Livraisons" | "Expéditions";
+
+const CONVERSATION_STATUS_FILTERS: ConversationStatusFilter[] = ["Toutes", "Non lues", "Livraisons", "Expéditions"];
+
+function matchesStatusFilter(c: EnrichedConversationItem, filter: ConversationStatusFilter): boolean {
+  if (filter === "Toutes") return true;
+  if (filter === "Non lues") return Boolean(c.isUnread || c.unreadCount);
+  if (filter === "Livraisons") return c.type === "livraison";
+  return c.type === "expedition";
+}
+
+function matchesDateFilter(c: EnrichedConversationItem, filter: TransactionDateFilter): boolean {
+  const start = dateFilterStartMs(filter);
+  if (start == null) return true;
+  const activityMs = Date.parse(String(c.lastActivityAt ?? ""));
+  return Number.isFinite(activityMs) && activityMs >= start;
+}
+
 export default function ConversationsScreen() {
   const { setTotalUnread } = useUnreadCount();
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ConversationStatusFilter>("Toutes");
+  // Defaults to today's activity, like Mes Courses; "Toutes dates" is opt-in.
+  const [dateFilter, setDateFilter] = useState<TransactionDateFilter>("Aujourd'hui");
 
   useEffect(() => {
     if (featureFlags.messagingEnabled) return;
@@ -63,9 +90,15 @@ export default function ConversationsScreen() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter((c) => conversationSearchText(c).includes(q));
-  }, [conversations, query]);
+    return conversations.filter(
+      (c) =>
+        (!q || conversationSearchText(c).includes(q)) &&
+        matchesStatusFilter(c, statusFilter) &&
+        matchesDateFilter(c, dateFilter),
+    );
+  }, [conversations, query, statusFilter, dateFilter]);
+
+  const hasActiveFilters = query.trim().length > 0 || statusFilter !== "Toutes" || dateFilter !== "Toutes dates";
 
   return (
     <ScreenLayout
@@ -83,7 +116,7 @@ export default function ConversationsScreen() {
       }}
       header={
         <View style={{ paddingBottom: 14 }}>
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={1}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 34 }]} numberOfLines={1}>
             Conversations
           </AppText>
 
@@ -121,6 +154,25 @@ export default function ConversationsScreen() {
               />
             </View>
           </View>
+
+          <View style={{ marginTop: 12, flexDirection: "row", gap: 12 }}>
+            <FilterDropdown<ConversationStatusFilter>
+              title="Statut"
+              iconName="solar:widget-5-outline"
+              value={statusFilter}
+              options={CONVERSATION_STATUS_FILTERS}
+              defaultValue="Toutes"
+              onSelect={setStatusFilter}
+            />
+            <FilterDropdown<TransactionDateFilter>
+              title="Période"
+              iconName="solar:calendar-outline"
+              value={dateFilter}
+              options={TRANSACTION_DATE_FILTERS}
+              defaultValue="Toutes dates"
+              onSelect={setDateFilter}
+            />
+          </View>
         </View>
       }
     >
@@ -150,17 +202,26 @@ export default function ConversationsScreen() {
           </View>
         ) : filtered.length === 0 ? (
           <EmptyStateCard
-            label={query.trim().length > 0 ? "RECHERCHE" : "BIENVENUE"}
+            label={hasActiveFilters ? "RECHERCHE" : "BIENVENUE"}
             iconName="solar:chat-round-dots-bold"
-            title={query.trim().length > 0 ? "Aucun résultat" : "Aucune conversation pour l’instant"}
+            title={hasActiveFilters ? "Aucun résultat" : "Aucune conversation pour l’instant"}
             subtitle={
-              query.trim().length > 0
-                ? "Essayez avec une autre référence ou un autre mot-clé."
+              hasActiveFilters
+                ? "Essayez avec d'autres filtres ou un autre mot-clé."
                 : "Les conversations apparaissent ici une fois qu'un échange a été ouvert sur une commande."
             }
             ctas={
-              query.trim().length > 0
-                ? []
+              hasActiveFilters
+                ? [
+                    {
+                      label: "Réinitialiser les filtres",
+                      onPress: () => {
+                        setQuery("");
+                        setStatusFilter("Toutes");
+                        setDateFilter("Toutes dates");
+                      },
+                    },
+                  ]
                 : [{ label: "Voir mes livraisons", onPress: () => router.push("/(tabs)/livraison") }]
             }
           />

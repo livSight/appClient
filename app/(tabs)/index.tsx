@@ -109,7 +109,7 @@ export default function AccueilScreen() {
             onProfilePress={() => router.push("/profile")}
             initials={initials}
           />
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 34 }]} numberOfLines={2}>
             {displayName !== "—" ? `Bonjour ${displayName}` : "Bonjour"}
           </AppText>
         </View>
@@ -163,8 +163,18 @@ export default function AccueilScreen() {
         </View>
       ) : null}
 
-      {/* Promo Banner */}
-      <PromoBanner />
+      {/* Promo Banner — welcome offer for new clients, re-order prompt for returning ones */}
+      {!loading && !error ? (
+        txns.length === 0 ? (
+          <PromoBanner />
+        ) : (
+          <PromoBanner
+            label="Besoin d'une livraison ?"
+            title={"Commandez en 30 secondes,\non s'occupe du reste"}
+            ctaLabel="Nouvelle livraison"
+          />
+        )
+      ) : null}
     </ScreenLayout>
   );
 }

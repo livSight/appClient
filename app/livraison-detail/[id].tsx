@@ -13,7 +13,8 @@ import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 import { featureFlags } from "@/lib/featureFlags";
 import AppText from "../../components/AppText";
-import { getTransactionById, getTransactionNavigationId, canClientCancelTransaction, CLIENT_CANCEL_BLOCKED_MESSAGE, type Transaction } from "@/lib/api/transactions";
+import { getTransactionById, getTransactionNavigationId, canClientCancelTransaction, CLIENT_CANCEL_BLOCKED_MESSAGE, mapTxnStatusToUi, type Transaction } from "@/lib/api/transactions";
+import { formatScheduledDeliveryLabel } from "@/lib/scheduling/deliveryDate";
 import { isTransactionPushType, matchesOpenTransaction } from "@/lib/push/notificationRouting";
 import { logger } from "@/lib/logger";
 import { usePushRefresh } from "@/lib/push/usePushRefresh";
@@ -42,6 +43,9 @@ type Delivery = {
   created_at?: string;
   deliveryFeeXaf: number | null;
   deliveryFeePending: boolean;
+  hasDriver: boolean;
+  scheduledDeliveryDate?: string | null;
+  deliveryAttempt?: number | null;
 };
 
 function toFeeXaf(value: unknown): number | null {
@@ -111,6 +115,12 @@ function mapTransactionToDelivery(tx: Transaction): Delivery {
     created_at: typeof tx.created_at === "string" ? tx.created_at : undefined,
     deliveryFeeXaf,
     deliveryFeePending,
+    hasDriver: tx.driver_id != null,
+    scheduledDeliveryDate:
+      typeof tx.scheduled_delivery_date === "string" && tx.scheduled_delivery_date.trim().length
+        ? tx.scheduled_delivery_date.trim()
+        : null,
+    deliveryAttempt: Number.isFinite(Number(tx.delivery_attempt)) ? Math.max(1, Math.floor(Number(tx.delivery_attempt))) : null,
   };
 }
 
@@ -131,7 +141,7 @@ type Timeline = {
   step2Helper?: string;
 };
 
-function mapBackendStatusToTimeline(status?: string | null): Timeline {
+function mapBackendStatusToTimeline(status?: string | null, hasDriver = false): Timeline {
   const s = normalizeStatus(status);
 
   if (s === "delivered" || s === "completed" || s === "pickup") {
@@ -162,8 +172,18 @@ function mapBackendStatusToTimeline(status?: string | null): Timeline {
     return { step1: "completed", step2: "warning", step3: "upcoming", step2Helper: helper };
   }
 
-  // pending + unknown statuses → in progress
-  return { step1: "completed", step2: "active", step3: "upcoming" };
+  // "En cours de livraison" requires a driver: the backend only moves past pending once one is
+  // assigned, so processing implies a driver even if driver_id is absent from the response.
+  if (hasDriver || s === "processing") {
+    return { step1: "completed", step2: "active", step3: "upcoming" };
+  }
+
+  if (s === "scheduled") {
+    return { step1: "completed", step2: "upcoming", step3: "upcoming" };
+  }
+
+  // pending without a driver → the order is only confirmed
+  return { step1: "completed", step2: "upcoming", step3: "upcoming" };
 }
 
 function iconForStep(state: StepState) {
@@ -260,7 +280,10 @@ export default function LivraisonDetailScreen() {
   );
 
   const canCancel = useMemo(() => canClientCancelTransaction(delivery?.status), [delivery?.status]);
-  const timeline = useMemo(() => mapBackendStatusToTimeline(delivery?.status), [delivery?.status]);
+  const timeline = useMemo(
+    () => mapBackendStatusToTimeline(delivery?.status, delivery?.hasDriver ?? false),
+    [delivery?.status, delivery?.hasDriver],
+  );
   const referenceTitle = useMemo(() => {
     if (!delivery) return null;
     return delivery.reference ? delivery.reference : `TR-${delivery.id}`;
@@ -279,6 +302,14 @@ export default function LivraisonDetailScreen() {
       return "Effectuée —";
     }
   }, [delivery?.created_at]);
+  const scheduledDeliveryLabel = useMemo(() => {
+    const iso = delivery?.scheduledDeliveryDate;
+    if (!iso) return null;
+    const label = formatScheduledDeliveryLabel(iso);
+    return label === "aujourd'hui" ? "aujourd'hui" : `le ${label}`;
+  }, [delivery?.scheduledDeliveryDate]);
+  const isPlannedStatus = normalizeStatus(delivery?.status) === "scheduled";
+  const statusUiLabel = useMemo(() => mapTxnStatusToUi(delivery?.status ?? undefined), [delivery?.status]);
 
   const txDetails = useMemo(() => {
     if (!delivery) return null;
@@ -336,6 +367,37 @@ export default function LivraisonDetailScreen() {
         </View>
       ) : (
         <>
+          {delivery.scheduledDeliveryDate ? (
+            <View style={[card.base, { padding: 18, marginBottom: 16 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                {isPlannedStatus ? (
+                  <View
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: radii.pill,
+                      backgroundColor: "rgba(14,165,233,0.10)",
+                      borderWidth: 1,
+                      borderColor: "rgba(14,165,233,0.20)",
+                    }}
+                  >
+                    <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
+                      {statusUiLabel}
+                    </AppText>
+                  </View>
+                ) : null}
+                <AppText style={{ flex: 1, minWidth: 0, fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
+                  Livraison prévue {scheduledDeliveryLabel}
+                </AppText>
+              </View>
+              {(delivery.deliveryAttempt ?? 1) > 1 ? (
+                <AppText variant="dense" style={{ marginTop: 8, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: colors.muted }} numberOfLines={1}>
+                  Tentative n° {delivery.deliveryAttempt}
+                </AppText>
+              ) : null}
+            </View>
+          ) : null}
+
           {/* Status card */}
           <View style={[card.base, { padding: 24 }]}>
             {(() => {
@@ -348,7 +410,7 @@ export default function LivraisonDetailScreen() {
                   key: "confirmed",
                   iconName: s1.iconName,
                   iconColor: s1.color,
-                  title: "Commande confirmée",
+                  title: "Commande reçue par nos agents",
                   subtitle: null as string | null,
                   helper: null as string | null,
                   titleColor: colors.text,

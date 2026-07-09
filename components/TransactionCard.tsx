@@ -7,7 +7,7 @@ import { card } from "../theme/styles";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
 
-type StatusBucket = "En cours" | "Livré" | "Annulé";
+type StatusBucket = "Planifiée" | "En cours" | "Livré" | "Annulé";
 
 export type TransactionCardItem = {
   id: string;
@@ -25,22 +25,27 @@ export type TransactionCardItem = {
   sourceLabel?: string;
   expressLabel?: string;
   isExpedition: boolean;
+  scheduledLabel?: string;
 };
 
 function StatusPill({ label, status }: { label: string; status: StatusBucket }) {
   const bg =
-    status === "En cours"
-      ? colors.statusPendingBg
-      : status === "Livré"
-        ? colors.statusDeliveredBg
-        : colors.statusCancelledBg;
+    status === "Planifiée"
+      ? colors.iconBg
+      : status === "En cours"
+        ? colors.statusPendingBg
+        : status === "Livré"
+          ? colors.statusDeliveredBg
+          : colors.statusCancelledBg;
 
   const fg =
-    status === "En cours"
-      ? colors.primary
-      : status === "Livré"
-        ? colors.statusDeliveredFg
-        : colors.statusCancelledFg;
+    status === "Planifiée"
+      ? colors.primaryDark
+      : status === "En cours"
+        ? colors.primary
+        : status === "Livré"
+          ? colors.statusDeliveredFg
+          : colors.statusCancelledFg;
 
   return (
     <View
@@ -132,13 +137,20 @@ export default function TransactionCard({
     return "solar:box-bold-duotone";
   }, [item.title]);
 
-  const ref = item.ref ?? item.id;
+  const ref = item.ref?.trim();
   const metaPills = useMemo(() => collectMetaPills(item), [item]);
-  const subtitle = [item.quartier !== "—" ? item.quartier : null, item.dateLabel !== "—" ? item.dateLabel : null, item.paymentLabel]
+  const subtitle = [
+    item.quartier !== "—" ? item.quartier : null,
+    item.scheduledLabel ? `Prévue le ${item.scheduledLabel}` : null,
+    item.dateLabel !== "—" ? item.dateLabel : null,
+    item.paymentLabel,
+  ]
     .filter(Boolean)
     .join("  ·  ");
   const detailPath = item.isExpedition ? `/expedition-detail/${item.id}` : `/livraison-detail/${item.id}`;
-  const accessibilityLabel = `Ouvrir la course ${item.title}, référence ${ref}`;
+  const accessibilityLabel = ref
+    ? `Ouvrir la course ${item.title}, référence ${ref}`
+    : `Ouvrir la conversation ${item.title}`;
 
   return (
     <Pressable
@@ -154,29 +166,39 @@ export default function TransactionCard({
       }}
       style={[card.base, { padding: 16 }]}
     >
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: metaPills.length ? 8 : 12 }}>
-        <AppText
-          variant="dense"
-          style={{ fontSize: 11, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.55)", letterSpacing: 0.4, flex: 1, minWidth: 0, paddingRight: 10 }}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          REF {ref}
-        </AppText>
-        <StatusPill label={item.statusLabel} status={item.status} />
-      </View>
+      {ref || metaPills.length === 0 ? (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: metaPills.length ? 8 : 12 }}>
+          {ref ? (
+            <AppText
+              variant="dense"
+              style={{ fontSize: 11, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.55)", letterSpacing: 0.4, flex: 1, minWidth: 0, paddingRight: 10 }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              REF {ref}
+            </AppText>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
+          <StatusPill label={item.statusLabel} status={item.status} />
+        </View>
+      ) : null}
 
       {metaPills.length ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingBottom: 12 }}
-          style={{ flexGrow: 0 }}
-        >
-          {metaPills.map((pill) => (
-            <MetaPill key={pill.label} label={pill.label} variant={pill.variant} />
-          ))}
-        </ScrollView>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8 }}
+            style={{ flexGrow: 0, flexShrink: 1 }}
+          >
+            {metaPills.map((pill) => (
+              <MetaPill key={pill.label} label={pill.label} variant={pill.variant} />
+            ))}
+          </ScrollView>
+          <View style={{ flex: 1 }} />
+          {!ref ? <StatusPill label={item.statusLabel} status={item.status} /> : null}
+        </View>
       ) : null}
 
       <View style={{ flexDirection: "row", alignItems: "center" }}>
