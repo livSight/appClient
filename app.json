@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ericdt17.livsightclient",
+      "bundleIdentifier": "com.livsight.client",
       "deploymentTarget": "16.4",
       "infoPlist": {
         "UIBackgroundModes": [
