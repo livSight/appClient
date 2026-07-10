@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Pressable } from "react-native";
 import { router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import { colors, fonts, radii, spacing, typography } from "../../theme/tokens";
 import ScreenLayout from "../../components/ScreenLayout";
 import SectionHeader from "../../components/SectionHeader";
@@ -91,7 +91,7 @@ export default function AccueilScreen() {
     const b = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
     const s = `${a}${b}`.trim();
     return s.length ? s : "A";
-  }, [user?.first_name, (user as any)?.last_name, user?.name]);
+  }, [user]);
 
   const recentUi = useMemo(() => {
     const sorted = sortTransactionsForDisplay(txns);
@@ -109,7 +109,7 @@ export default function AccueilScreen() {
             onProfilePress={() => router.push("/profile")}
             initials={initials}
           />
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 34 }]} numberOfLines={2}>
             {displayName !== "—" ? `Bonjour ${displayName}` : "Bonjour"}
           </AppText>
         </View>
@@ -163,8 +163,18 @@ export default function AccueilScreen() {
         </View>
       ) : null}
 
-      {/* Promo Banner */}
-      <PromoBanner />
+      {/* Promo Banner — welcome offer for new clients, re-order prompt for returning ones */}
+      {!loading && !error ? (
+        txns.length === 0 ? (
+          <PromoBanner />
+        ) : (
+          <PromoBanner
+            label="Besoin d'une livraison ?"
+            title={"Commandez en 30 secondes,\non s'occupe du reste"}
+            ctaLabel="Nouvelle livraison"
+          />
+        )
+      ) : null}
     </ScreenLayout>
   );
 }

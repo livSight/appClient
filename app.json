@@ -10,8 +10,8 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ericdt17.livsight",
-      "deploymentTarget": "16.0",
+      "bundleIdentifier": "com.ericdt17.livsightclient",
+      "deploymentTarget": "16.4",
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"

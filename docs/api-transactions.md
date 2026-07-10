@@ -19,6 +19,7 @@ Verified against `http://localhost:4040` (api-gateway, May 2026).
 ### Required parts
 
 - All business fields (`package_name`, `description`, `destination_street`, `receiver_name`, `receiver_phone`, `type`, etc.)
+- **`scheduled_delivery_date`** — ISO date `YYYY-MM-DD` (required). Uses server timezone `Africa/Douala` for “today” vs future. The mobile app must **not** send `status` on create; the backend sets `pending` or `scheduled`.
 
 ### Optional parts
 
@@ -83,7 +84,9 @@ Implemented in `lib/api/transactionUi.ts` → `mapTransactionToCardItem()`.
 | `source: pick_up` / `instocke` (legacy) | Fulfillment | Still mapped on read if present in old rows |
 | `serviceLevel: express` | Speed | **Express** pill |
 | `cash_collect` / `amount` | Cash to collect | Amount + **ESPÈCES** (hidden when not collecting) |
-| `status: pending`, etc. | Status bucket | **En cours** / **Livré** / **Annulé** |
+| `status: pending`, `scheduled`, etc. | Status bucket | **En cours** / **Planifiée** / **Livré** / **Annulé** |
+| `scheduled_delivery_date` | Planned delivery | Shown on detail + confirmation (see [SCHEDULED_DELIVERY_CLIENT.md](./SCHEDULED_DELIVERY_CLIENT.md)) |
+| `delivery_attempt` | Retry count | « Tentative n° … » when > 1 |
 | `transactionReference` | Reference | `REF LVS-…` (no double `#`) |
 
 **When `source` is null on GET** (current server behaviour): client fallbacks in order:

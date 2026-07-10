@@ -14,9 +14,12 @@ import {
   buildPayloadFromPickupResume,
   buildPayloadFromStockResume,
   buildTransactionFormData,
+  cancelTransaction,
+  canClientCancelTransaction,
   createTransaction,
   getTransactionById,
   listTransactions,
+  mapTxnStatusToUi,
   parseTransaction,
   resolveApiSourceField,
   type TransactionRequest,
@@ -36,6 +39,8 @@ function mockApiResponse(status: number, body: unknown) {
   });
 }
 
+const SCHEDULED_DATE = "2026-07-09";
+
 const sampleRequest: TransactionRequest = {
   package_name: "Colis test",
   description: "Description test",
@@ -43,10 +48,10 @@ const sampleRequest: TransactionRequest = {
   receiver_name: "Client",
   receiver_phone: "670000000",
   source: "stock",
+  scheduled_delivery_date: SCHEDULED_DATE,
   type: "delivery",
   quantity: 1,
   amount: 1500,
-  status: "pending",
   cash_collect: false,
   serviceLevel: "standard",
 };
@@ -64,6 +69,7 @@ describe("buildPayloadFromPickupResume", () => {
       quantity: 1,
       pickupStreet: "Mimboman",
       dropoffStreet: "Sac",
+      scheduledDeliveryDate: SCHEDULED_DATE,
     });
     expect(payload.type).toBe("delivery");
     expect(payload.source).toBe("pickup");
@@ -81,6 +87,7 @@ describe("buildPayloadFromPickupResume", () => {
       quantity: 1,
       pickupStreet: "Agence",
       dropoffStreet: "Ville",
+      scheduledDeliveryDate: SCHEDULED_DATE,
     });
     expect(payload.type).toBe("expedition");
     expect(payload.source).toBe("pickup");
@@ -101,9 +108,35 @@ describe("buildPayloadFromStockResume", () => {
       destinationQuartier: "Bastos",
       destinationLandmark: "",
       departureStreet: "Agence | Ongola Express",
+      scheduledDeliveryDate: SCHEDULED_DATE,
     });
     expect(payload.type).toBe("delivery");
     expect(payload.source).toBe("stock");
+  });
+
+  it("maps lineItems to indexed items and total quantity", () => {
+    const payload = buildPayloadFromStockResume({
+      forExpedition: false,
+      lineItems: [
+        { package_name: "Prod A", quantity: 2 },
+        { package_name: "Prod B", quantity: 1 },
+      ],
+      description: "Notes",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      destinationQuartier: "Akwa",
+      destinationLandmark: "",
+      departureStreet: "Agence",
+      scheduledDeliveryDate: SCHEDULED_DATE,
+    });
+    expect(payload.package_name).toBe("Prod A");
+    expect(payload.quantity).toBe(3);
+    expect(payload.items).toEqual([
+      { package_name: "Prod A", quantity: 2 },
+      { package_name: "Prod B", quantity: 1 },
+    ]);
   });
 });
 
@@ -143,8 +176,27 @@ describe("buildTransactionFormData", () => {
   it("appends source pickup or stock on POST", () => {
     const form = buildTransactionFormData(sampleRequest);
     expect(form.get("source")).toBe("stock");
+    expect(form.get("scheduled_delivery_date")).toBe(SCHEDULED_DATE);
     expect(form.get("package_name")).toBe("Colis test");
     expect(form.get("type")).toBe("delivery");
+  });
+
+  it("appends indexed items fields for multi-product POST", () => {
+    const appendSpy = jest.spyOn(FormData.prototype, "append");
+    buildTransactionFormData({
+      ...sampleRequest,
+      package_name: "Prod A",
+      quantity: 3,
+      items: [
+        { package_name: "Prod A", quantity: 2 },
+        { package_name: "Prod B", quantity: 1 },
+      ],
+    });
+    expect(appendSpy).toHaveBeenCalledWith("items[0].package_name", "Prod A");
+    expect(appendSpy).toHaveBeenCalledWith("items[0].quantity", "2");
+    expect(appendSpy).toHaveBeenCalledWith("items[1].package_name", "Prod B");
+    expect(appendSpy).toHaveBeenCalledWith("items[1].quantity", "1");
+    appendSpy.mockRestore();
   });
 
   it("omits image when imageUri is missing", () => {
@@ -322,5 +374,190 @@ describe("transactions API", () => {
 
       await expect(getTransactionById("999")).rejects.toThrow("Not found");
     });
+  });
+
+  describe("canClientCancelTransaction", () => {
+    it("allows cancel only when status is pending", () => {
+      expect(canClientCancelTransaction("pending")).toBe(true);
+      expect(canClientCancelTransaction("PENDING")).toBe(true);
+    });
+
+    it("blocks cancel for in-progress and terminal statuses", () => {
+      expect(canClientCancelTransaction("processing")).toBe(false);
+      expect(canClientCancelTransaction("scheduled")).toBe(false);
+      expect(canClientCancelTransaction("assigned")).toBe(false);
+      expect(canClientCancelTransaction("delivered")).toBe(false);
+      expect(canClientCancelTransaction("failed")).toBe(false);
+      expect(canClientCancelTransaction("cancelled")).toBe(false);
+      expect(canClientCancelTransaction(null)).toBe(false);
+      expect(canClientCancelTransaction("")).toBe(false);
+    });
+  });
+
+  describe("cancelTransaction", () => {
+    beforeEach(() => {
+      mockGetSessionUser.mockResolvedValue({ keycloakId: KEYCLOAK_ID });
+    });
+
+    it("PUTs status failed to /api/transactions/:id with X-User-Id", async () => {
+      mockApiResponse(200, { id: 42, status: "failed", package_name: "Colis", type: "delivery" });
+
+      const tx = await cancelTransaction(42, { reason: "Client injoignable" });
+
+      expect(apiFetch).toHaveBeenCalledWith(`${API_BASE}/api/transactions/42`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": KEYCLOAK_ID,
+        },
+        body: JSON.stringify({ status: "failed" }),
+      });
+      expect(tx.status).toBe("failed");
+    });
+
+    it("resolves LVS reference via GET before PUT on numeric id", async () => {
+      (apiFetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              id: 7,
+              transactionReference: "LVS-ABC123",
+              package_name: "Ref txn",
+              type: "delivery",
+              status: "pending",
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              id: 7,
+              transactionReference: "LVS-ABC123",
+              status: "failed",
+              package_name: "Ref txn",
+              type: "delivery",
+            }),
+        });
+
+      await cancelTransaction("LVS-ABC123", { reason: "Autre motif", details: "Test" });
+
+      expect(apiFetch).toHaveBeenNthCalledWith(
+        1,
+        `${API_BASE}/api/transactions/reference?transactionReference=LVS-ABC123`,
+        { method: "GET" },
+      );
+      expect(apiFetch).toHaveBeenNthCalledWith(
+        2,
+        `${API_BASE}/api/transactions/7`,
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ status: "failed" }),
+        }),
+      );
+    });
+
+    it("throws when session is missing", async () => {
+      mockGetSessionUser.mockResolvedValue(null);
+
+      await expect(cancelTransaction(1, { reason: "Client injoignable" })).rejects.toThrow(
+        "Session expirée",
+      );
+      expect(apiFetch).not.toHaveBeenCalled();
+    });
+
+    it("throws when cancel PUT fails", async () => {
+      mockApiResponse(400, "Invalid status: cancelled");
+
+      await expect(cancelTransaction(1, { reason: "Client injoignable" })).rejects.toThrow(
+        "Invalid status: cancelled",
+      );
+    });
+  });
+});
+
+describe("mapTxnStatusToUi", () => {
+  it("maps scheduled to Planifiée", () => {
+    expect(mapTxnStatusToUi("scheduled")).toBe("Planifiée");
+    expect(mapTxnStatusToUi("SCHEDULED")).toBe("Planifiée");
+  });
+});
+
+describe("parseTransaction scheduled fields", () => {
+  it("maps scheduled_delivery_date, delivery_attempt, rescheduled_at", () => {
+    const tx = parseTransaction({
+      package_name: "Colis",
+      status: "scheduled",
+      scheduled_delivery_date: "2026-07-12",
+      delivery_attempt: 2,
+      rescheduled_at: "2026-07-09T10:00:00Z",
+    });
+    expect(tx.scheduled_delivery_date).toBe("2026-07-12");
+    expect(tx.delivery_attempt).toBe(2);
+    expect(tx.rescheduled_at).toBe("2026-07-09T10:00:00Z");
+  });
+});
+
+describe("buildPayloadFromPickupResume scheduled date", () => {
+  it("includes scheduled_delivery_date and omits client status", () => {
+    const payload = buildPayloadFromPickupResume({
+      forExpedition: false,
+      packageName: "Sac",
+      description: "Test",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      quantity: 1,
+      pickupStreet: "A",
+      dropoffStreet: "B",
+      scheduledDeliveryDate: "2026-07-15",
+    });
+    expect(payload.scheduled_delivery_date).toBe("2026-07-15");
+    expect(payload.status).toBeUndefined();
+  });
+});
+
+describe("mapTxnStatusToUi", () => {
+  it("maps scheduled to Planifiée", () => {
+    expect(mapTxnStatusToUi("scheduled")).toBe("Planifiée");
+    expect(mapTxnStatusToUi("SCHEDULED")).toBe("Planifiée");
+  });
+});
+
+describe("parseTransaction scheduled fields", () => {
+  it("maps scheduled_delivery_date, delivery_attempt, rescheduled_at", () => {
+    const tx = parseTransaction({
+      package_name: "Colis",
+      status: "scheduled",
+      scheduled_delivery_date: "2026-07-12",
+      delivery_attempt: 2,
+      rescheduled_at: "2026-07-09T10:00:00Z",
+    });
+    expect(tx.scheduled_delivery_date).toBe("2026-07-12");
+    expect(tx.delivery_attempt).toBe(2);
+    expect(tx.rescheduled_at).toBe("2026-07-09T10:00:00Z");
+  });
+});
+
+describe("buildPayloadFromPickupResume scheduled date", () => {
+  it("includes scheduled_delivery_date and omits client status", () => {
+    const payload = buildPayloadFromPickupResume({
+      forExpedition: false,
+      packageName: "Sac",
+      description: "Test",
+      phone: "670000000",
+      express: "no",
+      collectCash: "no",
+      amount: 0,
+      quantity: 1,
+      pickupStreet: "A",
+      dropoffStreet: "B",
+      scheduledDeliveryDate: "2026-07-15",
+    });
+    expect(payload.scheduled_delivery_date).toBe("2026-07-15");
+    expect(payload.status).toBeUndefined();
   });
 });

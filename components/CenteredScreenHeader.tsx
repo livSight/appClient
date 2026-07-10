@@ -7,6 +7,8 @@ import { colors, fonts, typography } from "../theme/tokens";
 type Props = {
   title: string;
   subtitle?: string | null;
+  /** Tighter row padding — use when subtitle lives in scroll content below. */
+  compact?: boolean;
   /**
    * Defaults to true. Use false for tab screens.
    */
@@ -18,6 +20,7 @@ type Props = {
 export default function CenteredScreenHeader({
   title,
   subtitle,
+  compact = false,
   showBack = true,
   onBackPress,
   rightSlot,
@@ -25,8 +28,15 @@ export default function CenteredScreenHeader({
   const back = onBackPress ?? (() => router.back());
 
   return (
-    <View style={{ paddingBottom: 10 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingVertical: 8 }}>
+    <View style={{ paddingBottom: compact ? 4 : 10 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          minHeight: compact ? 40 : 44,
+          paddingVertical: compact ? 2 : 8,
+        }}
+      >
         {showBack ? (
           <Pressable onPress={back} hitSlop={10} style={{ width: 44, height: 44, justifyContent: "center" }}>
             <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />

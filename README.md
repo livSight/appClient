@@ -40,7 +40,7 @@ Redémarrer Metro après modification du `.env` :
 npx expo start --clear
 ```
 
-**Push (dev)** : l’enregistrement du token Expo est **désactivé** en `__DEV__` par défaut. Pour tester sur appareil réel : `EXPO_PUBLIC_ENABLE_PUSH=true` dans `.env`.
+**Push (dev)** : l’enregistrement du token Expo est **désactivé** en `__DEV__` par défaut. Pour tester sur appareil réel : `EXPO_PUBLIC_ENABLE_PUSH=true` dans `.env`. Guide implémentation : [`docs/push-notifications-implementation.md`](docs/push-notifications-implementation.md).
 
 ### Commandes
 
@@ -51,7 +51,7 @@ npm run ios            # Simulateur iOS
 npm run android        # Émulateur Android
 npm run lint           # ESLint
 
-npm test               # Jest (146+ tests)
+npm test               # Jest (255+ tests)
 npm run test:watch
 npm run test:coverage
 ```
@@ -100,6 +100,15 @@ Pastilles : **Livraison** / **Expédition**, **En stock** / **Ramassage**, **Exp
 - Cartes **`ConversationCard`** : titre = **`package_name`** (produit), sous-titre = quartier ou trajet
 - Chat : `app/inbox/[id].tsx` (bannière transaction + messages mock)
 - Mapping : `lib/api/conversationUi.ts` → `mapTransactionToConversationItem()`
+- Push `ticket_message` → tap ouvre le chat ; refresh liste au foreground — voir [`docs/push-notifications-implementation.md`](docs/push-notifications-implementation.md)
+
+### Push notifications
+
+- Enregistrement token au login, re-sync au retour app, suppression au logout
+- Routage tap : détail livraison/expédition ou inbox selon `data.type`
+- Refresh foreground sur liste livraisons, conversations et écrans détail ouverts
+- **Hors scope :** suivi GPS live, polling `driver-location`
+- Fichiers : `lib/push/*`, `lib/api/pushTokens.ts` — doc : [`docs/push-notifications-implementation.md`](docs/push-notifications-implementation.md)
 
 ### Profil & divers
 
@@ -120,6 +129,49 @@ Pastilles : **Livraison** / **Expédition**, **En stock** / **Ramassage**, **Exp
 
 Contrat détaillé : [`docs/api-transactions.md`](docs/api-transactions.md)  
 Phases auth TDD : [`docs/auth-tdd-phases.md`](docs/auth-tdd-phases.md)
+
+---
+
+## Authentification persistante
+
+L'utilisateur reste connecté entre les redémarrages de l'app, les passages en
+arrière-plan et les redéploiements du backend. Il ne revoit l'écran de login
+que si le refresh token est invalide/expiré ou s'il se déconnecte.
+
+**Flux :**
+
+1. **Login** — `POST /auth/login` ; les tokens (`accessToken`, `refreshToken`,
+   `expiresAt` calculé) sont persistés dans **expo-secure-store**
+   (`lib/auth/tokenStore.ts`), jamais uniquement en mémoire.
+2. **Bootstrap au démarrage** — `AuthProvider` restaure la session depuis le
+   stockage sécurisé ; si l'access token est expiré, un refresh silencieux est
+   tenté avant d'afficher quoi que ce soit (`isLoading` → splash via
+   `useAuthGuard`, pas de flash de l'écran login).
+3. **Refresh proactif** — `lib/auth/session.ts` rafraîchit ~60 s avant
+   `expiresAt` (`POST /auth/refresh?refreshToken=…`, query param). Le refresh
+   token **retourné** est toujours re-persisté (rotation Keycloak). Les appels
+   concurrents partagent une seule promesse de refresh.
+4. **401 → retry** — `apiFetch` (`lib/api/client.ts`) tente **un** refresh puis
+   **un** retry de la requête. Échec définitif du refresh (4xx) → stockage
+   vidé + retour au login. Échec transitoire (réseau, 5xx — ex. redéploiement
+   gateway) → les tokens sont conservés, la session survit.
+5. **Retour au premier plan** — sur `AppState = active`, la session est
+   revalidée (refresh silencieux si nécessaire).
+6. **Logout** — `POST /auth/logout?refreshToken=…` (best-effort), stockage
+   vidé, retour au login.
+
+**Fichiers :** `lib/auth/authApi.ts` (login/refresh/logout),
+`lib/auth/tokenStore.ts` (stockage sécurisé), `lib/auth/session.ts`
+(gestionnaire de tokens), `lib/auth/AuthProvider.tsx` (contexte
+`user`/`isAuthenticated`/`isLoading`/`login`/`logout`),
+`lib/api/client.ts` (fetch avec intercepteurs).
+
+**Navigation protégée :** le layout racine (`app/_layout.tsx`) appelle
+`useAuthGuard(pathname)` — non authentifié hors `/login` → redirection
+`/login` ; authentifié sur `/login` → redirection `/(tabs)`.
+
+**Env :** `EXPO_PUBLIC_GATEWAY_URL` (base des appels `/auth/*` et `/api/*`).
+Les tokens ne sont jamais loggés.
 
 ---
 

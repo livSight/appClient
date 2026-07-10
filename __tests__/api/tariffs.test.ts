@@ -12,11 +12,13 @@ import {
 } from "@/lib/api/tariffs";
 import {
   buildOtherTariffs,
+  filterNeighborhoodNames,
   formatSupplementFcfaLabel,
   isTariffsCatalogEmpty,
   mapZoneToTariffCard,
   pickDefaultCityId,
   resolveDeliveryFeeAmounts,
+  uniqueNeighborhoodNames,
   zoneDisplayLabel,
 } from "@/lib/api/tariffUi";
 
@@ -158,5 +160,28 @@ describe("tariffUi", () => {
     );
     expect(items.find((i) => i.title === "Ramassage hors stock")).toBeUndefined();
     expect(items.find((i) => i.title === "Frais de quartier")?.valueLabel).toBe("+500 FCFA");
+  });
+
+  it("uniqueNeighborhoodNames dedupes, trims and sorts alphabetically", () => {
+    const names = uniqueNeighborhoodNames([
+      { id: 2, zone_id: 1, name: "Mvan", delivery_fee: 0, requires_entry_fee: false },
+      { id: 1, zone_id: 1, name: " Bastos ", delivery_fee: 500, requires_entry_fee: true },
+      { id: 3, zone_id: 2, name: "bastos", delivery_fee: 0, requires_entry_fee: false },
+      { id: 4, zone_id: 1, name: "  ", delivery_fee: 0, requires_entry_fee: false },
+    ]);
+    expect(names).toEqual(["Bastos", "Mvan"]);
+  });
+
+  it("filterNeighborhoodNames returns empty when query is too short", () => {
+    const names = ["Bastos", "Emombo", "Mvan"];
+    expect(filterNeighborhoodNames(names, "")).toEqual([]);
+    expect(filterNeighborhoodNames(names, "   ")).toEqual([]);
+    expect(filterNeighborhoodNames(names, "b")).toEqual([]);
+  });
+
+  it("filterNeighborhoodNames filters case-insensitively when query is long enough", () => {
+    const names = ["Bastos", "Emombo", "Mvan"];
+    expect(filterNeighborhoodNames(names, "MV")).toEqual(["Mvan"]);
+    expect(filterNeighborhoodNames(names, "ombo")).toEqual(["Emombo"]);
   });
 });

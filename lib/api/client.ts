@@ -2,7 +2,8 @@ import { authSession } from "@/lib/auth/session";
 
 export type ApiFetchDeps = {
   getAccessToken: () => Promise<string | null>;
-  logout: () => Promise<void>;
+  /** Called after a 401; returns a new access token or null if refresh failed. */
+  forceRefreshAccessToken: () => Promise<string | null>;
   fetchFn?: typeof fetch;
 };
 
@@ -17,27 +18,32 @@ function buildHeaders(init?: RequestInit): Headers {
 export function createApiFetch(deps: ApiFetchDeps) {
   const fetchFn = deps.fetchFn ?? fetch;
 
-  return async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  async function send(url: string, init: RequestInit | undefined, token: string | null): Promise<Response> {
     const headers = buildHeaders(init);
-    const token = await deps.getAccessToken();
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
-
-    const res = await fetchFn(url, {
+    return fetchFn(url, {
       ...init,
       headers,
     });
+  }
 
-    if (res.status === 401) {
-      await deps.logout();
-    }
+  return async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+    const token = await deps.getAccessToken();
+    const res = await send(url, init, token);
+    if (res.status !== 401) return res;
 
-    return res;
+    // Refresh once and retry once. If the refresh token itself is rejected,
+    // the session layer clears storage and emits the invalidation event.
+    const newToken = await deps.forceRefreshAccessToken();
+    if (!newToken) return res;
+
+    return send(url, init, newToken);
   };
 }
 
 export const apiFetch = createApiFetch({
   getAccessToken: () => authSession.getAccessToken(),
-  logout: () => authSession.logout("unauthorized"),
+  forceRefreshAccessToken: () => authSession.forceRefreshAccessToken(),
 });

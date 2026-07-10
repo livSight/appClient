@@ -1,22 +1,38 @@
 import { useCallback, useMemo, useState } from "react";
-import { View, Pressable, RefreshControl, ActivityIndicator, useWindowDimensions } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
+import { Alert, View, Pressable, RefreshControl, ActivityIndicator, useWindowDimensions } from "react-native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import ScreenLayout from "../../components/ScreenLayout";
 import MetricCard from "../../components/MetricCard";
 import SolarIcon from "../../components/SolarIcon";
 import { colors, fonts, radii, shadows, spacing, typography } from "../../theme/tokens";
 import AppText from "../../components/AppText";
-import { listTransactions } from "@/lib/api/transactions";
-import { listPackages } from "@/lib/api/packages";
 import ReportCustomDateRange from "@/components/ReportCustomDateRange";
 import {
-  aggregateReports,
+  fetchDeliveryReport,
+  fetchStockReport,
+  sourceCountsFromDeliveries,
+  statusBucketsFromSummary,
+  toReportDateParam,
+  type DeliveryReport,
+  type StockReport,
+} from "@/lib/api/reports";
+import { downloadAndShareReportPdf, PDF_MODULES_UNAVAILABLE_MESSAGE } from "@/lib/reports/reportPdf";
+import {
+  formatDeltaPct,
   formatPeriodLabel,
+  formatXaf,
+  resolveReportPeriodBounds,
   type ReportRange,
 } from "@/lib/reports/aggregateReports";
+import { logger } from "@/lib/logger";
 
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+}
+
+function safeCount(n: unknown): number {
+  const v = Number(n);
+  return Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0;
 }
 
 type StatusChip = {
@@ -124,6 +140,50 @@ function RangeToggle({
   );
 }
 
+function PdfButton({
+  label,
+  busy,
+  onPress,
+}: {
+  label: string;
+  busy: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={busy ? undefined : onPress}
+      style={{
+        flex: 1,
+        minHeight: 52,
+        borderRadius: radii.pill,
+        backgroundColor: colors.white,
+        borderWidth: 1,
+        borderColor: "rgba(48,144,192,0.35)",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        opacity: busy ? 0.6 : 1,
+      }}
+    >
+      {busy ? (
+        <ActivityIndicator size="small" color={colors.primary} />
+      ) : (
+        <SolarIcon name="solar:download-outline" size={20} color={colors.primary} />
+      )}
+      <AppText
+        variant="dense"
+        style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodyBold, color: colors.primary }}
+        numberOfLines={1}
+      >
+        {label}
+      </AppText>
+    </Pressable>
+  );
+}
+
 export default function RapportsScreen() {
   const [range, setRange] = useState<ReportRange>("Journalier");
   const [customStart, setCustomStart] = useState(() => startOfMonth(new Date()));
@@ -131,25 +191,46 @@ export default function RapportsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [transactions, setTransactions] = useState<Awaited<ReturnType<typeof listTransactions>>>([]);
-  const [packages, setPackages] = useState<Awaited<ReturnType<typeof listPackages>>>([]);
+  const [report, setReport] = useState<DeliveryReport | null>(null);
+  const [previousReport, setPreviousReport] = useState<DeliveryReport | null>(null);
+  const [stockReport, setStockReport] = useState<StockReport | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState<"deliveries" | "stock" | null>(null);
 
-  const loadReports = useCallback(async (mode: "initial" | "refresh" = "initial") => {
-    try {
-      if (mode === "initial") setLoading(true);
-      if (mode === "refresh") setRefreshing(true);
-      setError(null);
+  const period = useMemo(() => {
+    const bounds = resolveReportPeriodBounds({ range, now: new Date(), customStart, customEnd });
+    return {
+      start: toReportDateParam(bounds.current.start),
+      end: toReportDateParam(bounds.current.end),
+      prevStart: toReportDateParam(bounds.previous.start),
+      prevEnd: toReportDateParam(bounds.previous.end),
+    };
+  }, [range, customStart, customEnd]);
 
-      const [txns, pkgs] = await Promise.all([listTransactions(), listPackages()]);
-      setTransactions(txns);
-      setPackages(pkgs);
-    } catch (e: unknown) {
-      setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const loadReports = useCallback(
+    async (mode: "initial" | "refresh" = "initial") => {
+      try {
+        if (mode === "initial") setLoading(true);
+        if (mode === "refresh") setRefreshing(true);
+        setError(null);
+
+        const [current, previous, stock] = await Promise.all([
+          fetchDeliveryReport(period.start, period.end),
+          fetchDeliveryReport(period.prevStart, period.prevEnd),
+          fetchStockReport(period.start, period.end),
+        ]);
+        setReport(current);
+        setPreviousReport(previous);
+        setStockReport(stock);
+      } catch (e: unknown) {
+        logger.warn("rapports", "load failed", e);
+        setError("Impossible de charger vos rapports. Vérifiez votre connexion et réessayez.");
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [period],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -162,20 +243,25 @@ export default function RapportsScreen() {
     [range, customStart, customEnd],
   );
 
-  const report = useMemo(
-    () =>
-      aggregateReports({
-        range,
-        now: new Date(),
-        customStart,
-        customEnd,
-        transactions,
-        packages,
-      }),
-    [range, customStart, customEnd, transactions, packages],
-  );
+  const buckets = useMemo(() => statusBucketsFromSummary(report?.status_summary), [report?.status_summary]);
+  const sources = useMemo(() => sourceCountsFromDeliveries(report?.deliveries), [report?.deliveries]);
 
-  const { formatted, serviceTypes, buckets } = report;
+  async function onDownloadPdf(kind: "deliveries" | "stock") {
+    if (downloadingPdf) return;
+    setDownloadingPdf(kind);
+    try {
+      await downloadAndShareReportPdf(kind, period.start, period.end);
+    } catch (e: unknown) {
+      logger.warn("rapports", "pdf download failed", e);
+      const message =
+        e instanceof Error && e.message === PDF_MODULES_UNAVAILABLE_MESSAGE
+          ? e.message
+          : "Le rapport PDF n'a pas pu être téléchargé. Vérifiez votre connexion et réessayez.";
+      Alert.alert("Téléchargement impossible", message);
+    } finally {
+      setDownloadingPdf(null);
+    }
+  }
 
   const body = loading ? (
     <View style={{ paddingVertical: 48, alignItems: "center" }}>
@@ -202,14 +288,13 @@ export default function RapportsScreen() {
     <>
       <View style={{ marginTop: 18 }}>
         <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20, marginBottom: 12 }} numberOfLines={1}>
-          Transactions enregistrées
+          Livraisons enregistrées
         </AppText>
         <StatusChipRow
           chips={[
-            { label: "Livraison", count: serviceTypes.livraison, iconName: "solar:delivery-bold-duotone", color: colors.primary },
-            { label: "Expédition", count: serviceTypes.expedition, iconName: "solar:rocket-bold-duotone", color: colors.primary },
-            { label: "Course", count: serviceTypes.course, iconName: "solar:routing-bold-duotone", color: colors.primary },
-            { label: "Ramassage", count: serviceTypes.ramassage, iconName: "solar:hand-shake-bold", color: colors.primary },
+            { label: "Total", count: safeCount(report?.delivery_count), iconName: "solar:delivery-bold-duotone", color: colors.primary },
+            { label: "En stock", count: sources.stock, iconName: "solar:box-bold-duotone", color: colors.primary },
+            { label: "Ramassage", count: sources.pickup, iconName: "solar:hand-shake-bold", color: colors.primary },
           ]}
         />
       </View>
@@ -238,9 +323,9 @@ export default function RapportsScreen() {
           <View style={{ flex: 1 }}>
             <MetricCard
               title="Total encaissé"
-              value={formatted.totalEncaisse}
-              suffix={formatted.totalSuffix}
-              delta={formatted.totalEncaisseDelta}
+              value={formatXaf(safeCount(report?.total_encaisse))}
+              suffix="FCFA"
+              delta={formatDeltaPct(safeCount(report?.total_encaisse), safeCount(previousReport?.total_encaisse))}
               iconName="solar:wallet-bold-duotone"
               compact
             />
@@ -248,9 +333,9 @@ export default function RapportsScreen() {
           <View style={{ flex: 1 }}>
             <MetricCard
               title="Frais de livraison"
-              value={formatted.feesWithdrawn}
-              suffix={formatted.totalSuffix}
-              delta={formatted.feesWithdrawnDelta}
+              value={formatXaf(safeCount(report?.total_tarifs))}
+              suffix="FCFA"
+              delta={formatDeltaPct(safeCount(report?.total_tarifs), safeCount(previousReport?.total_tarifs))}
               iconName="solar:hashtag-outline"
               compact
             />
@@ -260,9 +345,9 @@ export default function RapportsScreen() {
           <View style={{ flex: 1 }}>
             <MetricCard
               title="Total commandes"
-              value={formatted.totalCmd}
-              suffix={formatted.totalSuffix}
-              delta={formatted.totalCmdDelta}
+              value={formatXaf(safeCount(report?.total_commande))}
+              suffix="FCFA"
+              delta={formatDeltaPct(safeCount(report?.total_commande), safeCount(previousReport?.total_commande))}
               iconName="solar:notes-outline"
               compact
             />
@@ -270,9 +355,9 @@ export default function RapportsScreen() {
           <View style={{ flex: 1 }}>
             <MetricCard
               title="Solde"
-              value={formatted.resteAPercevoir}
-              suffix={formatted.totalSuffix}
-              delta={formatted.resteAPercevoirDelta}
+              value={formatXaf(safeCount(report?.reste_a_percevoir))}
+              suffix="FCFA"
+              delta={formatDeltaPct(safeCount(report?.reste_a_percevoir), safeCount(previousReport?.reste_a_percevoir))}
               iconName="solar:banknote-outline"
               compact
             />
@@ -284,26 +369,26 @@ export default function RapportsScreen() {
         <AppText style={{ ...typography.sectionTitle, fontSize: 14, lineHeight: 20, marginBottom: 12 }} numberOfLines={1}>
           Stock en magasin
         </AppText>
-        <View style={{ flexDirection: "row", gap: 16 }}>
-          <View style={{ flex: 1 }}>
-            <MetricCard
-              title="Produits en stock"
-              value={formatted.stockProductsCount}
-              delta={formatted.stockProductsCountDelta}
-              iconName="solar:box-bold-duotone"
-              compact
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <MetricCard
-              title="Quantité stock (total)"
-              value={formatted.stockQtyTotal}
-              delta={formatted.stockQtyTotalDelta}
-              iconName="solar:box-bold"
-              compact
-            />
-          </View>
-        </View>
+        <StatusChipRow
+          chips={[
+            { label: "Produits", count: safeCount(stockReport?.total_products), iconName: "solar:box-bold-duotone", color: colors.primary },
+            { label: "Quantité totale", count: safeCount(stockReport?.total_quantity_in_stock), iconName: "solar:box-bold", color: colors.primary },
+            { label: "En rupture", count: safeCount(stockReport?.out_of_stock_count), iconName: "solar:danger-circle-bold", color: "#DC2626" },
+          ]}
+        />
+      </View>
+
+      <View style={{ marginTop: 22, flexDirection: "row", gap: 12 }}>
+        <PdfButton
+          label="PDF Livraisons"
+          busy={downloadingPdf === "deliveries"}
+          onPress={() => void onDownloadPdf("deliveries")}
+        />
+        <PdfButton
+          label="PDF Stock"
+          busy={downloadingPdf === "stock"}
+          onPress={() => void onDownloadPdf("stock")}
+        />
       </View>
     </>
   );
@@ -315,7 +400,7 @@ export default function RapportsScreen() {
       }}
       header={
         <View style={{ paddingBottom: 10 }}>
-          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+          <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 34 }]} numberOfLines={2}>
             Rapports d&apos;activité
           </AppText>
           <AppText style={[typography.subtitle, { marginTop: 4 }]} numberOfLines={2} ellipsizeMode="tail">

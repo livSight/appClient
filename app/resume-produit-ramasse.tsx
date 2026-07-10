@@ -11,6 +11,13 @@ import { colors, fonts, typography } from "../theme/tokens";
 import { hapticSuccess } from "@/lib/haptics";
 import { isExpeditionService, parseExpeditionClient } from "@/lib/expeditionClient";
 import { createTransaction, buildPayloadFromPickupResume } from "@/lib/api/transactions";
+import DeliveryFeeTotalCard from "../components/DeliveryFeeTotalCard";
+import { useDeliveryFeeEstimate } from "@/lib/hooks/useDeliveryFeeEstimate";
+import {
+  formatScheduledDeliveryDisplayLabel,
+  isScheduledDeliveryDateValid,
+  todayIsoInSchedulingTimezone,
+} from "@/lib/scheduling/deliveryDate";
 
 type Params = {
   quartier?: string; // legacy
@@ -28,6 +35,7 @@ type Params = {
   pickupAmount?: string;
   service?: string;
   expeditionClient?: string;
+  scheduledDeliveryDate?: string;
 };
 
 function parseIntSafe(input: string | undefined): number {
@@ -114,6 +122,15 @@ export default function ResumeProduitRamasseScreen() {
     () => parseExpeditionClient(typeof params.expeditionClient === "string" ? params.expeditionClient : undefined),
     [params.expeditionClient]
   );
+  const scheduledDeliveryDate = useMemo(() => {
+    const raw = typeof params.scheduledDeliveryDate === "string" ? params.scheduledDeliveryDate.trim() : "";
+    if (raw.length && isScheduledDeliveryDateValid(raw)) return raw;
+    return todayIsoInSchedulingTimezone();
+  }, [params.scheduledDeliveryDate]);
+  const scheduledDeliveryDisplay = useMemo(
+    () => formatScheduledDeliveryDisplayLabel(scheduledDeliveryDate),
+    [scheduledDeliveryDate],
+  );
 
   const paymentLine = useMemo(() => {
     if (collectCash === "no") return "Pas d'argent à récupérer";
@@ -149,9 +166,11 @@ export default function ResumeProduitRamasseScreen() {
     return v2 || deliveryAddress || quartierLivraison || "—";
   }, [pickupDropoffQuartier, pickupDropoffLandmark, deliveryAddress, quartierLivraison]);
 
-  const deliveryFeeXaf = 1500;
-  const expressSupplementXaf = express === "yes" ? 1000 : 0;
-  const totalXaf = deliveryFeeXaf + expressSupplementXaf;
+  const destinationQuartier = useMemo(
+    () => (pickupDropoffQuartier.trim() || dropoffAddressV2.trim()),
+    [pickupDropoffQuartier, dropoffAddressV2],
+  );
+  const { estimate: deliveryFeeEstimate, loading: deliveryFeeLoading } = useDeliveryFeeEstimate(destinationQuartier, express);
 
   function goEdit(editSection: string) {
     router.push({
@@ -174,6 +193,7 @@ export default function ResumeProduitRamasseScreen() {
               pickupDropoffQuartier,
               pickupDropoffLandmark,
               service: typeof params.service === "string" ? params.service : "",
+              scheduledDeliveryDate,
             }
           : {
               pickupPhone: phone,
@@ -186,82 +206,111 @@ export default function ResumeProduitRamasseScreen() {
               pickupPickupLandmark,
               pickupDropoffQuartier,
               pickupDropoffLandmark,
+              scheduledDeliveryDate,
             }),
       },
     });
   }
 
+  // No useCallback: the React Compiler memoizes this; manual deps with member
+  // expressions (deliveryFeeEstimate.total, expeditionClient?.clientName) block compilation.
+  const handleConfirm = async () => {
+    await hapticSuccess();
+    const pickupStreet = pickupAddressV2.trim();
+    const dropoffStreet = dropoffAddressV2.trim();
+    const descriptionToSend = pickupStreet ? `Ramassage: ${pickupStreet}` : "Aucune description donnée";
+    const amountDueNumber = collectCash === "yes" ? Math.max(0, Math.round(amount)) : 0;
+    const amountDueFallback =
+      deliveryFeeEstimate.available && deliveryFeeEstimate.total != null
+        ? Math.max(0, Math.round(deliveryFeeEstimate.total))
+        : 0;
+    const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
+
+    try {
+      const created = await createTransaction(
+        buildPayloadFromPickupResume({
+          forExpedition,
+          packageName: itemName.trim().length ? itemName.trim() : "Colis",
+          description: descriptionToSend,
+          phone: phone.trim(),
+          receiverName: expeditionClient?.clientName,
+          express,
+          collectCash,
+          amount: forExpedition
+            ? collectCash === "yes"
+              ? Math.max(0, Math.round(amount))
+              : 0
+            : amountDueToSend,
+          quantity: qty > 0 ? qty : 1,
+          pickupStreet: pickupStreet || "—",
+          pickupLandmark: pickupPickupLandmark.trim() || undefined,
+          dropoffStreet: dropoffStreet || "—",
+          dropoffLandmark: pickupDropoffLandmark.trim() || undefined,
+          scheduledDeliveryDate,
+        }),
+      );
+      const createdId = created?.id ?? created?.data?.id ?? created?.transactionReference;
+      router.push({
+        pathname: "/confirmee",
+        params: {
+          id: createdId ? String(createdId) : "",
+          scheduledDeliveryDate,
+          ...(forExpedition ? { flow: "expedition" } : {}),
+        },
+      });
+    } catch (e: any) {
+      Alert.alert(
+        "Erreur",
+        String(e?.message ?? e ?? (forExpedition ? "Impossible de créer l'expédition." : "Impossible de créer la livraison.")),
+      );
+    }
+  };
+
   return (
     <ScreenLayout
+      headerCompact
       header={
         <CenteredScreenHeader
           title={forExpedition ? "Résumé expédition (ramassage)" : "Résumé produit ramassé"}
-          subtitle="Vérifiez les informations avant de confirmer"
           showBack
+          compact
         />
       }
-      footer={
-        <View
-          style={{
-            backgroundColor: "transparent",
-            paddingHorizontal: 24,
-            paddingTop: 14,
-            paddingBottom: 28,
-          }}
-        >
-          <FormButton
-            label="Confirmer la commande"
-            onPress={async () => {
-              await hapticSuccess();
-              const pickupStreet = pickupAddressV2.trim();
-              const dropoffStreet = dropoffAddressV2.trim();
-              const descriptionToSend = pickupStreet ? `Ramassage: ${pickupStreet}` : "Aucune description donnée";
-              const amountDueNumber = collectCash === "yes" ? Math.max(0, Math.round(amount)) : 0;
-              const amountDueFallback = Math.max(0, Math.round(totalXaf));
-              const amountDueToSend = amountDueNumber > 0 ? amountDueNumber : amountDueFallback;
-
-              try {
-                const created = await createTransaction(
-                  buildPayloadFromPickupResume({
-                    forExpedition,
-                    packageName: itemName.trim().length ? itemName.trim() : "Colis",
-                    description: descriptionToSend,
-                    phone: phone.trim(),
-                    receiverName: expeditionClient?.clientName,
-                    express,
-                    collectCash,
-                    amount: forExpedition
-                      ? collectCash === "yes"
-                        ? Math.max(0, Math.round(amount))
-                        : 0
-                      : amountDueToSend,
-                    quantity: qty > 0 ? qty : 1,
-                    pickupStreet: pickupStreet || "—",
-                    pickupLandmark: pickupPickupLandmark.trim() || undefined,
-                    dropoffStreet: dropoffStreet || "—",
-                    dropoffLandmark: pickupDropoffLandmark.trim() || undefined,
-                  }),
-                );
-                const createdId = created?.id ?? created?.data?.id ?? created?.transactionReference;
-                router.push({
-                  pathname: "/confirmee",
-                  params: {
-                    id: createdId ? String(createdId) : "",
-                    ...(forExpedition ? { flow: "expedition" } : {}),
-                  },
-                });
-              } catch (e: any) {
-                Alert.alert(
-                  "Erreur",
-                  String(e?.message ?? e ?? (forExpedition ? "Impossible de créer l'expédition." : "Impossible de créer la livraison.")),
-                );
-              }
-            }}
-          />
-        </View>
-      }
     >
-      <View style={{ gap: 18, marginTop: 8 }}>
+      <AppText
+        variant="dense"
+        style={{
+          fontSize: 10,
+          lineHeight: 15,
+          fontFamily: fonts.bodyBold,
+          color: "rgba(60,74,60,0.7)",
+          letterSpacing: 1,
+          textTransform: "uppercase",
+          textAlign: "center",
+        }}
+        numberOfLines={2}
+        ellipsizeMode="tail"
+      >
+        Vérifiez les informations avant de confirmer
+      </AppText>
+
+      <View style={{ gap: 18, marginTop: 16 }}>
+        <View>
+          <SectionRow label="DATE DE LIVRAISON" />
+          <Card>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View style={{ width: 40, height: 40, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
+                <SolarIcon name="solar:calendar-outline" size={24} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
+                  {scheduledDeliveryDisplay}
+                </AppText>
+              </View>
+            </View>
+          </Card>
+        </View>
+
         {forExpedition && expeditionClient ? (
           <View>
             <SectionRow label="CLIENT EXPÉDITION" />
@@ -408,37 +457,13 @@ export default function ResumeProduitRamasseScreen() {
         <View>
           <SectionRow label="TOTAL" />
           <Card>
-            <View style={{ gap: 10 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
-                  Frais de livraison
-                </AppText>
-                <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
-                  {deliveryFeeXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                </AppText>
-              </View>
-              {expressSupplementXaf > 0 ? (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
-                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodyRegular, color: "rgba(60,74,60,0.85)" }} numberOfLines={1}>
-                    Supplément express
-                  </AppText>
-                  <AppText style={{ fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={1}>
-                    {expressSupplementXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                  </AppText>
-                </View>
-              ) : null}
-              <View style={{ height: 1, backgroundColor: "#EDEEEF", marginTop: 2 }} />
-              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 2 }}>
-                <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  Total
-                </AppText>
-                <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1}>
-                  {totalXaf.toLocaleString("fr-FR").replace(/\s/g, " ")} FCFA
-                </AppText>
-              </View>
-            </View>
+            <DeliveryFeeTotalCard estimate={deliveryFeeEstimate} loading={deliveryFeeLoading} />
           </Card>
         </View>
+      </View>
+
+      <View style={{ marginTop: 24 }}>
+        <FormButton label="Confirmer la commande" onPress={handleConfirm} />
       </View>
     </ScreenLayout>
   );

@@ -7,9 +7,6 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_GATEWAY_URL": "https://livsighttest.didierdjakoua.site"
-      },
       "android": {
         "buildType": "apk"
       },
@@ -20,19 +17,34 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_GATEWAY_URL": "https://livsighttest.didierdjakoua.site"
+        "APP_VARIANT": "staging",
+        "EXPO_PUBLIC_GATEWAY_URL": "https://staging-gateway.livsight.com",
+        "EXPO_PUBLIC_ENABLE_PUSH": "true",
+        "EXPO_PUBLIC_MESSAGING_ENABLED": "true"
       },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "distribution": "store",
       "env": {
-        "EXPO_PUBLIC_GATEWAY_URL": "https://livsighttest.didierdjakoua.site"
+        "APP_VARIANT": "production",
+        "EXPO_PUBLIC_GATEWAY_URL": "https://gateway.livsight.com",
+        "EXPO_PUBLIC_ENABLE_PUSH": "true",
+        "EXPO_PUBLIC_MESSAGING_ENABLED": "false"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "$GOOGLE_PLAY_SERVICE_ACCOUNT_KEY",
+        "track": "internal"
+      }
+    }
   }
 }

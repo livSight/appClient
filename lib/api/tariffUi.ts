@@ -141,3 +141,29 @@ export function neighborhoodsForZone(neighborhoods: Neighborhood[], zoneId: numb
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b, "fr"));
 }
+
+/** Unique neighborhood names from API, sorted for autocomplete. */
+export function uniqueNeighborhoodNames(neighborhoods: Neighborhood[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const n of neighborhoods) {
+    const name = n.name?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names.sort((a, b) => a.localeCompare(b, "fr"));
+}
+
+/** Filter neighborhood names for quartier autocomplete. */
+export function filterNeighborhoodNames(
+  names: readonly string[],
+  query: string,
+  minLength: number = 2,
+): string[] {
+  const q = query.trim().toLowerCase();
+  if (q.length < minLength) return [];
+  return names.filter((name) => name.toLowerCase().includes(q));
+}

@@ -3,6 +3,7 @@ import { AppState } from "react-native";
 import { resetCurrentUserIdCache } from "@/lib/auth/currentUser";
 import { onSessionInvalidated } from "@/lib/auth/sessionEvents";
 import { authSession as defaultAuthSession, type AuthSession, type LoginCredentials, type SessionUser } from "@/lib/auth/session";
+import { unregisterPushNotificationsAsync } from "@/lib/push/registerPushNotifications";
 
 export type AuthContextValue = {
   isAuthenticated: boolean;
@@ -64,6 +65,7 @@ export function createAuthProvider(deps: AuthProviderDeps) {
     }, []);
 
     const logout = useCallback(async () => {
+      await unregisterPushNotificationsAsync();
       await deps.session.logout();
       resetCurrentUserIdCache();
       setUser(null);

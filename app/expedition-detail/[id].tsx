@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { Alert, View, Pressable } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import * as Linking from "expo-linking";
@@ -10,8 +11,13 @@ import TransactionDetailCardExpedition from "../../components/TransactionDetailC
 import { card } from "../../theme/styles";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
 import { hapticLight } from "@/lib/haptics";
+import { featureFlags } from "@/lib/featureFlags";
 import AppText from "../../components/AppText";
-import { getTransactionById, getTransactionNavigationId, type Transaction } from "@/lib/api/transactions";
+import { getTransactionById, getTransactionNavigationId, mapTxnStatusToUi, type Transaction } from "@/lib/api/transactions";
+import { scheduledDeliveryLabelFromTransaction } from "@/lib/api/transactionUi";
+import { formatScheduledDeliveryLabel } from "@/lib/scheduling/deliveryDate";
+import { isTransactionPushType, matchesOpenTransaction } from "@/lib/push/notificationRouting";
+import { usePushRefresh } from "@/lib/push/usePushRefresh";
 
 type Expedition = {
   id: string;
@@ -81,29 +87,32 @@ export default function ExpeditionDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!id) return;
-      try {
-        setLoading(true);
-        setLoadError(null);
-        const data = await getTransactionById(String(id));
-        if (!mounted) return;
-        setTx(data);
-      } catch (e: any) {
-        if (!mounted) return;
-        setTx(null);
-        setLoadError(String(e?.message ?? e ?? "Impossible de charger l'expédition."));
-      } finally {
-        if (!mounted) return;
-        setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+  const loadExpedition = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      setLoadError(null);
+      const data = await getTransactionById(String(id));
+      setTx(data);
+    } catch (e: unknown) {
+      setTx(null);
+      setLoadError(String(e instanceof Error ? e.message : e ?? "Impossible de charger l'expédition."));
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useLoadEffect(loadExpedition);
+
+  usePushRefresh(
+    useCallback(
+      (payload) => isTransactionPushType(String(payload.type)) && matchesOpenTransaction(payload, id),
+      [id],
+    ),
+    useCallback(() => {
+      void loadExpedition();
+    }, [loadExpedition]),
+  );
 
   const expedition = useMemo(() => (tx ? mapTransactionToExpedition(tx) : null), [tx]);
   const referenceTitle = useMemo(() => {
@@ -128,6 +137,21 @@ export default function ExpeditionDetailScreen() {
   }, [expedition]);
 
   const amountHeaderLabel = expedition?.collectCash ? "MONTANT À COLLECTER" : "MONTANT TOTAL";
+  const scheduledDeliveryIso =
+    typeof tx?.scheduled_delivery_date === "string" && tx.scheduled_delivery_date.trim().length
+      ? tx.scheduled_delivery_date.trim()
+      : null;
+  const scheduledDeliveryLabel = useMemo(() => {
+    if (!scheduledDeliveryIso) return null;
+    const label = formatScheduledDeliveryLabel(scheduledDeliveryIso);
+    return label === "aujourd'hui" ? "aujourd'hui" : `le ${label}`;
+  }, [scheduledDeliveryIso]);
+  const scheduledCardLabel = useMemo(() => (tx ? scheduledDeliveryLabelFromTransaction(tx) : undefined), [tx]);
+  const isPlannedStatus = String(tx?.status ?? "").trim().toLowerCase() === "scheduled";
+  const statusUiLabel = mapTxnStatusToUi(tx?.status ?? undefined);
+  const deliveryAttempt = Number.isFinite(Number(tx?.delivery_attempt))
+    ? Math.max(1, Math.floor(Number(tx?.delivery_attempt)))
+    : 1;
 
   return (
     <ScreenLayout
@@ -168,6 +192,37 @@ export default function ExpeditionDetailScreen() {
         </View>
       ) : (
         <>
+          {scheduledDeliveryIso ? (
+            <View style={[card.base, { padding: 18, marginBottom: 16 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                {isPlannedStatus ? (
+                  <View
+                    style={{
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: radii.pill,
+                      backgroundColor: "rgba(14,165,233,0.10)",
+                      borderWidth: 1,
+                      borderColor: "rgba(14,165,233,0.20)",
+                    }}
+                  >
+                    <AppText variant="dense" style={{ fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold, color: colors.primary, letterSpacing: 0.6 }} numberOfLines={1}>
+                      {statusUiLabel}
+                    </AppText>
+                  </View>
+                ) : null}
+                <AppText style={{ flex: 1, minWidth: 0, fontSize: 14, lineHeight: 20, fontFamily: fonts.bodySemi, color: colors.text }} numberOfLines={2}>
+                  Expédition prévue {scheduledDeliveryLabel}
+                </AppText>
+              </View>
+              {deliveryAttempt > 1 ? (
+                <AppText variant="dense" style={{ marginTop: 8, fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyMedium, color: colors.muted }} numberOfLines={1}>
+                  Tentative n° {deliveryAttempt}
+                </AppText>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={{ marginTop: 16 }}>
             <View style={[card.base, { padding: 18 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -219,10 +274,39 @@ export default function ExpeditionDetailScreen() {
                 { k: "Adresse destinataire", v: expedition.destinationStreet?.trim() || "—" },
                 { k: "Téléphone", v: expedition.receiverPhone?.trim() || "—" },
                 { k: "Express", v: expedition.express ? "Oui" : "Non" },
+                ...(scheduledCardLabel ? [{ k: "Date de livraison", v: scheduledCardLabel }] : []),
                 { k: "Date", v: createdLabel },
               ]}
               showCollectCashBadge={expedition.collectCash}
             />
+
+            <Pressable
+              onPress={() => {
+                if (!expedition?.id) return;
+                void hapticLight();
+                if (!featureFlags.messagingEnabled) {
+                  Alert.alert("Bientôt disponible", "La messagerie n’est pas disponible pour le moment.");
+                  return;
+                }
+                router.push({ pathname: "/inbox/[id]", params: { id: String(expedition.id), intent: "report" } });
+              }}
+              style={{
+                minHeight: 56,
+                borderRadius: radii.pill,
+                backgroundColor: "#E5E7EB",
+                alignItems: "center",
+                justifyContent: "center",
+                flexDirection: "row",
+                gap: 10,
+                paddingVertical: 14,
+              }}
+              hitSlop={10}
+            >
+              <SolarIcon name="solar:dialog-bold" size={24} color={colors.text} />
+              <AppText style={{ ...typography.bodyRegular, fontFamily: fonts.bodyBold }} numberOfLines={2} ellipsizeMode="tail">
+                Signaler un problème
+              </AppText>
+            </Pressable>
 
             <Pressable
               onPress={() => Alert.alert("Reçu PDF", "Télécharger le reçu (UI-only).")}
