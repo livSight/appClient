@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useLoadEffect } from "@/lib/hooks/useLoadEffect";
 import { View, Pressable, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import EmptyStateCard from "../../components/EmptyStateCard";
 import ScreenLayout from "../../components/ScreenLayout";
 import { colors, fonts, radii, typography } from "../../theme/tokens";
@@ -12,13 +13,19 @@ import StockProductCard, { type StockProductCardItem } from "@/components/StockP
 type Row = StockProductCardItem;
 
 function toRows(packages: Package[]): Row[] {
+  // The backend can return several packages with the same name for a user, and
+  // makeClientId is name-based — disambiguate so React keys stay unique.
+  const seen = new Map<string, number>();
   return packages
     .map((p) => {
       const name = String(p?.package_name ?? "").trim();
       if (!name) return null;
       const qty = Number.isFinite(Number(p?.quantity)) ? Math.max(0, Math.floor(Number(p.quantity))) : 0;
+      const baseId = makeClientId(p);
+      const occurrence = (seen.get(baseId) ?? 0) + 1;
+      seen.set(baseId, occurrence);
       return {
-        id: makeClientId(p),
+        id: occurrence > 1 ? `${baseId}#${occurrence}` : baseId,
         name,
         subtitle: String(p?.description ?? ""),
         qty,
@@ -54,17 +61,18 @@ export default function StockScreen() {
     }, [load]),
   );
 
-  useEffect(() => {
-    if (!addedName) return;
-    void load();
-  }, [addedName, load]);
+  useLoadEffect(
+    useCallback(() => {
+      if (addedName) void load();
+    }, [addedName, load]),
+  );
 
   return (
     <View style={{ flex: 1 }}>
       <ScreenLayout
         header={
           <View style={{ paddingBottom: 10 }}>
-            <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 30 }]} numberOfLines={2}>
+            <AppText style={[typography.screenTitle, { fontSize: 26, lineHeight: 34 }]} numberOfLines={2}>
               Mon Stock
             </AppText>
             <AppText style={[typography.subtitle, { marginTop: 4 }]}>

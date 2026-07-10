@@ -1,7 +1,8 @@
-import { Alert, View, Pressable, ActivityIndicator } from "react-native";
+import { Alert, View, Pressable, ActivityIndicator, Linking } from "react-native";
 import { useCallback, useState } from "react";
+import Constants from "expo-constants";
 import { router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router/react-navigation";
 import ScreenLayout from "../components/ScreenLayout";
 import SolarIcon from "../components/SolarIcon";
 import { card } from "../theme/styles";
@@ -12,6 +13,10 @@ import type { User } from "@/lib/api/users";
 import { getCurrentUser } from "@/lib/auth/currentUser";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { displayEmail, displayFullName, displayInitials, displayPhone } from "@/lib/userDisplay";
+import { logger } from "@/lib/logger";
+
+const SUPPORT_EMAIL = "livsight@gmail.com";
+const APP_VERSION = Constants.expoConfig?.version;
 
 function SettingRow({
   iconName,
@@ -85,10 +90,16 @@ export default function ProfileScreen() {
       setLoading(true);
       setError(null);
       const data = await getCurrentUser();
+      if (!data) {
+        setUser(null);
+        setError("Vos informations sont introuvables. Veuillez vous reconnecter.");
+        return;
+      }
       setUser(data);
     } catch (e: unknown) {
+      logger.warn("profile", "loadUser failed", e);
       setUser(null);
-      setError(String(e instanceof Error ? e.message : e ?? "Erreur"));
+      setError("Vérifiez votre connexion internet et réessayez.");
     } finally {
       setLoading(false);
     }
@@ -106,9 +117,44 @@ export default function ProfileScreen() {
     try {
       await logout();
       router.replace("/login");
+    } catch (e: unknown) {
+      logger.warn("profile", "logout failed", e);
+      Alert.alert("Déconnexion impossible", "Une erreur est survenue. Vérifiez votre connexion et réessayez.");
     } finally {
       setLoggingOut(false);
     }
+  }
+
+  function confirmLogout() {
+    Alert.alert("Déconnexion", "Voulez-vous vraiment vous déconnecter ?", [
+      { text: "Annuler", style: "cancel" },
+      { text: "Se déconnecter", style: "destructive", onPress: () => void onLogout() },
+    ]);
+  }
+
+  async function openDeletionRequest() {
+    const account = String(user?.email ?? "").trim();
+    const subject = encodeURIComponent("Demande de suppression de compte");
+    const body = encodeURIComponent(
+      `Bonjour,\n\nJe souhaite supprimer définitivement mon compte LivSight${account ? ` (${account})` : ""}.\n\nMerci.`,
+    );
+    try {
+      await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
+    } catch (e: unknown) {
+      logger.warn("profile", "mailto failed", e);
+      Alert.alert("Contact", `Envoyez votre demande de suppression à ${SUPPORT_EMAIL}.`);
+    }
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      "Supprimer le compte",
+      "Cette action est irréversible. Envoyez-nous votre demande de suppression et nous la traiterons dans les plus brefs délais.",
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Demander la suppression", style: "destructive", onPress: () => void openDeletionRequest() },
+      ],
+    );
   }
 
   const fullName = displayFullName(user);
@@ -121,7 +167,10 @@ export default function ProfileScreen() {
       header={
         <View style={{ minHeight: 44, paddingVertical: 8, flexDirection: "row", alignItems: "center" }}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace("/(tabs)");
+            }}
             hitSlop={10}
             style={{ width: 44, height: 44, justifyContent: "center" }}
           >
@@ -175,47 +224,21 @@ export default function ProfileScreen() {
       ) : (
         <>
           <View style={{ alignItems: "center", marginTop: 8, marginBottom: 22 }}>
-            <View style={{ width: 112, height: 112 }}>
-              <View
-                style={{
-                  width: 112,
-                  height: 112,
-                  borderRadius: 40,
-                  backgroundColor: "rgba(48,144,192,0.12)",
-                  borderWidth: 4,
-                  borderColor: colors.white,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <AppText style={{ fontSize: 36, lineHeight: 44, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
-                  {initials}
-                </AppText>
-              </View>
-              <Pressable
-                hitSlop={10}
-                onPress={() => {
-                  Alert.alert("Photo de profil", "La modification de la photo sera disponible prochainement.");
-                }}
-                style={{
-                  position: "absolute",
-                  right: 0,
-                  bottom: 0,
-                  width: 31,
-                  height: 31,
-                  borderRadius: 12,
-                  backgroundColor: colors.primary,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 10 },
-                  shadowOpacity: 0.12,
-                  shadowRadius: 15,
-                  elevation: 4,
-                }}
-              >
-                <SolarIcon name="solar:pen-outline" size={24} color={colors.white} />
-              </Pressable>
+            <View
+              style={{
+                width: 112,
+                height: 112,
+                borderRadius: 40,
+                backgroundColor: "rgba(48,144,192,0.12)",
+                borderWidth: 4,
+                borderColor: colors.white,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <AppText style={{ fontSize: 36, lineHeight: 44, fontFamily: fonts.bodyBold, color: colors.primary }} numberOfLines={1}>
+                {initials}
+              </AppText>
             </View>
 
             <AppText style={{ marginTop: 12, fontSize: 24, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={2} ellipsizeMode="tail">
@@ -248,23 +271,11 @@ export default function ProfileScreen() {
 
             <View style={[card.base, { paddingVertical: 0, paddingHorizontal: 0 }]}>
               <SettingRow
-                iconName="solar:question-circle-outline"
-                iconColor={"rgba(25,28,29,0.5)"}
-                title="Aide"
-                onPress={() => {
-                  Alert.alert(
-                    "Aide",
-                    "Pour toute question sur vos livraisons ou votre compte, contactez votre agence Ongola Express.",
-                  );
-                }}
-              />
-              <Divider />
-              <SettingRow
                 iconName="solar:logout-2-outline"
                 iconColor={"#BA1A1A"}
                 title={loggingOut ? "Déconnexion…" : "Déconnexion"}
                 titleColor={"#BA1A1A"}
-                onPress={loggingOut ? undefined : onLogout}
+                onPress={loggingOut ? undefined : confirmLogout}
                 showChevron
                 testID="profile-logout"
               />
@@ -276,17 +287,9 @@ export default function ProfileScreen() {
                 iconColor={"#BA1A1A"}
                 title="Supprimer le compte"
                 titleColor={"#BA1A1A"}
-                onPress={() => {
-                  Alert.alert(
-                    "Supprimer le compte",
-                    "Cette action est irréversible. Contactez le support pour demander la suppression de votre compte.",
-                    [
-                      { text: "Annuler", style: "cancel" },
-                      { text: "OK", style: "default" },
-                    ],
-                  );
-                }}
+                onPress={confirmDeleteAccount}
                 showChevron={false}
+                testID="profile-delete-account"
               />
             </View>
           </View>
@@ -308,7 +311,7 @@ export default function ProfileScreen() {
           numberOfLines={2}
           ellipsizeMode="tail"
         >
-          LivSight v1.0.0 • © 2026 Ericdt17
+          {`LivSight${APP_VERSION ? ` v${APP_VERSION}` : ""} • © ${new Date().getFullYear()} LivSight`}
         </AppText>
       </View>
     </ScreenLayout>

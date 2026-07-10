@@ -1,3 +1,4 @@
+import { forwardRef, type ComponentRef } from "react";
 import { View, type TextInputProps } from "react-native";
 import AppText from "./AppText";
 import AppTextInput from "./AppTextInput";
@@ -29,16 +30,19 @@ type Props = TextInputProps & {
  *   <FormInput label="Montant" trailing={<AppText>XAF</AppText>} ... />
  *   <FormInput label="Instructions" multiline ... />
  */
-export default function FormInput({
-  label,
-  leadingIconName,
-  leadingIconSize = 18,
-  leadingIconColor = PH,
-  trailing,
-  multiline,
-  style,
-  ...rest
-}: Props) {
+const FormInput = forwardRef<ComponentRef<typeof AppTextInput>, Props>(function FormInput(
+  {
+    label,
+    leadingIconName,
+    leadingIconSize = 18,
+    leadingIconColor = PH,
+    trailing,
+    multiline,
+    style,
+    ...rest
+  },
+  ref,
+) {
   const hasAdornment = Boolean(leadingIconName) || Boolean(trailing);
 
   return (
@@ -74,6 +78,7 @@ export default function FormInput({
         {leadingIconName ? <SolarIcon name={leadingIconName} size={leadingIconSize} color={leadingIconColor} /> : null}
 
         <AppTextInput
+          ref={ref}
           placeholderTextColor={PH}
           multiline={multiline}
           style={[
@@ -93,4 +98,6 @@ export default function FormInput({
       </View>
     </View>
   );
-}
+});
+
+export default FormInput;

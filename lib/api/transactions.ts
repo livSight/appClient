@@ -6,6 +6,13 @@ import { authSession } from "@/lib/auth/session";
 export type UiMode = "stock" | "pickup";
 export type TransactionSource = "pickup" | "stock";
 
+/** One product line on POST /api/transactions (multipart: items[i].package_name, items[i].quantity). */
+export type TransactionLineItem = {
+  package_name: string;
+  quantity: number;
+  description?: string;
+};
+
 /** Request body for POST /api/transactions (matches backend TransactionRequest). */
 export type TransactionRequest = {
   package_name: string;
@@ -14,8 +21,11 @@ export type TransactionRequest = {
   receiver_name: string;
   receiver_phone: string;
   source: TransactionSource;
+  /** ISO date YYYY-MM-DD — required by backend (scheduling.timezone Africa/Douala). */
+  scheduled_delivery_date: string;
   type?: string;
   quantity?: number;
+  items?: TransactionLineItem[];
   amount?: number;
   status?: string;
   cash_collect?: boolean;
@@ -42,6 +52,7 @@ export type Transaction = {
   weight?: string;
   type?: string;
   quantity?: number;
+  items?: TransactionLineItem[];
   user_id?: number;
   status?: string;
   transactionReference?: string;
@@ -68,6 +79,19 @@ export type Transaction = {
   destination_region?: string;
   destination_street?: string;
   destination_landmark?: string;
+  /** Planned delivery date (ISO date from backend). */
+  scheduled_delivery_date?: string | null;
+  delivery_attempt?: number | null;
+  rescheduled_at?: string | null;
+  /** Total delivery fee in XAF (base + pickup + express), set by the backend */
+  delivery_fee?: number | null;
+  delivery_fee_base?: number | null;
+  /** Pickup surcharge applied in XAF */
+  pickup_fee_applied?: number | null;
+  /** Express surcharge applied in XAF */
+  express_fee_applied?: number | null;
+  /** True while the fee could not be resolved from the destination yet */
+  delivery_fee_pending?: boolean | null;
   /** UI-friendly mode derived from source */
   mode?: UiMode;
   /** UI-friendly express flag derived from serviceLevel */
@@ -144,6 +168,26 @@ function appendTransactionImage(form: FormData, imageUri?: string) {
   form.append("image", { uri, name, type: "image/jpeg" } as unknown as Blob);
 }
 
+function appendTransactionLineItems(form: FormData, items: TransactionLineItem[] | undefined) {
+  if (!items?.length) return;
+  items.forEach((item, index) => {
+    appendFormField(form, `items[${index}].package_name`, item.package_name);
+    appendFormField(form, `items[${index}].quantity`, item.quantity);
+    appendFormField(form, `items[${index}].description`, item.description);
+  });
+}
+
+export function formatTransactionItemsLine(items: TransactionLineItem[]): string {
+  return items
+    .filter((item) => item.package_name.trim() && item.quantity > 0)
+    .map((item) => `${item.package_name.trim()} x${item.quantity}`)
+    .join(", ");
+}
+
+export function sumTransactionItemQuantities(items: TransactionLineItem[]): number {
+  return items.reduce((sum, item) => sum + (item.quantity > 0 ? item.quantity : 0), 0);
+}
+
 export function buildTransactionFormData(payload: TransactionRequest): FormData {
   const form = new FormData();
   appendFormField(form, "package_name", payload.package_name);
@@ -152,8 +196,10 @@ export function buildTransactionFormData(payload: TransactionRequest): FormData 
   appendFormField(form, "receiver_name", payload.receiver_name);
   appendFormField(form, "receiver_phone", payload.receiver_phone);
   appendFormField(form, "source", resolveApiSourceField(payload.source));
+  appendFormField(form, "scheduled_delivery_date", payload.scheduled_delivery_date);
   appendFormField(form, "type", payload.type);
   appendFormField(form, "quantity", payload.quantity);
+  appendTransactionLineItems(form, payload.items);
   appendFormField(form, "amount", payload.amount);
   appendFormField(form, "status", payload.status);
   appendFormField(form, "cash_collect", payload.cash_collect);
@@ -229,9 +275,25 @@ export function parseTransaction(raw: any): Transaction {
 
   const id = raw?.id ?? (raw?.transactionReference ? undefined : undefined);
 
+  const scheduled_delivery_date =
+    typeof raw?.scheduled_delivery_date === "string" && raw.scheduled_delivery_date.trim()
+      ? raw.scheduled_delivery_date.trim()
+      : null;
+  const delivery_attempt =
+    typeof raw?.delivery_attempt === "number" && Number.isFinite(raw.delivery_attempt)
+      ? raw.delivery_attempt
+      : null;
+  const rescheduled_at =
+    typeof raw?.rescheduled_at === "string" && raw.rescheduled_at.trim()
+      ? raw.rescheduled_at.trim()
+      : null;
+
   return {
     ...raw,
     id,
+    scheduled_delivery_date,
+    delivery_attempt,
+    rescheduled_at,
     receiver_name,
     receiver_phone,
     receiver_gender,
@@ -266,10 +328,11 @@ export function txnModeLabelFromTransaction(tx: Transaction): string {
   return "";
 }
 
-export type UiStatusBucket = "En cours" | "Livré" | "Annulé";
+export type UiStatusBucket = "Planifiée" | "En cours" | "Livré" | "Annulé";
 
 export function mapTxnStatusToUi(status?: string): UiStatusBucket {
   const s = String(status ?? "").trim().toLowerCase();
+  if (s === "scheduled") return "Planifiée";
   if (["delivered", "completed", "complete", "done", "success"].includes(s)) return "Livré";
   if (["cancelled", "canceled", "failed", "rejected", "expired", "aborted"].includes(s)) return "Annulé";
   if (["pending", "processing", "pickup", "in_progress", "inprogress", "assigned", "accepted", "created", "new", "started", ""].includes(s)) {
@@ -278,16 +341,27 @@ export function mapTxnStatusToUi(status?: string): UiStatusBucket {
   return "En cours";
 }
 
+/** Client may cancel only while the order is still `pending` (not yet in delivery). */
+export function canClientCancelTransaction(status?: string | null): boolean {
+  return String(status ?? "").trim().toLowerCase() === "pending";
+}
+
+export const CLIENT_CANCEL_BLOCKED_MESSAGE =
+  "Cette livraison est déjà en cours. Seules les commandes en attente peuvent être annulées depuis l'application.";
+
 export type StockResumePayloadInput = {
   forExpedition: boolean;
-  itemsLine: string;
+  /** @deprecated use lineItems */
+  itemsLine?: string;
+  lineItems?: TransactionLineItem[];
   description: string;
   phone: string;
   receiverName?: string;
   express: "yes" | "no";
   collectCash: "yes" | "no";
   amount: number;
-  quantity: number;
+  /** @deprecated derived from lineItems */
+  quantity?: number;
   destinationQuartier: string;
   destinationLandmark: string;
   departureCity?: string;
@@ -295,12 +369,20 @@ export type StockResumePayloadInput = {
   departureStreet: string;
   destinationCity?: string;
   destinationRegion?: string;
+  scheduledDeliveryDate: string;
 };
 
 export function buildPayloadFromStockResume(input: StockResumePayloadInput): TransactionRequest {
+  const lineItems = (input.lineItems ?? []).filter((item) => item.package_name.trim() && item.quantity > 0);
+  const itemsLine =
+    input.itemsLine?.trim() ||
+    (lineItems.length ? formatTransactionItemsLine(lineItems) : "");
+  const first = lineItems[0];
+  const totalQty =
+    lineItems.length > 0 ? sumTransactionItemQuantities(lineItems) : Math.max(1, input.quantity ?? 1);
   const destination_street = input.destinationQuartier.trim() || "—";
   return {
-    package_name: input.itemsLine.trim() || "Colis",
+    package_name: first?.package_name.trim() || itemsLine.split(",")[0]?.trim() || "Colis",
     description: input.description.trim() || "Aucune description donnée",
     destination_street,
     destination_landmark: input.destinationLandmark.trim() || undefined,
@@ -308,9 +390,10 @@ export function buildPayloadFromStockResume(input: StockResumePayloadInput): Tra
     receiver_phone: input.phone.trim(),
     source: "stock",
     type: input.forExpedition ? "expedition" : "delivery",
-    quantity: input.quantity,
+    quantity: totalQty,
+    items: lineItems.length ? lineItems : undefined,
     amount: input.amount,
-    status: "pending",
+    scheduled_delivery_date: input.scheduledDeliveryDate,
     cash_collect: input.collectCash === "yes",
     serviceLevel: mapExpressToServiceLevel(input.express),
     departure_city: input.departureCity ?? "Yaoundé",
@@ -337,6 +420,7 @@ export type PickupResumePayloadInput = {
   dropoffLandmark?: string;
   city?: string;
   region?: string;
+  scheduledDeliveryDate: string;
 };
 
 export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): TransactionRequest {
@@ -351,7 +435,7 @@ export function buildPayloadFromPickupResume(input: PickupResumePayloadInput): T
     type: input.forExpedition ? "expedition" : "delivery",
     quantity: input.quantity,
     amount: input.amount,
-    status: "pending",
+    scheduled_delivery_date: input.scheduledDeliveryDate,
     cash_collect: input.collectCash === "yes",
     serviceLevel: mapExpressToServiceLevel(input.express),
     departure_city: input.city ?? "Yaoundé",
@@ -453,4 +537,72 @@ export async function getTransactionById(id: string | number) {
   }
 
   return parseTransaction(data?.data ?? data);
+}
+
+export type CancelTransactionInput = {
+  reason: string;
+  details?: string;
+};
+
+async function resolveTransactionUpdateId(id: string | number): Promise<string> {
+  const idStr = String(id).trim();
+  if (!idStr.length) {
+    throw new Error("Identifiant de livraison manquant.");
+  }
+  if (isTransactionReference(idStr)) {
+    const tx = await getTransactionById(idStr);
+    if (tx.id == null || !String(tx.id).trim().length) {
+      throw new Error("Transaction introuvable.");
+    }
+    return String(tx.id);
+  }
+  return idStr;
+}
+
+/** Marks a transaction as cancelled (gateway status `failed`, shown as Annulé in UI). */
+export async function cancelTransaction(id: string | number, input: CancelTransactionInput): Promise<Transaction> {
+  const sessionUser = await authSession.getSessionUser();
+  if (!sessionUser?.keycloakId) {
+    throw new Error("Session expirée. Reconnectez-vous pour annuler cette livraison.");
+  }
+
+  const updateId = await resolveTransactionUpdateId(id);
+  const url = `${API_BASE_URL}/api/transactions/${encodeURIComponent(updateId)}`;
+
+  logger.info("cancelTransaction", "PUT /api/transactions/:id", {
+    url,
+    id: updateId,
+    reason: input.reason,
+    details: input.details,
+    keycloakId: sessionUser.keycloakId,
+  });
+
+  const res = await apiFetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": sessionUser.keycloakId,
+    },
+    body: JSON.stringify({ status: "failed" }),
+  });
+
+  const rawText = await res.text().catch(() => "");
+  const data = parseResponseText(rawText);
+
+  if (!res.ok) {
+    logger.info("cancelTransaction", "PUT /api/transactions/:id failed", { status: res.status, body: data ?? rawText });
+    throw new Error(errorMessageFrom(res.status, data, rawText));
+  }
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const record = data as Record<string, unknown>;
+    if (record.data && typeof record.data === "object") {
+      return parseTransaction(record.data);
+    }
+    if ("id" in record || "transactionReference" in record || "status" in record) {
+      return parseTransaction(record);
+    }
+  }
+
+  return getTransactionById(updateId);
 }

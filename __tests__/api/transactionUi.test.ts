@@ -1,11 +1,15 @@
 import {
+  filterCardItemsByDate,
+  filterCardItemsByStatus,
   filterTransactionsForUser,
   mapTransactionToCardItem,
+  scheduledDeliveryLabelFromTransaction,
   serviceLabelFromType,
   sourceLabelFromTransaction,
   sortTransactionsForDisplay,
 } from "@/lib/api/transactionUi";
 import type { Transaction } from "@/lib/api/transactions";
+import type { TransactionCardItem } from "@/components/TransactionCard";
 
 const baseTx = (overrides: Partial<Transaction> = {}): Transaction => ({
   package_name: "Sac",
@@ -136,6 +140,60 @@ describe("transactionUi", () => {
       const item = mapTransactionToCardItem(baseTx({ transactionReference: "LVS-TEST123456" }));
       expect(item.ref).toBe("LVS-TEST123456");
     });
+
+    it("maps scheduled status to Planifiée", () => {
+      const item = mapTransactionToCardItem(baseTx({ status: "scheduled" }));
+      expect(item.status).toBe("Planifiée");
+      expect(item.statusLabel).toBe("Planifiée");
+    });
+
+    it("includes scheduledLabel when scheduled_delivery_date is set", () => {
+      const item = mapTransactionToCardItem(
+        baseTx({ status: "scheduled", scheduled_delivery_date: "2026-07-12" }),
+      );
+      expect(item.scheduledLabel).toBe("12 juillet");
+    });
+  });
+
+  describe("scheduledDeliveryLabelFromTransaction", () => {
+    it("returns undefined when date is missing", () => {
+      expect(scheduledDeliveryLabelFromTransaction(baseTx())).toBeUndefined();
+    });
+
+    it("formats scheduled delivery date in French", () => {
+      expect(
+        scheduledDeliveryLabelFromTransaction(baseTx({ scheduled_delivery_date: "2026-07-12" })),
+      ).toBe("12 juillet");
+    });
+  });
+
+  describe("filterCardItemsByStatus", () => {
+    const items: TransactionCardItem[] = [
+      {
+        id: "1",
+        title: "Sac",
+        quartier: "—",
+        dateLabel: "—",
+        status: "Planifiée",
+        statusLabel: "Planifiée",
+        isExpedition: false,
+        createdAtMs: null,
+      },
+      {
+        id: "2",
+        title: "Sac",
+        quartier: "—",
+        dateLabel: "—",
+        status: "En cours",
+        statusLabel: "En cours",
+        isExpedition: false,
+        createdAtMs: null,
+      },
+    ];
+
+    it("keeps only Planifiée items", () => {
+      expect(filterCardItemsByStatus(items, "Planifiée").map((i) => i.id)).toEqual(["1"]);
+    });
   });
 
   it("filters transactions to the signed-in user", () => {
@@ -161,5 +219,55 @@ describe("transactionUi", () => {
     ];
     const sorted = sortTransactionsForDisplay(txns);
     expect(sorted.map((t) => t.transactionReference)).toEqual(["LVS-NEWEST", "LVS-MIDDLE", "LVS-OLDEST"]);
+  });
+});
+
+describe("filterCardItemsByDate", () => {
+  // Fixed reference: 2026-07-09 12:00 local time
+  const NOW = new Date(2026, 6, 9, 12, 0, 0).getTime();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  const item = (id: string, createdAtMs: number | null): TransactionCardItem => ({
+    id,
+    title: "Sac",
+    quartier: "—",
+    dateLabel: "—",
+    status: "En cours",
+    statusLabel: "En cours",
+    isExpedition: false,
+    createdAtMs,
+  });
+
+  const items = [
+    item("today", new Date(2026, 6, 9, 8, 0, 0).getTime()),
+    item("3-days", NOW - 3 * DAY_MS),
+    item("20-days", NOW - 20 * DAY_MS),
+    item("60-days", NOW - 60 * DAY_MS),
+    item("no-date", null),
+  ];
+
+  it("returns everything for Toutes dates", () => {
+    expect(filterCardItemsByDate(items, "Toutes dates", NOW)).toHaveLength(5);
+  });
+
+  it("keeps only today's items for Aujourd'hui", () => {
+    expect(filterCardItemsByDate(items, "Aujourd'hui", NOW).map((i) => i.id)).toEqual(["today"]);
+  });
+
+  it("keeps the last 7 days", () => {
+    expect(filterCardItemsByDate(items, "7 derniers jours", NOW).map((i) => i.id)).toEqual(["today", "3-days"]);
+  });
+
+  it("keeps the last 30 days", () => {
+    expect(filterCardItemsByDate(items, "30 derniers jours", NOW).map((i) => i.id)).toEqual([
+      "today",
+      "3-days",
+      "20-days",
+    ]);
+  });
+
+  it("excludes items without a timestamp when a period is selected", () => {
+    const ids = filterCardItemsByDate(items, "30 derniers jours", NOW).map((i) => i.id);
+    expect(ids).not.toContain("no-date");
   });
 });

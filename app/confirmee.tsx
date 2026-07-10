@@ -5,11 +5,20 @@ import SolarIcon from "../components/SolarIcon";
 import LottieView from "lottie-react-native";
 import { colors, fonts, radii, typography } from "../theme/tokens";
 import AppText from "../components/AppText";
+import { formatScheduledDeliveryConfirmeeSubtitle } from "@/lib/scheduling/deliveryDate";
 
 export default function ConfirmeeScreen() {
-  const { flow, id } = useLocalSearchParams<{ flow?: string; id?: string }>();
+  const { flow, id, scheduledDeliveryDate } = useLocalSearchParams<{
+    flow?: string;
+    id?: string;
+    scheduledDeliveryDate?: string;
+  }>();
   const isExpedition = flow === "expedition";
   const canOpenDetail = typeof id === "string" && id.trim().length > 0;
+  const scheduledSubtitle =
+    typeof scheduledDeliveryDate === "string" && scheduledDeliveryDate.trim().length
+      ? formatScheduledDeliveryConfirmeeSubtitle(scheduledDeliveryDate.trim(), isExpedition)
+      : null;
 
   return (
     <ScreenLayout>
@@ -34,11 +43,11 @@ export default function ConfirmeeScreen() {
           style={{ width: 120, height: 120, marginBottom: 28 }}
         />
 
-        <AppText style={{ ...typography.screenTitle, fontSize: 28, lineHeight: 34 }} numberOfLines={2}>
+        <AppText style={{ ...typography.screenTitle, fontSize: 28, lineHeight: 38 }} numberOfLines={2}>
           Demande envoyée !
         </AppText>
         <AppText style={{ ...typography.subtitle, marginTop: 8 }} numberOfLines={2}>
-          {isExpedition ? "Expédition enregistrée" : "Livraison enregistrée"}
+          {scheduledSubtitle ?? (isExpedition ? "Expédition enregistrée" : "Livraison enregistrée")}
         </AppText>
       </View>
 

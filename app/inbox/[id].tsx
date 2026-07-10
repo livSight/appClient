@@ -1,18 +1,35 @@
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, FlatList, KeyboardAvoidingView, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { useFocusEffect } from "expo-router/react-navigation";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AppText from "@/components/AppText";
 import AppTextInput from "@/components/AppTextInput";
-import ScreenLayout from "@/components/ScreenLayout";
+import HeroGridBackground from "@/components/HeroGridBackground";
 import SolarIcon from "@/components/SolarIcon";
-import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
+import { getCurrentUserId } from "@/lib/auth/currentUser";
 import { getTransactionById, type Transaction } from "@/lib/api/transactions";
+import { setLocalReadAt } from "@/lib/api/localReadStore";
+import { featureFlags } from "@/lib/featureFlags";
+import {
+  formatMessageMeta,
+  formatMessageTime,
+  lastMessageFromList,
+  messageSideForSender,
+} from "@/lib/api/ticketUi";
+import {
+  loadClientThread,
+  resolveNumericTransactionIdFromRoute,
+  sendClientMessage,
+  type TicketMessage,
+} from "@/lib/api/tickets";
 import {
   formatTransactionAmountLabel,
   formatTransactionRef,
   inboxCategoryBannerLabel,
   isCollectingCash,
 } from "@/lib/api/transactionUi";
+import { colors, fonts, radii, spacing, typography } from "@/theme/tokens";
 
 type TxInfo = {
   ref: string;
@@ -130,7 +147,7 @@ function TransactionBanner({ tx, onPress }: { tx: TxInfo; onPress?: () => void }
   );
 }
 
-type Message = {
+type BubbleMessage = {
   id: string;
   side: "left" | "right";
   text: string;
@@ -138,7 +155,7 @@ type Message = {
   time?: string;
 };
 
-function Bubble({ msg }: { msg: Message }) {
+function Bubble({ msg }: { msg: BubbleMessage }) {
   const isLeft = msg.side === "left";
   const bubbleBg = isLeft ? "#F3F4F5" : colors.primary;
   const textColor = isLeft ? colors.text : colors.white;
@@ -150,11 +167,7 @@ function Bubble({ msg }: { msg: Message }) {
         <View
           style={{
             backgroundColor: bubbleBg,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            borderBottomLeftRadius: isLeft ? 24 : 24,
-            borderBottomRightRadius: isLeft ? 24 : 24,
-            ...(isLeft ? { borderBottomLeftRadius: 24, borderBottomRightRadius: 24 } : { borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }),
+            borderRadius: 24,
             paddingLeft: 20,
             paddingRight: isLeft ? 23 : 55,
             paddingTop: 15,
@@ -190,57 +203,57 @@ function Bubble({ msg }: { msg: Message }) {
   );
 }
 
-export default function InboxChatScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const [draft, setDraft] = useState("");
-  const [tx, setTx] = useState<TxInfo | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    if (!id) {
-      setTx(null);
-      return;
-    }
-    (async () => {
-      try {
-        const data = await getTransactionById(String(id));
-        if (!mounted) return;
-        setTx(mapTransactionToTxInfo(data));
-      } catch {
-        if (!mounted) return;
-        setTx(null);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [id]);
-
-  const messages = useMemo<Message[]>(
-    () => [
-      {
-        id: "m1",
-        side: "left",
-        text: "Bonjour Alex, notre coursier est en route. Avez-vous des précisions pour la remise du colis ?",
-        meta: "Ongola Express • 10:45",
-      },
-      {
-        id: "m2",
-        side: "right",
-        text: "Bonjour ! Oui, le client est devant l'immeuble. Il est habillé en habit rouge.",
-        meta: "",
-        time: "10:47",
-      },
-    ],
-    [],
+function ConversationPill() {
+  return (
+    <View style={{ alignItems: "center" }}>
+      <View style={{ minHeight: 24, borderRadius: radii.pill, backgroundColor: "#F3F4F5", paddingHorizontal: 16, paddingVertical: 4 }}>
+        <AppText variant="dense" style={{ fontSize: 11, lineHeight: 16.5, fontFamily: fonts.bodyBold, color: "#3C4A3C", letterSpacing: 1.1, textTransform: "uppercase" }} numberOfLines={1}>
+          Conversation
+        </AppText>
+      </View>
+    </View>
   );
+}
 
-  const footerNode = (
+function mapApiMessages(messages: TicketMessage[], currentUserId: number | null): BubbleMessage[] {
+  return messages.map((m, index) => {
+    const side = messageSideForSender(m.senderId, currentUserId);
+    return {
+      id: String(m.id ?? `${m.ticketId}-${index}`),
+      side,
+      text: m.content,
+      meta: side === "left" ? formatMessageMeta(m.createdAt) : "",
+      time: side === "right" ? formatMessageTime(m.createdAt) : undefined,
+    };
+  });
+}
+
+function ChatInputFooter({
+  draft,
+  inputPlaceholder,
+  canSend,
+  sending,
+  refLabel,
+  bottomPadding,
+  onChangeText,
+  onSend,
+}: {
+  draft: string;
+  inputPlaceholder: string;
+  canSend: boolean;
+  sending: boolean;
+  refLabel: string;
+  bottomPadding: number;
+  onChangeText: (text: string) => void;
+  onSend: () => void;
+}) {
+  return (
     <View
+      testID="inbox-chat-input"
       style={{
         paddingHorizontal: 16,
         paddingTop: 16,
-        paddingBottom: 24,
+        paddingBottom: bottomPadding,
         backgroundColor: "rgba(255,255,255,0.92)",
       }}
     >
@@ -249,6 +262,7 @@ export default function InboxChatScreen() {
           onPress={() => {}}
           hitSlop={10}
           style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }}
+          accessibilityLabel="Joindre un fichier"
         >
           <SolarIcon name="solar:add-square-outline" size={20} color={colors.text} />
         </Pressable>
@@ -256,8 +270,8 @@ export default function InboxChatScreen() {
         <View style={{ flex: 1, minWidth: 0 }}>
           <AppTextInput
             value={draft}
-            onChangeText={setDraft}
-            placeholder="Écrire un message..."
+            onChangeText={onChangeText}
+            placeholder={inputPlaceholder}
             placeholderTextColor={"rgba(60,74,60,0.50)"}
             style={{
               fontSize: 15,
@@ -265,12 +279,18 @@ export default function InboxChatScreen() {
               color: colors.text,
               paddingVertical: 8,
             }}
+            editable={!sending}
+            onSubmitEditing={onSend}
+            returnKeyType="send"
           />
         </View>
 
         <Pressable
-          onPress={() => {}}
+          onPress={onSend}
+          disabled={!canSend}
           hitSlop={10}
+          accessibilityLabel="Envoyer le message"
+          accessibilityState={{ disabled: !canSend }}
           style={{
             width: 40,
             height: 40,
@@ -278,6 +298,7 @@ export default function InboxChatScreen() {
             backgroundColor: colors.primary,
             alignItems: "center",
             justifyContent: "center",
+            opacity: canSend ? 1 : 0.5,
           }}
         >
           <SolarIcon name="solar:alt-arrow-right-outline" size={20} color={colors.white} />
@@ -285,22 +306,128 @@ export default function InboxChatScreen() {
       </View>
 
       <AppText variant="dense" style={{ ...typography.subtitle, fontSize: 10, lineHeight: 14, marginTop: 8, opacity: 0.6 }} numberOfLines={1}>
-        Ref: {id ?? "—"}
+        Ref: {refLabel}
       </AppText>
     </View>
   );
+}
+
+export default function InboxChatScreen() {
+  const insets = useSafeAreaInsets();
+  const { id, intent } = useLocalSearchParams<{ id?: string; intent?: string }>();
+  const isReportCompose = intent === "report";
+  const [draft, setDraft] = useState("");
+  const [tx, setTx] = useState<TxInfo | null>(null);
+  const [ticketId, setTicketId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<TicketMessage[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [transactionNumericId, setTransactionNumericId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (featureFlags.messagingEnabled) return;
+    router.replace("/(tabs)");
+  }, []);
+
+  const topPadding = Math.max(spacing.screenPaddingX, insets.top + spacing.screenPaddingX);
+  const bottomPadding = Math.max(24, insets.bottom + 8);
+
+  const refreshThread = useCallback(async () => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    setLocalReadAt(String(id));
+    setLoading(true);
+    try {
+      const [numericId, userId] = await Promise.all([
+        resolveNumericTransactionIdFromRoute(String(id)),
+        getCurrentUserId(),
+      ]);
+      setTransactionNumericId(numericId);
+      setCurrentUserId(userId);
+
+      const [txData, thread] = await Promise.all([
+        getTransactionById(String(id)),
+        loadClientThread(numericId, isReportCompose ? { composeOnly: true } : undefined),
+      ]);
+      setTx(mapTransactionToTxInfo(txData));
+      setTicketId(isReportCompose ? null : (thread.ticket?.id ?? null));
+      setMessages(thread.messages);
+      // Re-stamp with the newest loaded message so a device clock lagging the
+      // server can't leave a just-viewed message permanently "unread".
+      setLocalReadAt(String(id), lastMessageFromList(thread.messages)?.createdAt ?? null);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Impossible de charger la conversation.";
+      Alert.alert("Erreur", message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id, isReportCompose]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshThread();
+    }, [refreshThread]),
+  );
+
+  const bubbleMessages = useMemo(
+    () => mapApiMessages(messages, currentUserId),
+    [messages, currentUserId],
+  );
+
+  const reversedMessages = useMemo(() => [...bubbleMessages].reverse(), [bubbleMessages]);
+
+  const canSend = draft.trim().length > 0 && !sending && transactionNumericId != null;
+  const inputPlaceholder = isReportCompose ? "Décrivez votre problème..." : "Écrire un message...";
+  const emptyStateText = isReportCompose
+    ? "Décrivez votre problème dans le champ ci-dessous. Votre message sera envoyé lorsque vous appuierez sur envoyer."
+    : "Aucun message pour l'instant. Écrivez à notre équipe pour cette commande.";
+
+  const handleSend = () => {
+    if (!canSend || transactionNumericId == null) return;
+    const content = draft.trim();
+    void (async () => {
+      setSending(true);
+      try {
+        const updatedTicket = await sendClientMessage(
+          transactionNumericId,
+          isReportCompose ? null : ticketId,
+          content,
+        );
+        setTicketId(updatedTicket.id);
+        setDraft("");
+        const thread = await loadClientThread(transactionNumericId);
+        setMessages(thread.messages);
+        setTicketId(thread.ticket?.id ?? updatedTicket.id);
+        if (id) setLocalReadAt(String(id), lastMessageFromList(thread.messages)?.createdAt ?? null);
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Impossible d'envoyer le message.";
+        Alert.alert("Erreur", message);
+      } finally {
+        setSending(false);
+      }
+    })();
+  };
 
   return (
-    <ScreenLayout
-      header={
-        <View>
+    <View style={{ flex: 1, backgroundColor: colors.white }}>
+      <HeroGridBackground />
+      <KeyboardAvoidingView testID="inbox-chat-kav" style={{ flex: 1 }} behavior="padding">
+        <View
+          style={{
+            paddingTop: topPadding,
+            paddingHorizontal: spacing.screenPaddingX,
+            backgroundColor: "transparent",
+          }}
+        >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10 }}>
             <Pressable onPress={() => router.back()} hitSlop={10} style={{ width: 36, height: 44, justifyContent: "center" }}>
               <SolarIcon name="solar:alt-arrow-left-outline" size={24} color={colors.primary} />
             </Pressable>
 
             <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
-              {/* Avatar with online dot */}
               <View style={{ width: 42, height: 42, flexShrink: 0 }}>
                 <View
                   style={{
@@ -316,50 +443,19 @@ export default function InboxChatScreen() {
                     variant="dense"
                     style={{ fontSize: 14, lineHeight: 18, fontFamily: fonts.bodyBold, color: colors.white, letterSpacing: 0.5 }}
                   >
-                    AL
+                    LS
                   </AppText>
                 </View>
-                <View
-                  style={{
-                    position: "absolute",
-                    right: 1,
-                    bottom: 1,
-                    width: 11,
-                    height: 11,
-                    borderRadius: 9999,
-                    backgroundColor: "#22C55E",
-                    borderWidth: 2,
-                    borderColor: colors.white,
-                  }}
-                />
               </View>
 
               <View style={{ flex: 1, minWidth: 0 }}>
                 <AppText style={{ fontSize: 16, lineHeight: 22, fontFamily: fonts.bodyBold, color: colors.text }} numberOfLines={1} ellipsizeMode="tail">
-                  Agent Livsight
+                  Agent LivSight
                 </AppText>
-                <AppText variant="dense" style={{ fontSize: 11, lineHeight: 15, fontFamily: fonts.bodySemi, color: "#22C55E" }} numberOfLines={1}>
-                  En ligne
+                <AppText variant="dense" style={{ fontSize: 11, lineHeight: 15, fontFamily: fonts.bodySemi, color: "rgba(60,74,60,0.55)" }} numberOfLines={1}>
+                  Assistance commande
                 </AppText>
               </View>
-            </View>
-
-            {/* Action buttons: video + phone */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Pressable
-                onPress={() => {}}
-                hitSlop={10}
-                style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
-              >
-                <SolarIcon name="solar:videocamera-outline" size={22} color={colors.primary} />
-              </Pressable>
-              <Pressable
-                onPress={() => {}}
-                hitSlop={10}
-                style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
-              >
-                <SolarIcon name="solar:phone-outline" size={20} color={colors.primary} />
-              </Pressable>
             </View>
           </View>
 
@@ -376,23 +472,49 @@ export default function InboxChatScreen() {
             />
           ) : null}
         </View>
-      }
-      footer={footerNode}
-    >
-      <View style={{ paddingTop: 18, paddingBottom: 24, gap: 24 }}>
-        <View style={{ alignItems: "center" }}>
-          <View style={{ minHeight: 24, borderRadius: radii.pill, backgroundColor: "#F3F4F5", paddingHorizontal: 16, paddingVertical: 4 }}>
-            <AppText variant="dense" style={{ fontSize: 11, lineHeight: 16.5, fontFamily: fonts.bodyBold, color: "#3C4A3C", letterSpacing: 1.1, textTransform: "uppercase" }} numberOfLines={1}>
-              Aujourd&apos;hui
+
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: spacing.screenPaddingX }}>
+            <AppText style={{ ...typography.subtitle, fontFamily: fonts.bodySemi }} numberOfLines={2}>
+              Chargement…
             </AppText>
           </View>
-        </View>
+        ) : bubbleMessages.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: "center", paddingHorizontal: spacing.screenPaddingX }}>
+            <AppText style={{ ...typography.subtitle, textAlign: "center" }} numberOfLines={4}>
+              {emptyStateText}
+            </AppText>
+          </View>
+        ) : (
+          <FlatList
+            testID="inbox-message-list"
+            data={reversedMessages}
+            inverted
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <Bubble msg={item} />}
+            ItemSeparatorComponent={() => <View style={{ height: 24 }} />}
+            ListFooterComponent={ConversationPill}
+            contentContainerStyle={{
+              paddingHorizontal: spacing.screenPaddingX,
+              paddingVertical: 8,
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            style={{ flex: 1 }}
+          />
+        )}
 
-        {messages.map((m) => (
-          <Bubble key={m.id} msg={m} />
-        ))}
-      </View>
-    </ScreenLayout>
+        <ChatInputFooter
+          draft={draft}
+          inputPlaceholder={inputPlaceholder}
+          canSend={canSend}
+          sending={sending}
+          refLabel={id ?? "—"}
+          bottomPadding={bottomPadding}
+          onChangeText={setDraft}
+          onSend={handleSend}
+        />
+      </KeyboardAvoidingView>
+    </View>
   );
 }
-

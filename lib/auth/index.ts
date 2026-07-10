@@ -1,4 +1,4 @@
-export { login, AuthError, type LoginCredentials, type AuthTokens } from "./authApi";
+export { login, refreshTokens, revokeRefreshToken, AuthError, type LoginCredentials, type AuthTokens } from "./authApi";
 export { decodeJwtPayload, getTokenExpiryMs, isTokenExpired, type JwtPayload } from "./jwt";
 export {
   TOKEN_STORE_KEYS,

@@ -1,4 +1,3 @@
-import { View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { colors, radii, spacing, typography } from "../theme/tokens";
@@ -26,46 +25,24 @@ export default function PromoBanner({
       style={{
         borderRadius: radii.card,
         paddingHorizontal: 24,
-        paddingTop: 16,
-        paddingBottom: 16,
+        paddingTop: 28,
+        paddingBottom: 28,
+        minHeight: 190,
+        justifyContent: "center",
         overflow: "hidden",
         marginBottom: spacing.sectionGap,
       }}
     >
-      {/* Decorative circles */}
-      <View
-        style={{
-          position: "absolute",
-          right: -20,
-          bottom: -20,
-          width: 160,
-          height: 160,
-          borderRadius: radii.pill,
-          backgroundColor: "rgba(255,255,255,0.35)",
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          right: 0,
-          top: -12,
-          width: 96,
-          height: 96,
-          borderRadius: radii.pill,
-          backgroundColor: "rgba(48,144,192,0.85)",
-        }}
-      />
-
       <AppText variant="dense" style={typography.label} numberOfLines={1}>
         {label}
       </AppText>
-      <AppText style={[typography.bannerTitle, { marginTop: 6 }]}>
+      <AppText style={[typography.bannerTitle, { marginTop: 8 }]}>
         {title}
       </AppText>
       <PillButton
         label={ctaLabel}
         variant="white"
-        style={{ marginTop: 12 }}
+        style={{ marginTop: 16 }}
         onPress={onPress ?? (() => router.push("/ma-demande-livraison"))}
       />
     </LinearGradient>

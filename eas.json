@@ -19,25 +19,32 @@
       "env": {
         "APP_VARIANT": "staging",
         "EXPO_PUBLIC_GATEWAY_URL": "https://staging-gateway.livsight.com",
-        "EXPO_PUBLIC_ENABLE_PUSH": "true"
+        "EXPO_PUBLIC_ENABLE_PUSH": "true",
+        "EXPO_PUBLIC_MESSAGING_ENABLED": "true"
       },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
-      "distribution": "internal",
+      "distribution": "store",
       "env": {
         "APP_VARIANT": "production",
         "EXPO_PUBLIC_GATEWAY_URL": "https://gateway.livsight.com",
-        "EXPO_PUBLIC_ENABLE_PUSH": "true"
+        "EXPO_PUBLIC_ENABLE_PUSH": "true",
+        "EXPO_PUBLIC_MESSAGING_ENABLED": "false"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle"
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "$GOOGLE_PLAY_SERVICE_ACCOUNT_KEY",
+        "track": "internal"
+      }
+    }
   }
 }

@@ -1,4 +1,4 @@
-// @@iconify-code-gen
+// @@iconify-code-gen — injects registered Solar icons (see babel.config.js ICONS)
 import { Stack, usePathname } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import "../global.css";
@@ -6,6 +6,8 @@ import { usePushNotifications } from "@/lib/push/usePushNotifications";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { useAuthGuard } from "@/lib/auth/useAuthGuard";
 import AppBackground from "@/components/AppBackground";
+import { UnreadCountProvider } from "@/lib/unreadCount";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useFonts } from "expo-font";
 import {
   Montserrat_400Regular,
@@ -58,8 +60,12 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <KeyboardProvider>
+      <AuthProvider>
+        <UnreadCountProvider>
+          <RootLayoutNav />
+        </UnreadCountProvider>
+      </AuthProvider>
+    </KeyboardProvider>
   );
 }

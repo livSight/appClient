@@ -2,11 +2,19 @@ jest.mock("@/lib/api/client", () => ({
   apiFetch: jest.fn(),
 }));
 
+jest.mock("@/lib/auth/session", () => ({
+  authSession: {
+    getSessionUser: jest.fn(),
+  },
+}));
+
 import { apiFetch } from "@/lib/api/client";
+import { authSession } from "@/lib/auth/session";
 import {
   findUserByKeycloakId,
   getUserById,
   getUserByKeycloakId,
+  updateCurrentUser,
   userIdFromUser,
 } from "@/lib/api/users";
 
@@ -109,5 +117,65 @@ describe("getUserById", () => {
 
     expect(apiFetch).toHaveBeenCalledWith(`${API_BASE}/api/users/3`, { method: "GET" });
     expect(user.first_name).toBe("Maxime");
+  });
+});
+
+describe("updateCurrentUser", () => {
+  const KEYCLOAK_ID = "5785160a-6c5c-44d5-96fd-d28aa677d8d4";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (authSession.getSessionUser as jest.Mock).mockResolvedValue({ keycloakId: KEYCLOAK_ID });
+  });
+
+  it("PUTs /api/users/:keycloakId with X-User-Id and the JSON payload", async () => {
+    mockApiResponse(200, { id: 3, keycloakId: KEYCLOAK_ID, first_name: "Snake", city: "Yaoundé" });
+
+    const input = {
+      first_name: "Snake",
+      last_name: "User",
+      email: "snake123@example.com",
+      phone: "0745695140",
+      dateOfBird: "1990-01-15",
+      city: "Yaoundé",
+      region: "Centre",
+      street: "Bastos",
+    };
+
+    const user = await updateCurrentUser(input);
+
+    expect(apiFetch).toHaveBeenCalledWith(`${API_BASE}/api/users/${KEYCLOAK_ID}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": KEYCLOAK_ID,
+      },
+      body: JSON.stringify(input),
+    });
+    expect(user.first_name).toBe("Snake");
+    expect(user.city).toBe("Yaoundé");
+  });
+
+  it("unwraps a { data: user } response envelope", async () => {
+    mockApiResponse(200, { data: { id: 3, first_name: "Snake" } });
+
+    const user = await updateCurrentUser({ first_name: "Snake" });
+
+    expect(user.first_name).toBe("Snake");
+  });
+
+  it("throws with the API message when the update fails", async () => {
+    mockApiResponse(403, { message: "Forbidden: cannot update another user" });
+
+    await expect(updateCurrentUser({ first_name: "X" })).rejects.toThrow(
+      "Forbidden: cannot update another user",
+    );
+  });
+
+  it("throws when there is no session user", async () => {
+    (authSession.getSessionUser as jest.Mock).mockResolvedValue(null);
+
+    await expect(updateCurrentUser({ first_name: "X" })).rejects.toThrow("Session expirée");
+    expect(apiFetch).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,8 @@
-import { login, AuthError, type AuthTokens } from "@/lib/auth/authApi";
+import { login, refreshTokens, revokeRefreshToken, AuthError, type AuthTokens } from "@/lib/auth/authApi";
 
 const LOGIN_URL = "http://localhost:4040/auth/login";
+const REFRESH_URL = "http://localhost:4040/auth/refresh?refreshToken=refresh-token-xyz";
+const LOGOUT_URL = "http://localhost:4040/auth/logout?refreshToken=refresh-token-xyz";
 
 function mockFetchJson(status: number, body: unknown) {
   (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -110,6 +112,93 @@ describe("login", () => {
     await expect(login(credentials)).rejects.toMatchObject({
       name: "AuthError",
       message: "HTTP 500",
+      status: 500,
+    });
+  });
+});
+
+describe("refreshTokens", () => {
+  const sampleResponse: AuthTokens = {
+    accessToken: "access-token-new",
+    refreshToken: "refresh-token-rotated",
+    expiresIn: 300,
+    tokenType: "Bearer",
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("POSTs to /auth/refresh with the refresh token as a query param", async () => {
+    mockFetchJson(200, sampleResponse);
+
+    await refreshTokens("refresh-token-xyz");
+
+    expect(global.fetch).toHaveBeenCalledWith(REFRESH_URL, {
+      method: "POST",
+      headers: { accept: "application/json" },
+    });
+  });
+
+  it("URL-encodes the refresh token", async () => {
+    mockFetchJson(200, sampleResponse);
+
+    await refreshTokens("token+with/special=chars");
+
+    const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
+    expect(url).toBe(
+      "http://localhost:4040/auth/refresh?refreshToken=token%2Bwith%2Fspecial%3Dchars",
+    );
+  });
+
+  it("returns the rotated token set", async () => {
+    mockFetchJson(200, sampleResponse);
+
+    const tokens = await refreshTokens("refresh-token-xyz");
+
+    expect(tokens).toEqual(sampleResponse);
+  });
+
+  it("throws AuthError with status on 4xx rejection", async () => {
+    mockFetchJson(400, { message: "invalid_grant" });
+
+    await expect(refreshTokens("refresh-token-xyz")).rejects.toMatchObject({
+      name: "AuthError",
+      message: "invalid_grant",
+      status: 400,
+    });
+  });
+
+  it("throws AuthError without status on network failure", async () => {
+    (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("Network request failed"));
+
+    const err = await refreshTokens("refresh-token-xyz").catch((e) => e);
+    expect(err).toBeInstanceOf(AuthError);
+    expect(err.status).toBeUndefined();
+  });
+});
+
+describe("revokeRefreshToken", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("POSTs to /auth/logout with the refresh token as a query param", async () => {
+    mockFetchText(200, "");
+
+    await revokeRefreshToken("refresh-token-xyz");
+
+    expect(global.fetch).toHaveBeenCalledWith(LOGOUT_URL, {
+      method: "POST",
+      headers: { accept: "application/json" },
+    });
+  });
+
+  it("throws AuthError on non-2xx", async () => {
+    mockFetchText(500, "");
+
+    await expect(revokeRefreshToken("refresh-token-xyz")).rejects.toMatchObject({
+      name: "AuthError",
       status: 500,
     });
   });
