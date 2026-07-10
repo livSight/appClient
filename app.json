@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.livsight.client",
+      "bundleIdentifier": "com.ericdt17.livsightclient",
       "deploymentTarget": "16.4",
       "infoPlist": {
         "UIBackgroundModes": [
@@ -25,7 +25,7 @@
     },
     "android": {
       "googleServicesFile": "./google-services.json",
-      "package": "com.ericdt17.livsight",
+      "package": "com.livsight.client",
       "versionCode": 2,
       "minSdkVersion": 23,
       "adaptiveIcon": {
